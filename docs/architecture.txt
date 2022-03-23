@@ -1,0 +1,15 @@
+List of modules and classes in those modules.
+- environment.py:
+	- Spider
+	- Wall
+	- WaterPump(?)
+- calculations.py:
+	- Kinematics
+	- GeometryTools
+	- Planner (Path + Movement planners)	
+- simulation.py:
+	- Plotter2d
+- dynamixel.py
+- optimization.py
+	- PinSelectionOptimizator (MovementAnalyzer)
+- mappers.py
