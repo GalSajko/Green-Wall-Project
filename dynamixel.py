@@ -134,12 +134,25 @@ class MotorDriver:
 
         print("Motors on desired position.")  
     
-    def isMotorMoving(self, motorId):
-        """Check if motor with motorId is moving or not.
+    def isLegMoving(self, legId):
+        """Check if leg with legId is moving or not.
 
-        :param motorId: Motor Id.
-        :return: True if motor is moving, False otherwise.
+        :param motorId: Leg Id.
+        :return: True if leg is moving, False otherwise.
         """
-        isMoving, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.READ_MOVING_ADDR)
-        isMoving = bool(isMoving)
-        return isMoving
+
+        movingArray = []
+        for motorId in self.motorsIds[legId]:
+            isMoving, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.READ_MOVING_ADDR)
+            if result != COMM_SUCCESS:
+                print("%s" % self.packetHandler.getTxRxResult(result))
+            elif error != 0:
+                print("%s" % self.packetHandler.getRxPacketError(error))
+            isMoving = bool(isMoving)
+            movingArray.append(isMoving)
+        print(movingArray)
+        
+
+        
+
+        return all(movingArray)

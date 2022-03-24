@@ -18,21 +18,23 @@ if __name__ == "__main__":
     bestParams = [0.0323541 , 0.38081064, 0.58683527]
     selectedPins = pathPlanner.calculateSpiderLegsPositionsFF(path, bestParams)
 
-    goalPosition = [0.22, 0.1, 0]
+    goalPosition = [0.3, 0, 0]
     kinematics = calculations.Kinematics()
 
-    motorsIds = [[41, 42, 43]]
+    motorsIds = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
     motorsDriver = dynamixel.MotorDriver(motorsIds)
-    motorsDriver.moveLeg(0, goalPosition)
-    time.sleep(0.1)
-    moving = True
+    # motorsDriver.moveLeg(4, goalPosition)
 
-    while moving:
-        firstMotor = motorsDriver.isMotorMoving(41)
-        secondMotor = motorsDriver.isMotorMoving(42)
-        thirdMotor = motorsDriver.isMotorMoving(43)
-        moving = firstMotor or secondMotor or thirdMotor
-        print(moving)
 
-    position = motorsDriver.readLegPosition(0)
+    # time.sleep(0.1)
+    # moving = True
+
+    # while moving:
+    #     moving = motorsDriver.isLegMoving(2)
+    #     # print(moving)
+
+    # time.sleep(0.2)
+    position = motorsDriver.readLegPosition(3)
     print(position)
+
+    motorsDriver.disableMotors()
