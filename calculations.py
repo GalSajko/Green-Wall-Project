@@ -6,6 +6,7 @@ import numpy as np
 import math
 
 import environment
+import mappers
 
 class PathPlanner:
     """Class for calculating spiders path and its legs positions on each step of the path.
@@ -93,20 +94,28 @@ class Kinematics:
             "r" : [0.064, 0.301, 0.275],
             "d" : 0
         }
-        # Length of a virtual representation of second link - as it would not be in L shape, but directly
-        # connecting second and third joint.
-        self.VIRTUAL_SECOND_LINK = np.hypot(self.spider.LEGS[0][1][0], self.spider.LEGS[0][1][1])
 
-    def legDirectKinematics(self, joints):
+    def legDirectKinematics(self, legIdx, motorValues):
         """ Calculate direct kinematics for spiders leg, using DH parameters.  
 
-        :param joints: Joints values in degrees from motors.
+        :param joints: Motors values in degrees.
         :return: Transformation matrix from base to end effector.
         """
-        q1, q2, q3 = joints
 
-        # CONVERT MOTOR VALUES TO DH MODEL
+        motorValues[1] = motorValues[1] + self.spider.SECOND_JOINTS_OFFSETS[legIdx]
+        motorValues[2] = motorValues[2] - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
+        jointValues = mappers.mapMotorRadiansToJointRadians(np.radians(motorValues))
+        q1, q2, q3 = jointValues
+        
+        q2 = q2 - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
+        q3 = q3 + self.spider.SECOND_JOINTS_OFFSETS[legIdx]       
 
+        H01 = self.calculateHMatrix(q1, self.DH_MODEL["alpha"][0], self.DH_MODEL["r"][0], self.DH_MODEL["d"])
+        H12 = self.calculateHMatrix(q2, self.DH_MODEL["alpha"][1], self.DH_MODEL["r"][1], self.DH_MODEL["d"])
+        H23 = self.calculateHMatrix(q3, self.DH_MODEL["alpha"][2], self.DH_MODEL["r"][2], self.DH_MODEL["d"])
+
+        H03 = np.dot(H01, np.dot(H12, H23))
+        H03 = np.around(H03, 3)
         return H03
     
     def calculateHMatrix(self, theta, alpha, r, d):
@@ -133,8 +142,8 @@ class Kinematics:
         :return: Joint values in radians.
         """
         endEffectorPosition = np.array(endEffectorPosition)
+        endEffectorPosition[2] = -endEffectorPosition[2]
 
-        base = np.array([0, 0, 0])
         firstLink = self.spider.LEGS[legIdx][0]
         # REV: move this calculation to Spider().
         virtualSecondLink = np.hypot(self.spider.LEGS[legIdx][1][0], self.spider.LEGS[legIdx][1][1])
@@ -143,35 +152,28 @@ class Kinematics:
         # Angle in first joint.
         q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
 
-        # Position of second joint in base origin.
+        # Position of second joint in leg-base origin.
         secondJointPosition = np.array([
-            base[0] + firstLink * math.cos(q1), 
-            base[0] + firstLink * math.sin(q1), 
-            base[0]])
+            firstLink * math.cos(q1), 
+            firstLink * math.sin(q1), 
+            0])
 
         # Vector from second joint to end effector.
         secondJointToEndVector = np.array(endEffectorPosition - secondJointPosition)
+
         # Distance between second joint and end effector.
         r = GeometryTools().calculateEuclideanDistance3d(secondJointPosition, endEffectorPosition)
         # Angle in third joint.
         q3 = -math.acos((r**2 - virtualSecondLink**2 - thirdLink**2) / (2 * virtualSecondLink * thirdLink))
-
         # Angle in second joint.
-        q2 = math.atan2(abs(secondJointToEndVector[2]), np.linalg.norm(secondJointToEndVector[0:2])) + \
+        q2 = math.atan2(secondJointToEndVector[2], np.linalg.norm(secondJointToEndVector[0:2])) + \
             math.atan2(thirdLink * math.sin(q3), virtualSecondLink + thirdLink * math.cos(q3))
         
         # Add offset because 2nd and 3rd joints are not aligned.
-        q2 = -(q2 + self.spider.SECOND_JOINTS_OFFSETS[legIdx])
-        q3 = q3 + self.spider.SECOND_JOINTS_OFFSETS[legIdx]
-
-        ######
-        # q1 = q1 + math.pi
-        # q2 = math.pi - q2
-        # q3 = math.pi + q3
-        ######
+        q2 = -(q2 - self.spider.SECOND_JOINTS_OFFSETS[legIdx])
+        q3 = q3 - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
 
         return q1, q2, q3
-
 
 class GeometryTools:
     """Helper class for geometry calculations.
@@ -220,3 +222,6 @@ class GeometryTools:
         elif angle > math.pi:
             angle -= math.pi * 2
         return angle
+
+class RobotMovement:
+    """ Class for calculating robots trajectories."""
