@@ -110,29 +110,13 @@ class Kinematics:
         q2 = q2 - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
         q3 = q3 + self.spider.SECOND_JOINTS_OFFSETS[legIdx]       
 
-        H01 = self.calculateHMatrix(q1, self.DH_MODEL["alpha"][0], self.DH_MODEL["r"][0], self.DH_MODEL["d"])
-        H12 = self.calculateHMatrix(q2, self.DH_MODEL["alpha"][1], self.DH_MODEL["r"][1], self.DH_MODEL["d"])
-        H23 = self.calculateHMatrix(q3, self.DH_MODEL["alpha"][2], self.DH_MODEL["r"][2], self.DH_MODEL["d"])
+        H01 = MatrixCalculator().calculateHMatrix(q1, self.DH_MODEL["alpha"][0], self.DH_MODEL["r"][0], self.DH_MODEL["d"])
+        H12 = MatrixCalculator().calculateHMatrix(q2, self.DH_MODEL["alpha"][1], self.DH_MODEL["r"][1], self.DH_MODEL["d"])
+        H23 = MatrixCalculator().calculateHMatrix(q3, self.DH_MODEL["alpha"][2], self.DH_MODEL["r"][2], self.DH_MODEL["d"])
 
         H03 = np.dot(H01, np.dot(H12, H23))
         H03 = np.around(H03, 3)
         return H03
-    
-    def calculateHMatrix(self, theta, alpha, r, d):
-        """ Helper function for calculating transformation matrix between two origins, using DH model.
-
-        :param theta: DH parameter theta.
-        :param alpha: DH parameter alpha.
-        :param r: DH parameter r.
-        :param d: DH parameter d.
-        :return: Transformation matrix between two origins.
-        """
-        return np.array([
-            [math.cos(theta), -math.sin(theta) * math.cos(alpha), math.sin(theta) * math.sin(alpha), r * math.cos(theta)],
-            [math.sin(theta), math.cos(theta) * math.cos(alpha), -math.cos(theta) * math.sin(alpha), r * math.sin(theta)],
-            [0, math.sin(alpha), math.cos(alpha), d],
-            [0, 0, 0, 1]
-        ])
     
     def legInverseKinematics(self, legIdx, endEffectorPosition):
         """ Calculate inverse kinematics for leg, using geometry - considering L shape of second link.
@@ -174,6 +158,26 @@ class Kinematics:
         q3 = q3 - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
 
         return q1, q2, q3
+
+    def platformInverseKinematics(self, goalPose, pins):
+        """Calculate inverse kinematics for spiders platform.
+
+        :param goalPose: Goal pose, given as a 1x6 array with positions and rpy orientation.
+        :param pins: Global positions of pins on which legs are currently placed.
+        """
+        # Get transformation matrix from origin to spider base, from desired goalPose.
+        globalTransformMatrix = MatrixCalculator().transformMatrixFromGlobalPose(goalPose)
+        # Calculate global anchors poses.
+        anchorsInGlobal = []
+        for idx, t in enumerate(self.spider.T_ANCHORS):
+            anchorInGlobal = np.dot(globalTransformMatrix, t)
+            anchorPositionGlobal = anchorInGlobal[:,3][0:3]
+            anchorToPinVectorGlobal = np.array(pins[idx] - anchorPositionGlobal)
+            print(anchorToPinVectorGlobal)
+            print(np.around(np.linalg.norm(anchorToPinVectorGlobal), 3))
+
+
+
 
 class GeometryTools:
     """Helper class for geometry calculations.
@@ -223,5 +227,53 @@ class GeometryTools:
             angle -= math.pi * 2
         return angle
 
-class RobotMovement:
-    """ Class for calculating robots trajectories."""
+
+class MatrixCalculator:
+    """ Class for calculating matrices."""
+
+    def transformMatrixFromGlobalPose(cls, globalPose):
+        """Calculate global transformation matrix for transforming between global origin and spider base.
+
+        :param globalPose: Desired global pose of a spiders platform, 1x6 array with positions and rpy orientation.
+        """
+        position = globalPose[0:3]
+        rpy = globalPose[3:]
+
+        roll = np.array([
+            [1, 0, 0],
+            [0, math.cos(rpy[0]), -math.sin(rpy[0])],
+            [0, math.sin(rpy[0]), math.cos(rpy[0])]
+        ])
+        pitch = np.array([
+            [math.cos(rpy[1]), 0, math.sin(rpy[1])],
+            [0, 1, 0],
+            [-math.sin(rpy[1]), 0, math.cos(rpy[1])]
+        ])
+        yaw = np.array([
+            [math.cos(rpy[2]), -math.sin(rpy[2]), 0],
+            [math.sin(rpy[2]), math.cos(rpy[2]), 0],
+            [0, 0, 1]
+        ])
+
+        rotationMatrix = np.dot(roll, np.dot(pitch, yaw))
+
+        transformMatrix = np.c_[rotationMatrix, position]
+        transformMatrix = np.r_[transformMatrix, [[0, 0, 0, 1]]]
+        
+        return transformMatrix
+
+    def calculateHMatrix(cls, theta, alpha, r, d):
+        """ Helper function for calculating transformation matrix between two origins, using DH model.
+
+        :param theta: DH parameter theta.
+        :param alpha: DH parameter alpha.
+        :param r: DH parameter r.
+        :param d: DH parameter d.
+        :return: Transformation matrix between two origins.
+        """
+        return np.array([
+            [math.cos(theta), -math.sin(theta) * math.cos(alpha), math.sin(theta) * math.sin(alpha), r * math.cos(theta)],
+            [math.sin(theta), math.cos(theta) * math.cos(alpha), -math.cos(theta) * math.sin(alpha), r * math.sin(theta)],
+            [0, math.sin(alpha), math.cos(alpha), d],
+            [0, 0, 0, 1]
+        ])

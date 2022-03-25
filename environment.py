@@ -22,17 +22,19 @@ class Spider:
         self.LEGS = [[0.064, (0.3, 0.025), 0.275],
                      [0.064, (0.3, 0.025), 0.275],
                      [0.064, (0.3, 0.025), 0.275],
-                     [0.064, (0.3, 0.025), 0.275],
+                     [0.064, (0.3, 0.025), 0.277],
                      [0.064, (0.3, 0.025), 0.275]]
         self.SECOND_JOINTS_OFFSETS = [math.tan(leg[1][1] / leg[1][0]) for idx, leg in enumerate(self.LEGS)]
         # Angles between legs, looking from spiders origin.
         self.ANGLE_BETWEEN_LEGS = np.radians(360 / self.NUMBER_OF_LEGS)
-        # Positions of leg anchors on spiders platform, given in spiders origin.
+        # Positions of leg anchors on spiders platform, given in spiders origin - - matching the actual legs order on spider..
         self.LEG_ANCHORS = self.getLegAnchorsInSpiderOrigin()
         # Unit vectors pointing in radial directions (looking from center of body).
         self.IDEAL_LEG_VECTORS = self.getIdealLegVectors()
         # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
         self.CONSTRAINS = [0.15, 0.45, np.radians(30)]
+        # Array of transform matrices for transformations from base to anchors in base origin.
+        self.T_ANCHORS = self.getTransformMatricesToAnchors()
     
     def __new__(cls, *args, **kwargs):
         if not isinstance(cls.instance, cls):
@@ -49,8 +51,13 @@ class Spider:
         legAngles = self.getLegAnglesXAxis()
         # Positions of leg anchors on spiders platform in spiders origin.
         legAnchors = [[self.BODY_RADIUS * math.cos(angle), self.BODY_RADIUS * math.sin(angle)] for angle in legAngles]
+        legAnchors = np.around(legAnchors, 3)
 
-        return np.array(legAnchors)
+        # Reverse to math actual spiders legs order.
+        legAnchorsReversed = np.flip(legAnchors[1:], 0)
+        legAnchorsReversed = np.insert(legAnchorsReversed, 0, legAnchors[0], 0)
+
+        return np.around(np.array(legAnchorsReversed), 3)
     
     def getIdealLegVectors(self):
         """ Helper functions for setting ideal leg vectors in spiders origin. 
@@ -72,6 +79,26 @@ class Spider:
         """
         legAngles = [np.radians(90) - leg * self.ANGLE_BETWEEN_LEGS for leg in range(self.NUMBER_OF_LEGS)]
         return np.array(legAngles)
+
+    def getTransformMatricesToAnchors(self):
+        """Calculate transformation matrices for transformation between base and anchors origin, in base origin.
+
+        :return: Array of transformation matrices
+        """
+        # Constant rotation offset, because anchors x axis is pointed in radial direction.
+        constantRoation = math.pi / 2
+
+        T = []
+        for i in range(self.NUMBER_OF_LEGS):
+            rotationAngle = i * self.ANGLE_BETWEEN_LEGS + constantRoation
+            T.append(np.around(np.array([
+                [math.cos(rotationAngle), -math.sin(rotationAngle), 0, self.LEG_ANCHORS[i][0]],
+                [math.sin(rotationAngle), math.cos(rotationAngle), 0, self.LEG_ANCHORS[i][1]],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1]
+            ]), 3))
+        
+        return T
     #endregion
 
 class Wall:

@@ -3,6 +3,7 @@
 
 import numpy as np
 from dynamixel_sdk import *
+import threading
 
 import calculations
 import mappers
@@ -10,10 +11,11 @@ import mappers
 class MotorDriver:
     """ Class for controlling Dynamixel motors.
     """
-    def __init__(self, motorsIds):
+    def __init__(self, motorsIds, enableMotors = True):
         """Set motors control table addresses and initialize USB port. 
 
         :param motorIds: Ids of motors to use. It should be 2d array, with motors from one leg grouped together.
+        :param enableMotors: If True, enable motors on initialization.
         """
         # Motor series - we are using XM series.
         self.MOTOR_SERIES = "X_SERIES"
@@ -28,7 +30,7 @@ class MotorDriver:
         self.BAUDRATE = 57600
         self.PROTOCOL_VERSION = 2.0
         
-        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB1"
         
         self.motorsIds = np.array(motorsIds)
 
@@ -37,7 +39,9 @@ class MotorDriver:
 
         # Initialize USB port connection and enable torque in motors.
         self.initPort()
-        self.enableMotors()
+
+        if enableMotors:
+            self.enableMotors()
 
         self.kinematics = calculations.Kinematics()
 
@@ -72,7 +76,7 @@ class MotorDriver:
         """ Disable all of the motors."""
         motorsArray = self.motorsIds.flatten()
         for motorId in motorsArray:
-            # Enable torque.
+            # Disable torque.
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
             if result != COMM_SUCCESS:
                 print("%s" % self.packetHandler.getTxRxResult(result))
@@ -82,6 +86,11 @@ class MotorDriver:
                 print("Motor %d has been successfully disabled" % motorId)
 
     def readLegPosition(self, legIdx):
+        """Read legs position, using direct kinematics.
+
+        :param legIdx: Leg id
+        :return: Position of the end effector in leg-base origin.
+        """
         motorsInLeg = self.motorsIds[legIdx]
 
         presentPositions = []
@@ -93,8 +102,10 @@ class MotorDriver:
                 print("%s" % self.packetHandler.getRxPacketError(error))
             presentPositions.append(presentPosition)
         
+        # print("ENCODER VALUES: ", presentPositions)
         # Calculate transformation matrix from base to end effector.
         motorDegrees = mappers.mapEncoderToDegrees(presentPositions)
+        # print("MOTOR DEGREES: ", motorDegrees)
         pose = self.kinematics.legDirectKinematics(legIdx, motorDegrees)
         # Read position from matrix
         position = pose[:,3]
@@ -102,12 +113,21 @@ class MotorDriver:
 
         return position
 
+    def readingInThread(self, legIdx):
+        while True:
+            position = self.readLegPosition(legIdx)
+            print(position)
+
     def moveLeg(self, legId, goalPosition):
-        
+        """Move leg on given position in leg-base origin.
+
+        :param legId: Leg id.
+        :param goalPosition: Goal position in leg-base origin.
+        """
         # Compute encoder values from given goal position of end effector.
         q1, q2, q3 = self.kinematics.legInverseKinematics(legId, goalPosition)
         motorValues = mappers.mapJointRadiansToMotorRadians([q1, q2, q3])
-        encoderValues = mappers.mapDegreesToEncoder(np.degrees(motorValues)).astype(int)
+        encoderValues = mappers.mapMotorRadiansToEncoder(motorValues).astype(int)
 
         # Write goal position (goal angle) for each motor.
         for idx, motorId in enumerate(self.motorsIds[legId]):

@@ -34,16 +34,17 @@ def mapMotorRadiansToJointRadians(motorValues):
 
     return q1, q2, q3
 
-def mapDegreesToEncoder(jointValues):
+def mapMotorRadiansToEncoder(jointValues):
     """Map degrees in motors to encoder values.
 
     :param jointValues: Angles in motors in degrees. 
     :return: Encoder values to match input angles.
     """
+    jointValues = np.degrees(jointValues)
     encoderBits = 12
     # Convert joints values to encoder values.
     jointValues = np.array(jointValues)
-    encoderValues = np.array(jointValues * 2**encoderBits / 360)
+    encoderValues = np.array(jointValues * 2**encoderBits / 360.0)
 
     return encoderValues
 
@@ -58,8 +59,8 @@ def mapEncoderToDegrees(encoderValues):
     encoderValues = np.array(encoderValues)
     jointValues = []
 
-    jointValues.append(encoderValues[0] * 360 / 2**encoderBits)
-    jointValues.append(encoderValues[1] * 360 / 2**encoderBits)
-    jointValues.append(encoderValues[2] * 360 / 2**encoderBits)
+    jointValues.append(encoderValues[0] * 360.0 / 2**encoderBits)
+    jointValues.append(encoderValues[1] * 360.0 / 2**encoderBits)
+    jointValues.append(encoderValues[2] * 360.0 / 2**encoderBits)
 
     return np.array(jointValues)
