@@ -1,5 +1,4 @@
-"""Module for all calculations, includes classes for kinematics calculations, path planning and
-helper class for geometry calculations.
+"""Module for all calculations, includes classes for kinematics, geometry and matrix calculations.
 """
 
 import numpy as np
@@ -8,78 +7,6 @@ import math
 import environment
 import mappers
 
-class PathPlanner:
-    """Class for calculating spiders path and its legs positions on each step of the path.
-    """
-    def __init__(self):
-        self.spider = environment.Spider()
-        self.wall = environment.Wall()
-        self.pins = self.wall.createGrid()
-        self.geometryTools = GeometryTools()
-
-    def calculateSpiderBodyPath(self, start, goal, maxStep):
-        """Calculate descrete path of spiders body.
-
-        :param start: Start point.
-        :param goal: Goal point.
-        :param maxStep: Max step between two points in meters.
-        :return: Array of (x, y) points, representing the descrete path.
-        """
-        distanceToTravel = self.geometryTools.calculateEuclideanDistance2d(start, goal)                   
-        numberOfSteps = math.floor(distanceToTravel / maxStep)
-        # Discrete path 
-        path = np.array([np.linspace(start[0], goal[0], numberOfSteps),
-                        np.linspace(start[1], goal[1], numberOfSteps)])
-        
-        path = np.transpose(path)
-        return path
-
-    def calculateSpiderLegsPositionsFF(self, path, params = [1/3, 1/3, 1/3]):
-        """Calculate legs positions for each step on the path.
-
-        :param path: Spiders path.
-        :param params: Values of parameters for calculating best pin to put a leg on, defaults to [1/3, 1/3, 1/3]
-        :return: Array of selected pins for each leg on each step on the path.
-        """
-        selectedPins = []
-        for step, (x, y) in enumerate(path):
-            # Leg anchors in global origin.
-            legAnchors = self.spider.LEG_ANCHORS + [x, y]
-            # Selected pins for each leg on each step.
-            selectedPinsOnEachStep = []
-            for idx, legAnchor in enumerate(legAnchors):
-                # Potential pins for each leg.
-                potentialPinsForSingleLeg = []
-                for pin in self.pins:
-                    # First check distance from anchor to pin.
-                    distanceToPin = self.geometryTools.calculateEuclideanDistance2d(legAnchor, pin)
-                    if self.spider.CONSTRAINS[0] < distanceToPin < self.spider.CONSTRAINS[1]:                       
-                        # Than check angle between ideal leg direction and pin.
-                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateAngleBetweenTwoVectors2d(
-                            self.spider.IDEAL_LEG_VECTORS[idx], 
-                            np.array(np.array(pin) - np.array(legAnchor)))
-                        if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
-                            if step != 0 and step != len(path) - 1:
-                                previousPin = selectedPins[step - 1][idx]
-                                # criterion - pick pin with best distance, minimum angle and those with minimum distance from previous pin (avoid unnecesarry movement).
-                                distanceBetweenSelectedAndPreviousPin = self.geometryTools.calculateEuclideanDistance2d(previousPin, pin)
-                                isLegMoving = 0 if distanceBetweenSelectedAndPreviousPin == 0 else 1
-                                distanceFromPinToEndPoint = self.geometryTools.calculateEuclideanDistance2d(pin, path[-1])
-                                criterionFunction = params[0] * abs(angleBetweenIdealVectorAndPin) + params[1] * isLegMoving + params[2] * distanceFromPinToEndPoint
-                            else:
-                                # criterion - pick pin with best distance and minimal angle.
-                                criterionFunction = abs(distanceToPin - self.spider.CONSTRAINS[1]) + abs(angleBetweenIdealVectorAndPin)
-                            potentialPinsForSingleLeg.append([pin, criterionFunction])
-
-                potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg)
-                # Sort potential pins based on minimal value of criterion function.
-                potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:, 1].argsort()]
-                # Append potential pin with minimum criterion function value to selected pins on each step.
-                selectedPinsOnEachStep.append(potentialPinsForSingleLeg[0][0])
-
-            selectedPins.append(selectedPinsOnEachStep)
-
-        return selectedPins
 
 class Kinematics:
     """Class for calculating kinematics of spider robot. Includes direct and reverse kinematics for spiders legs.
@@ -114,8 +41,7 @@ class Kinematics:
         H12 = MatrixCalculator().calculateHMatrix(q2, self.DH_MODEL["alpha"][1], self.DH_MODEL["r"][1], self.DH_MODEL["d"])
         H23 = MatrixCalculator().calculateHMatrix(q3, self.DH_MODEL["alpha"][2], self.DH_MODEL["r"][2], self.DH_MODEL["d"])
 
-        H03 = np.dot(H01, np.dot(H12, H23))
-        H03 = np.around(H03, 3)
+        H03 = np.dot(H01, np.dot(H12, H23)) 
         return H03
     
     def legInverseKinematics(self, legIdx, endEffectorPosition):
@@ -162,22 +88,32 @@ class Kinematics:
     def platformInverseKinematics(self, goalPose, pins):
         """Calculate inverse kinematics for spiders platform.
 
-        :param goalPose: Goal pose, given as a 1x6 array with positions and rpy orientation.
-        :param pins: Global positions of pins on which legs are currently placed.
+        :param goalPose: Goal pose in global, given as a 1x6 array with positions and rpy orientation.
+        :param pins: Global positions of used pins.
+        :return joints: 3x5 matrix with joints values for all legs.
         """
         # Get transformation matrix from origin to spider base, from desired goalPose.
         globalTransformMatrix = MatrixCalculator().transformMatrixFromGlobalPose(goalPose)
-        # Calculate global anchors poses.
-        anchorsInGlobal = []
+
+        # Array to store calculated joints values for all legs.
+        joints = []
         for idx, t in enumerate(self.spider.T_ANCHORS):
             anchorInGlobal = np.dot(globalTransformMatrix, t)
-            anchorPositionGlobal = anchorInGlobal[:,3][0:3]
-            anchorToPinVectorGlobal = np.array(pins[idx] - anchorPositionGlobal)
-            print(anchorToPinVectorGlobal)
-            print(np.around(np.linalg.norm(anchorToPinVectorGlobal), 3))
+            anchorInGlobalPosition = anchorInGlobal[:,3][0:3]
+            pinToAnchorGlobal = np.array(pins[idx] - anchorInGlobalPosition)          
 
+            pinToAnchorLocal = np.dot(np.linalg.inv(t), np.array([
+                [1, 0, 0, pinToAnchorGlobal[0]],
+                [0, 1, 0, pinToAnchorGlobal[1]],
+                [0, 0, 1, pinToAnchorGlobal[2]],
+                [0, 0, 0, 1]]))
+            pinToAnchorLocalPosition = pinToAnchorLocal[:,3][0:3]
 
+            # With inverse kinematics for single leg calculate joints values.
+            q1, q2, q3 = self.legInverseKinematics(idx, pinToAnchorLocalPosition)
+            joints.append(np.array([q1, q2, q3]))
 
+        return np.array(joints)
 
 class GeometryTools:
     """Helper class for geometry calculations.
@@ -226,7 +162,6 @@ class GeometryTools:
         elif angle > math.pi:
             angle -= math.pi * 2
         return angle
-
 
 class MatrixCalculator:
     """ Class for calculating matrices."""

@@ -2,6 +2,7 @@
 
 import math
 import numpy as np
+import calculations
 
 def mapJointRadiansToMotorRadians(jointValues):
     """Map angles from Inverse kinematics in radians into motor angles in radians.
@@ -12,9 +13,9 @@ def mapJointRadiansToMotorRadians(jointValues):
     :return: Motors angles in radians that match input angles.
     """
     q1, q2, q3 = jointValues
-    q1 = q1 + math.pi
-    q2 = math.pi - q2
-    q3 = 1.5 * math.pi + q3
+    q1 = calculations.GeometryTools().wrapToPi(q1 + math.pi)
+    q2 = calculations.GeometryTools().wrapToPi(math.pi - q2)
+    q3 = calculations.GeometryTools().wrapToPi(1.5 * math.pi + q3)
 
     return q1, q2, q3
 

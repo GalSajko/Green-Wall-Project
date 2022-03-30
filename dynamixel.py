@@ -7,6 +7,8 @@ import threading
 
 import calculations
 import mappers
+import environment
+import planning
 
 class MotorDriver:
     """ Class for controlling Dynamixel motors.
@@ -25,12 +27,12 @@ class MotorDriver:
         self.PRESENT_POSITION_ADDR = 132
         self.MINIMUM_POSITION_VALUE = 0
         self.MAXIMUM_POSITION_VALUE = 4095
-        self.MOVING_STATUS_TRESHOLD = 5
+        self.MOVING_STATUS_TRESHOLD = 2
         self.READ_MOVING_ADDR = 122
         self.BAUDRATE = 57600
         self.PROTOCOL_VERSION = 2.0
         
-        self.USB_DEVICE_NAME = "/dev/ttyUSB1"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
         
         self.motorsIds = np.array(motorsIds)
 
@@ -44,6 +46,8 @@ class MotorDriver:
             self.enableMotors()
 
         self.kinematics = calculations.Kinematics()
+        self.spider = environment.Spider()
+        self.trajecotryPlanner = planning.TrajectoryPlanner()
 
     def initPort(self):
         """Initialize USB port and set baudrate.
@@ -102,10 +106,8 @@ class MotorDriver:
                 print("%s" % self.packetHandler.getRxPacketError(error))
             presentPositions.append(presentPosition)
         
-        # print("ENCODER VALUES: ", presentPositions)
         # Calculate transformation matrix from base to end effector.
         motorDegrees = mappers.mapEncoderToDegrees(presentPositions)
-        # print("MOTOR DEGREES: ", motorDegrees)
         pose = self.kinematics.legDirectKinematics(legIdx, motorDegrees)
         # Read position from matrix
         position = pose[:,3]
@@ -152,7 +154,49 @@ class MotorDriver:
             if abs(goalPosition - presentPositions).all() < self.MOVING_STATUS_TRESHOLD:
                 break
 
-        print("Motors on desired position.")  
+        print("Motors on desired position.") 
+
+    def movePlatform(self, goalPose, pins):
+        """Move platform on given pose in global origin.
+
+        :param goalPose: Goal pose as 1x6 array with position and rpy rotation.
+        """
+        # Calculate trajectory from current to goal pose.
+        # currentPose = [0, 0, 0, 0, 0, 0]
+        # trajectory = self.trajecotryPlanner.platformLinearTrajectory(currentPose, goalPose)
+
+        # Calculate required joint values.
+        jointsInLegs = self.kinematics.platformInverseKinematics(goalPose, pins)
+
+        for legIdx, jointsInLeg in enumerate(jointsInLegs):
+            motorValues = mappers.mapJointRadiansToMotorRadians(jointsInLeg)
+            encoderValues = mappers.mapMotorRadiansToEncoder(motorValues).astype(int)
+
+            # Write goal position (goal angle) for each motor on single leg.
+            for motorIdx, motorId in enumerate(self.motorsIds[legIdx]):
+                result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_POSITION_ADDR, encoderValues[motorIdx])
+                if result != COMM_SUCCESS:
+                    print("%s" % self.packetHandler.getTxRxResult(result))
+                elif error != 0:
+                    print("%s" % self.packetHandler.getRxPacketError(error))
+
+            # Moving motors to the desired position.
+            while True:
+                presentPositions = np.array([0, 0, 0])
+                for idx, motorId in enumerate(self.motorsIds[legIdx]):
+                    # Read current motors position.
+                    presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
+                    if result != COMM_SUCCESS:
+                        print("%s" % self.packetHandler.getTxRxResult(result))
+                    elif error != 0:
+                        print("%s" % self.packetHandler.getRxPacketError(error))
+
+                # Check if current position is within given treshold (2 encoder ticks).
+                if abs(encoderValues - presentPositions).all() < self.MOVING_STATUS_TRESHOLD:
+                    break               
+
+
+
     
     def isLegMoving(self, legId):
         """Check if leg with legId is moving or not.
