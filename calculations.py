@@ -41,7 +41,7 @@ class Kinematics:
         H12 = MatrixCalculator().calculateHMatrix(q2, self.DH_MODEL["alpha"][1], self.DH_MODEL["r"][1], self.DH_MODEL["d"])
         H23 = MatrixCalculator().calculateHMatrix(q3, self.DH_MODEL["alpha"][2], self.DH_MODEL["r"][2], self.DH_MODEL["d"])
 
-        H03 = np.dot(H01, np.dot(H12, H23)) 
+        H03 = np.dot(H01, np.dot(H12, H23))
         return H03
     
     def legInverseKinematics(self, legIdx, endEffectorPosition):
@@ -98,19 +98,19 @@ class Kinematics:
         # Array to store calculated joints values for all legs.
         joints = []
         for idx, t in enumerate(self.spider.T_ANCHORS):
+            # Pose of leg anchor in global
             anchorInGlobal = np.dot(globalTransformMatrix, t)
+            # Position of leg anchor in global.
             anchorInGlobalPosition = anchorInGlobal[:,3][0:3]
-            pinToAnchorGlobal = np.array(pins[idx] - anchorInGlobalPosition)          
 
-            pinToAnchorLocal = np.dot(np.linalg.inv(t), np.array([
-                [1, 0, 0, pinToAnchorGlobal[0]],
-                [0, 1, 0, pinToAnchorGlobal[1]],
-                [0, 0, 1, pinToAnchorGlobal[2]],
-                [0, 0, 0, 1]]))
-            pinToAnchorLocalPosition = pinToAnchorLocal[:,3][0:3]
+            # Vector from anchor to pin in global.
+            anchorToPinGlobal = np.array(pins[idx] - anchorInGlobalPosition)
+            # Transform this vector in legs local origin - only rotate.
+            rotationMatrix = anchorInGlobal[:3, :3]
+            anchorToPinLocal = np.dot(np.linalg.inv(rotationMatrix), anchorToPinGlobal)
 
             # With inverse kinematics for single leg calculate joints values.
-            q1, q2, q3 = self.legInverseKinematics(idx, pinToAnchorLocalPosition)
+            q1, q2, q3 = self.legInverseKinematics(idx, anchorToPinLocal)
             joints.append(np.array([q1, q2, q3]))
 
         return np.array(joints)

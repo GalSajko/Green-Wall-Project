@@ -39,15 +39,13 @@ class MotorDriver:
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
         self.packetHandler = PacketHandler(self.PROTOCOL_VERSION)
 
-        # Initialize USB port connection and enable torque in motors.
-        self.initPort()
-
         if enableMotors:
+            self.initPort()
             self.enableMotors()
 
         self.kinematics = calculations.Kinematics()
         self.spider = environment.Spider()
-        self.trajecotryPlanner = planning.TrajectoryPlanner()
+        self.trajectoryPlanner = planning.TrajectoryPlanner()
 
     def initPort(self):
         """Initialize USB port and set baudrate.
@@ -115,11 +113,6 @@ class MotorDriver:
 
         return position
 
-    def readingInThread(self, legIdx):
-        while True:
-            position = self.readLegPosition(legIdx)
-            print(position)
-
     def moveLeg(self, legId, goalPosition):
         """Move leg on given position in leg-base origin.
 
@@ -161,16 +154,14 @@ class MotorDriver:
 
         :param goalPose: Goal pose as 1x6 array with position and rpy rotation.
         """
-        # Calculate trajectory from current to goal pose.
-        # currentPose = [0, 0, 0, 0, 0, 0]
-        # trajectory = self.trajecotryPlanner.platformLinearTrajectory(currentPose, goalPose)
-
         # Calculate required joint values.
         jointsInLegs = self.kinematics.platformInverseKinematics(goalPose, pins)
-
+        print("DH VALUES: ", jointsInLegs)
         for legIdx, jointsInLeg in enumerate(jointsInLegs):
             motorValues = mappers.mapJointRadiansToMotorRadians(jointsInLeg)
+            print("MOTOR VALUES:", np.array(motorValues))
             encoderValues = mappers.mapMotorRadiansToEncoder(motorValues).astype(int)
+            print("ENCODER VALUES:", np.array(encoderValues))
 
             # Write goal position (goal angle) for each motor on single leg.
             for motorIdx, motorId in enumerate(self.motorsIds[legIdx]):
@@ -194,9 +185,6 @@ class MotorDriver:
                 # Check if current position is within given treshold (2 encoder ticks).
                 if abs(encoderValues - presentPositions).all() < self.MOVING_STATUS_TRESHOLD:
                     break               
-
-
-
     
     def isLegMoving(self, legId):
         """Check if leg with legId is moving or not.
