@@ -94,7 +94,7 @@ class TrajectoryPlanner:
         goalPose = np.array(goalPose)
 
         # Max allowed distance between two steps is 1mm.
-        maxStep = 0.001
+        maxStep = 0.01
 
         # Calculate biggest difference between single coordinates.
         biggestDiff = max(
