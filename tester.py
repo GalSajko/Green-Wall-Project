@@ -58,7 +58,7 @@ if __name__ == "__main__":
     # FIRST MOVE
     startLegPositions = [motorsDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
    
-    startPose = [0, 0, 0.2, 0, 0, 0]
+    startPose = [0, 0, 0.038, 0, 0, 0]
     T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
 
     pins = []
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         pinInGlobal = np.dot(anchorInGlobal, pinMatrix)
         pins.append(pinInGlobal[:,3][0:3])
 
-    goalPose = [0, 0, 0.038, 0, 0, 0]
+    goalPose = [0, 0, 0.2, 0, 0, 0]
     
     trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
     
