@@ -31,6 +31,7 @@ if __name__ == "__main__":
     spider = environment.Spider()
     trajectoryPlanner = planning.TrajectoryPlanner()
     matrixCalculator = calculations.MatrixCalculator()
+
     
     motorsIds = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
     motorsDriver = dynamixel.MotorDriver(motorsIds)

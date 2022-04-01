@@ -105,4 +105,6 @@ class TrajectoryPlanner:
         # Calculate number of steps from biggest difference.
         numberOfSteps = math.floor(biggestDiff / maxStep)
 
+        print(numberOfSteps)
+
         return np.linspace(startPose, goalPose, numberOfSteps)
