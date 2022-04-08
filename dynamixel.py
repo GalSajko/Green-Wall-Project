@@ -48,8 +48,8 @@ class MotorDriver:
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
         self.packetHandler = PacketHandler(self.PROTOCOL_VERSION)
 
+        self.initPort()
         if enableMotors:
-            self.initPort()
             self.enableMotors()
 
         self.kinematics = calculations.Kinematics()
@@ -181,19 +181,19 @@ class MotorDriver:
                     print("%s" % self.packetHandler.getRxPacketError(error))
 
             # Moving motors to the desired position.
-            # while True:
-            #     presentPositions = np.array([0, 0, 0])
-            #     for idx, motorId in enumerate(self.motorsIds[legIdx]):
-            #         # Read current motors position.
-            #         presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
-            #         if result != COMM_SUCCESS:
-            #             print("%s" % self.packetHandler.getTxRxResult(result))
-            #         elif error != 0:
-            #             print("%s" % self.packetHandler.getRxPacketError(error))
+            while True:
+                presentPositions = np.array([0, 0, 0])
+                for idx, motorId in enumerate(self.motorsIds[legIdx]):
+                    # Read current motors position.
+                    presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
+                    if result != COMM_SUCCESS:
+                        print("%s" % self.packetHandler.getTxRxResult(result))
+                    elif error != 0:
+                        print("%s" % self.packetHandler.getRxPacketError(error))
 
-            #     # Check if current position is within given treshold (2 encoder ticks).
-            #     if abs(encoderValues - presentPositions).all() < self.MOVING_STATUS_TRESHOLD:
-            #         break              
+                # Check if current position is within given treshold (2 encoder ticks).
+                if abs(encoderValues - presentPositions).all() < self.MOVING_STATUS_TRESHOLD:
+                    break              
     
     def isLegMoving(self, legId):
         """Check if leg with legId is moving or not.
