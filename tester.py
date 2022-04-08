@@ -26,7 +26,10 @@ if __name__ == "__main__":
     #endregion
 
     #region LEG MOVEMENT AND POSITION READING.
-    goalPositions = [0.35, 0, 0.035]
+    legIds = [0, 1, 2, 3, 4]
+    goalPosition = [0.35, 0, 0.035]
+    goalPositions = [goalPosition] * len(legIds)
+
     kinematics = calculations.Kinematics()
     spider = environment.Spider()
     trajectoryPlanner = planning.TrajectoryPlanner()
@@ -39,21 +42,19 @@ if __name__ == "__main__":
     for motorId in np.array(motorsIds).flatten():
         motorsDriver.setVelocityProfile(motorId, 500, 1000)
         motorsDriver.setPositionPids(motorId, 2000, 200, 80)
+
+    
     
     motorsDriver.enableMotors()
-    
-    for i in range(spider.NUMBER_OF_LEGS):
-        motorsDriver.moveLeg(i, goalPositions)  
-    time.sleep(1)
-    goalPositions = [0.35, 0, -0.035]
-    for i in range(spider.NUMBER_OF_LEGS):
-        motorsDriver.moveLeg(i, goalPositions)  
-    time.sleep(1)
+
+    motorsDriver.moveLegs(legIds, goalPositions)
+    goalPosition = [0.35, 0, -0.035]
+    goalPositions = [goalPosition] * len(legIds)
+    motorsDriver.moveLegs(legIds, goalPositions)
 
     motorsDriver.disableMotors()
     for motorId in np.array(motorsIds).flatten():
-        motorsDriver.setVelocityProfile(motorId, 100, 200)
-        motorsDriver.setPositionPids(motorId, 2000, 200, 80)
+        motorsDriver.setVelocityProfile(motorId, 1, 500)
     motorsDriver.enableMotors()
     
 
@@ -79,21 +80,20 @@ if __name__ == "__main__":
 
         startLegPositions = [motorsDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
         T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
-        pins = []
-        for idx, t in enumerate(spider.T_ANCHORS):
-            anchorInGlobal = np.dot(T_GS, t)
-            pinMatrix = np.array([
-                [1, 0, 0, startLegPositions[idx][0]],
-                [0, 1, 0, startLegPositions[idx][1]],
-                [0, 0, 1, startLegPositions[idx][2]],
-                [0, 0, 0, 1]])
-            pinInGlobal = np.dot(anchorInGlobal, pinMatrix)
-            pins.append(pinInGlobal[:,3][0:3])
+        if idx == 0:
+            pins = []
+            for idx, t in enumerate(spider.T_ANCHORS):
+                anchorInGlobal = np.dot(T_GS, t)
+                pinMatrix = np.array([
+                    [1, 0, 0, startLegPositions[idx][0]],
+                    [0, 1, 0, startLegPositions[idx][1]],
+                    [0, 0, 1, startLegPositions[idx][2]],
+                    [0, 0, 0, 1]])
+                pinInGlobal = np.dot(anchorInGlobal, pinMatrix)
+                pins.append(pinInGlobal[:,3][0:3])
 
         trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
-    
-        for idx, pose in enumerate(trajectory):
-            motorsDriver.movePlatform(pose, pins)
+        motorsDriver.movePlatformTrajectory(trajectory, pins)
 
     #endregion
 

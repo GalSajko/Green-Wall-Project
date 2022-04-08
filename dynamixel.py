@@ -36,7 +36,7 @@ class MotorDriver:
 
         self.MINIMUM_POSITION_VALUE = 0
         self.MAXIMUM_POSITION_VALUE = 4095
-        self.MOVING_STATUS_TRESHOLD = 2
+        self.MOVING_STATUS_TRESHOLD = 20
 
         self.BAUDRATE = 1000000
         self.PROTOCOL_VERSION = 2.0
@@ -47,6 +47,8 @@ class MotorDriver:
 
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
         self.packetHandler = PacketHandler(self.PROTOCOL_VERSION)
+
+        self.setCompBaudRate(self.BAUDRATE)
 
         self.initPort()
         if enableMotors:
@@ -76,11 +78,8 @@ class MotorDriver:
         for motorId in motorsArray:
             # Enable torque.
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
-            if result != COMM_SUCCESS:
-                print("%s" % self.packetHandler.getTxRxResult(result))
-            elif error != 0:
-                print("%s" % self.packetHandler.getRxPacketError(error))
-            else:
+            comm = self.commResultAndErrorReader(result, error)
+            if not comm:
                 print("Motor %d has been successfully enabled" % motorId) 
     
     def disableMotors(self):
@@ -89,11 +88,8 @@ class MotorDriver:
         for motorId in motorsArray:
             # Disable torque.
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
-            if result != COMM_SUCCESS:
-                print("%s" % self.packetHandler.getTxRxResult(result))
-            elif error != 0:
-                print("%s" % self.packetHandler.getRxPacketError(error))
-            else:
+            comm = self.commResultAndErrorReader(result, error)
+            if not comm:
                 print("Motor %d has been successfully disabled" % motorId)
 
     def readLegPosition(self, legIdx):
@@ -107,10 +103,7 @@ class MotorDriver:
         presentPositions = []
         for motorId in motorsInLeg:
             presentPosition, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
-            if result != COMM_SUCCESS:
-                print("%s" % self.packetHandler.getTxRxResult(result))
-            elif error != 0:
-                print("%s" % self.packetHandler.getRxPacketError(error))
+            self.commResultAndErrorReader(result, error)
             presentPositions.append(presentPosition)
         
         # Calculate transformation matrix from base to end effector.
@@ -123,7 +116,8 @@ class MotorDriver:
         return position
 
     def moveLeg(self, legId, goalPosition):
-        """Move leg on given position in leg-base origin.
+        """Move leg on given position in leg-base origin. Meant to use for testing purposes only, 
+        otherwise use moveLegs() method.
 
         :param legId: Leg id.
         :param goalPosition: Goal position in leg-base origin.
@@ -136,10 +130,7 @@ class MotorDriver:
         # Write goal position (goal angle) for each motor.
         for idx, motorId in enumerate(self.motorsIds[legId]):
             result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_POSITION_ADDR, encoderValues[idx])
-            if result != COMM_SUCCESS:
-                print("%s" % self.packetHandler.getTxRxResult(result))
-            elif error != 0:
-                print("%s" % self.packetHandler.getRxPacketError(error))
+            self.commResultAndErrorReader(result, error)
 
         # Moving motors to the desired position.
         while True:
@@ -147,53 +138,121 @@ class MotorDriver:
             for idx, motorId in enumerate(self.motorsIds[legId]):
                 # Read current motors position.
                 presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
-                if result != COMM_SUCCESS:
-                    print("%s" % self.packetHandler.getTxRxResult(result))
-                elif error != 0:
-                    print("%s" % self.packetHandler.getRxPacketError(error))
+                self.commResultAndErrorReader(result, error)
 
-            # Check if current position is within given treshold (20 encoder ticks).
-            if abs(goalPosition - presentPositions).all() < self.MOVING_STATUS_TRESHOLD:
+            if (abs(encoderValues - presentPositions) < self.MOVING_STATUS_TRESHOLD).all():
+                break
+    
+    def moveLegs(self, legIds, goalPositions):
+        """ Move legs in quasi-synchronous manner.
+
+        :param legIds: Leg ids.
+        :param goalPositions: Goal positions.
+        """
+        if (len(legIds) != len(goalPositions)):
+            print("Given parameters are not in correct shape.")
+            return
+
+        # Compute encoder values for each motor in each leg.
+        legsEncoderValues = np.empty_like(goalPositions)
+        for idx, legId in enumerate(legIds):
+            q1, q2, q3 = self.kinematics.legInverseKinematics(legId, goalPositions[idx])
+            motorValues = mappers.mapJointRadiansToMotorRadians([q1, q2, q3])
+            legsEncoderValues[idx] = mappers.mapMotorRadiansToEncoder(motorValues)
+        legsEncoderValues = np.array(legsEncoderValues).astype(int)
+
+        # Write goal positions for each motor.
+        for i, legId in enumerate(legIds):
+            for idx, motorId in enumerate(self.motorsIds[legId]):
+                result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_POSITION_ADDR, legsEncoderValues[i][idx])
+                self.commResultAndErrorReader(result, error)
+        
+        allPresentPositions = np.empty_like(goalPositions)
+        while True:
+            for i, legId in enumerate(legIds):
+                presentPositions = np.array([0, 0, 0])
+                for idx, motorId in enumerate(self.motorsIds[legId]):
+                    presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
+                    self.commResultAndErrorReader(result, error)
+            allPresentPositions[i] = presentPositions
+        
+            if (abs(legsEncoderValues - allPresentPositions) < self.MOVING_STATUS_TRESHOLD).all():
                 break
 
-        print("Motors on desired position.") 
-
     def movePlatform(self, goalPose, pins):
-        """Move platform on given pose in global origin.
+        """Move platform on given pose in global origin. Meant to use for testing purposes only, 
+        otherwise use movePlatformTrajectory() method.
 
         :param goalPose: Goal pose as 1x6 array with position and rpy rotation.
+        :param pins: 
         """
         # Calculate required joint values.
         jointsInLegs = self.kinematics.platformInverseKinematics(goalPose, pins)
+        legsEncoderValues = np.empty((5, 3))
         for legIdx, jointsInLeg in enumerate(jointsInLegs):
             motorValues = mappers.mapJointRadiansToMotorRadians(jointsInLeg)
-            encoderValues = mappers.mapMotorRadiansToEncoder(motorValues).astype(int)
+            encoderValues = mappers.mapMotorRadiansToEncoder(motorValues)
+            legsEncoderValues[legIdx] = mappers.mapMotorRadiansToEncoder(motorValues)
+        legsEncoderValues = np.array(legsEncoderValues).astype(int)
 
-            # Write goal position (goal angle) for each motor on single leg.
-            for motorIdx, motorId in enumerate(self.motorsIds[legIdx]):
-                start = time.time()
-                result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_POSITION_ADDR, encoderValues[motorIdx])
-                end = time.time()
-                print("TIME FOR SENDING VALUE ON MOTOR: ", (end - start)) 
-                if result != COMM_SUCCESS:
-                    print("%s" % self.packetHandler.getTxRxResult(result))
-                elif error != 0:
-                    print("%s" % self.packetHandler.getRxPacketError(error))
-
-            # Moving motors to the desired position.
-            while True:
+        # Use all legs for moving the platform.
+        legIds = [0, 1, 2, 3, 4]
+        # Write goal position (goal angle) for each motor on single leg.
+        for i, legId in enumerate(legIds):
+            for idx, motorId in enumerate(self.motorsIds[legId]):
+                result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_POSITION_ADDR, legsEncoderValues[i][idx])
+                self.commResultAndErrorReader(result, error)
+        
+        allPresentPositions = np.empty((len(legIds), 3))
+        while True:
+            for i, legId in enumerate(legIds):
                 presentPositions = np.array([0, 0, 0])
-                for idx, motorId in enumerate(self.motorsIds[legIdx]):
-                    # Read current motors position.
+                for idx, motorId in enumerate(self.motorsIds[legId]):
                     presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
-                    if result != COMM_SUCCESS:
-                        print("%s" % self.packetHandler.getTxRxResult(result))
-                    elif error != 0:
-                        print("%s" % self.packetHandler.getRxPacketError(error))
+                    self.commResultAndErrorReader(result, error)
+            allPresentPositions[i] = presentPositions
+        
+            if (abs(legsEncoderValues - allPresentPositions) < self.MOVING_STATUS_TRESHOLD).all():
+                break  
 
-                # Check if current position is within given treshold (2 encoder ticks).
-                if abs(encoderValues - presentPositions).all() < self.MOVING_STATUS_TRESHOLD:
-                    break              
+    def movePlatformTrajectory(self, trajectory, pins):
+        """Move platform along given trajectory.
+
+        :param trajectory: Trajectory.
+        :param pins: Positions of used pins in global origin.
+        """
+        poseIdx = 0
+        while True:
+            if poseIdx >= len(trajectory):
+                break
+            # Calculate required joint values.
+            jointsInLegs = self.kinematics.platformInverseKinematics(trajectory[poseIdx], pins)
+            legsEncoderValues = np.empty((5, 3))
+            for legIdx, jointsInLeg in enumerate(jointsInLegs):
+                motorValues = mappers.mapJointRadiansToMotorRadians(jointsInLeg)
+                encoderValues = mappers.mapMotorRadiansToEncoder(motorValues)
+                legsEncoderValues[legIdx] = mappers.mapMotorRadiansToEncoder(motorValues)
+            legsEncoderValues = np.array(legsEncoderValues).astype(int)  
+
+            # Use all legs for moving the platform.
+            legIds = [i for i in range(5)]
+            # Write goal position (goal angle) for each motor on single leg.
+            for i, legId in enumerate(legIds):
+                for idx, motorId in enumerate(self.motorsIds[legId]):
+                    result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_POSITION_ADDR, legsEncoderValues[i][idx])
+                    self.commResultAndErrorReader(result, error)
+            
+            allPresentPositions = np.empty((len(legIds), 3))
+            for i, legId in enumerate(legIds):
+                presentPositions = np.array([0, 0, 0])
+                for idx, motorId in enumerate(self.motorsIds[legId]):
+                    presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
+                    self.commResultAndErrorReader(result, error)
+            allPresentPositions[i] = presentPositions
+        
+            if (abs(legsEncoderValues - allPresentPositions) < 20).all():
+                poseIdx += 1
+
     
     def isLegMoving(self, legId):
         """Check if leg with legId is moving or not.
@@ -205,10 +264,7 @@ class MotorDriver:
         movingArray = []
         for motorId in self.motorsIds[legId]:
             isMoving, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.READ_MOVING_ADDR)
-            if result != COMM_SUCCESS:
-                print("%s" % self.packetHandler.getTxRxResult(result))
-            elif error != 0:
-                print("%s" % self.packetHandler.getRxPacketError(error))
+            self.commResultAndErrorReader(result, error)
             isMoving = bool(isMoving)
             movingArray.append(isMoving) 
 
@@ -220,18 +276,13 @@ class MotorDriver:
             return 
 
         result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.PROFILE_ACCELERATION_ADDR, t1)
-        if result != COMM_SUCCESS:
-            print("%s" % self.packetHandler.getTxRxResult(result))
-        elif error != 0:
-            print("%s" % self.packetHandler.getRxPacketError(error))
+        firstComm = self.commResultAndErrorReader(result, error)
         
         result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.PROFILE_VELOCITY_ADDR, t3)
-        if result != COMM_SUCCESS:
-            print("%s" % self.packetHandler.getTxRxResult(result))
-        elif error != 0:
-            print("%s" % self.packetHandler.getRxPacketError(error))
+        secondComm = self.commResultAndErrorReader(result, error)
 
-        print("Motor %d velocity profile has been succesully enabled." % motorId)
+        if not (firstComm or secondComm):
+            print("Motor %d velocity profile has been succesully enabled." % motorId)
 
     def setPositionPids(self, motorId, p, i, d):
         """Set position PIDS for single motor.
@@ -242,24 +293,16 @@ class MotorDriver:
         :param d: D value.
         """
         result, error = self.packetHandler.write2ByteTxRx(self.portHandler, motorId, self.POSITION_P_GAIN_ADDR, p)
-        if result != COMM_SUCCESS:
-            print("%s" % self.packetHandler.getTxRxResult(result))
-        elif error != 0:
-            print("%s" % self.packetHandler.getRxPacketError(error))
+        firstComm = self.commResultAndErrorReader(result, error)
         
         result, error = self.packetHandler.write2ByteTxRx(self.portHandler, motorId, self.POSITION_I_GAIN_ADDR, i)
-        if result != COMM_SUCCESS:
-            print("%s" % self.packetHandler.getTxRxResult(result))
-        elif error != 0:
-            print("%s" % self.packetHandler.getRxPacketError(error))
+        secondComm = self.commResultAndErrorReader(result, error)
         
         result, error = self.packetHandler.write2ByteTxRx(self.portHandler, motorId, self.POSITION_D_GAIN_ADDR, d)
-        if result != COMM_SUCCESS:
-            print("%s" % self.packetHandler.getTxRxResult(result))
-        elif error != 0:
-            print("%s" % self.packetHandler.getRxPacketError(error))
+        thirdComm = self.commResultAndErrorReader(result, error)
         
-        print("Motor %d PIDs have been succesully enabled." % motorId)
+        if not (firstComm or secondComm or thirdComm):
+            print("Motor %d PIDs have been succesully changed." % motorId)
 
     def setMotorBaudRate(self, motorId, baudrateBit):
         """ Set baudrate for single motor.
@@ -268,12 +311,52 @@ class MotorDriver:
         :param baudrate: Baudrate bit (look in control table).
         """
         result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.BAUDRATE_ADDR, baudrateBit)
-        if result != COMM_SUCCESS:
-            print("%s" % self.packetHandler.getTxRxResult(result))
-        elif error != 0:
-            print("%s" % self.packetHandler.getRxPacketError(error))
-        
-        # print("Motor %d baudrate has been succesully enabled." % motorId)
+        comm = self.commResultAndErrorReader(result, error)
+        if not comm:
+            print("Motor %d baudrate has been succesully enabled." % motorId)
+
 
     def setCompBaudRate(self, baudrate):
         self.portHandler.setBaudRate(baudrate)
+    
+    def readMotorSettings(self, motorId):
+        """ Read motors baudrate, velocity and acceleration profile values and print them.
+
+        :param motorId: Motor's id.
+        :return: Baudrate bit, velocity and acceleration profile values.
+        """
+        # Read baudrate.
+        baudrate, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.BAUDRATE_ADDR)
+        firstComm = self.commResultAndErrorReader(result, error)
+        # Read velocity profile.
+        velocity, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PROFILE_VELOCITY_ADDR)
+        secondComm = self.commResultAndErrorReader(result, error)    
+        # Read acceleration profile.
+        acc, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PROFILE_ACCELERATION_ADDR)
+        thirdComm = self.commResultAndErrorReader(result, error)
+        # Read PIDs.
+        p, result, error = self.packetHandler.read2ByteTxRx(self.portHandler, motorId, self.POSITION_P_GAIN_ADDR)
+        fourtComm = self.commResultAndErrorReader(result, error)
+        i, result, error = self.packetHandler.read2ByteTxRx(self.portHandler, motorId, self.POSITION_I_GAIN_ADDR)
+        fifthComm = self.commResultAndErrorReader(result, error)
+        d, result, error = self.packetHandler.read2ByteTxRx(self.portHandler, motorId, self.POSITION_D_GAIN_ADDR)
+        sixthComm = self.commResultAndErrorReader(result, error)
+
+        # if not (firstComm or secondComm or thirdComm or fourtComm or fifthComm or sixthComm):
+        print("Motor {0} baudrate: {1}, velocity: {2}, acc: {3}, p: {4}, i: {5}, d: {6}.".format(motorId, baudrate, velocity, acc, p, i, d))
+    
+    def commResultAndErrorReader(self, result, error):
+        """Helper function for reading communication result and error.
+
+        :param result: Result.
+        :param error: Error.
+        :return: True if everything was ok, False otherwise.
+        """
+        if result != COMM_SUCCESS:
+            print("%s" % self.packetHandler.getTxRxResult(result))
+            return False
+        elif error != 0:
+            print("%s" % self.packetHandler.getRxPacketError(error))
+            return False
+        
+        return True

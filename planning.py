@@ -6,6 +6,7 @@ import numpy as np
 
 import environment
 import calculations
+from calculations import GeometryTools
 
 class PathPlanner:
     """Class for calculating spiders path and its legs positions on each step of the path.
@@ -88,6 +89,7 @@ class TrajectoryPlanner:
 
         :param startPose: Start pose in global, 1x6 vector with position and rpy orientation.
         :param goalPose: Goal pose in global, 1x6 vector with position and rpy orientation
+        :return: Array of points in global origin which represents trajectory.
         """
 
         startPose = np.array(startPose)
@@ -105,6 +107,35 @@ class TrajectoryPlanner:
         # Calculate number of steps from biggest difference.
         numberOfSteps = math.floor(biggestDiff / maxStep)
 
-        print(numberOfSteps)
-
         return np.linspace(startPose, goalPose, numberOfSteps)
+    
+    def legCircularTrajectory(self, startPosition, goalPosition):
+        """ Calculate half-circular trajectory for leg movement.
+
+        :param startPosition: Leg's start position in leg-based origin (read with MotorDriver.readLegPositon).
+        :param goalPosition: Desired position in leg-based origin.
+        :return: Array of points in leg-based origin which represents trajectory.
+        """
+        startPosition = np.array(startPosition)
+        goalPosition = np.array(goalPosition)
+
+        # Distance between start and goal point.
+        d = GeometryTools().calculateEuclideanDistance3d(startPosition, goalPosition)
+        r = d / 2.0
+        # Length of the curve with half-circular shape.
+        l = 0.5 * math.pi * d
+        maxStep = 0.01
+        numberOfSteps = math.floor(l / maxStep)
+
+        # Point in the middle between start and goal point.
+        pivotPoint = np.array([goalPosition[0] - startPosition[0], goalPosition[1] - startPosition[1], goalPosition[2] - startPosition[2]]) / 2
+        angles = np.linspace(math.pi / 2, -math.pi / 2, numberOfSteps)
+        direction = np.array(goalPosition - startPosition)
+        direction = direction / np.linalg.norm(direction)
+        # Angle between direction vector and x-axis of leg origin.
+        phi = math.atan2(direction[1], direction[0])
+        
+        firstPoint = np.array([])
+
+
+        print(phi)
