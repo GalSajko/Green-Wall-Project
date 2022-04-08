@@ -242,16 +242,18 @@ class MotorDriver:
                     result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_POSITION_ADDR, legsEncoderValues[i][idx])
                     self.commResultAndErrorReader(result, error)
             
-            allPresentPositions = np.empty((len(legIds), 3))
-            for i, legId in enumerate(legIds):
-                presentPositions = np.array([0, 0, 0])
-                for idx, motorId in enumerate(self.motorsIds[legId]):
-                    presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
-                    self.commResultAndErrorReader(result, error)
-            allPresentPositions[i] = presentPositions
-        
-            if (abs(legsEncoderValues - allPresentPositions) < 20).all():
-                poseIdx += 1
+            while True:
+                allPresentPositions = np.empty((len(legIds), 3))
+                for i, legId in enumerate(legIds):
+                    presentPositions = np.array([0, 0, 0])
+                    for idx, motorId in enumerate(self.motorsIds[legId]):
+                        presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
+                        self.commResultAndErrorReader(result, error)
+                allPresentPositions[i] = presentPositions
+            
+                if (abs(legsEncoderValues - allPresentPositions) < 20).all():
+                    poseIdx += 1
+                    break
 
     
     def isLegMoving(self, legId):
@@ -312,9 +314,19 @@ class MotorDriver:
         """
         result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.BAUDRATE_ADDR, baudrateBit)
         comm = self.commResultAndErrorReader(result, error)
-        if not comm:
+        if comm:
             print("Motor %d baudrate has been succesully enabled." % motorId)
 
+    def setMotorDriveMode(self, motorId, driveModeBit):
+        """Set drive mode for single motor.
+
+        :param motorId: Motor id.
+        :param driveModeBit: Drive mode bit to write on drive mode address.
+        """   
+        result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, 10, driveModeBit)
+        comm = self.commResultAndErrorReader(result, error)
+        if comm:
+            print("Motor %d drive mode has been succesully enabled." % motorId)
 
     def setCompBaudRate(self, baudrate):
         self.portHandler.setBaudRate(baudrate)

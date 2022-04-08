@@ -37,25 +37,32 @@ if __name__ == "__main__":
 
     
     motorsIds = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
-    motorsDriver = dynamixel.MotorDriver(motorsIds, False)
+    motorDriver = dynamixel.MotorDriver(motorsIds, False)
 
+    # for motorId in np.array(motorsIds).flatten():
+    #     motorDriver.setVelocityProfile(motorId, 500, 1000)
+    #     motorDriver.setPositionPids(motorId, 2000, 200, 80)
+
+    
+    
+    # motorDriver.enableMotors()
+
+    # motorDriver.moveLegs(legIds, goalPositions)
+    # goalPosition = [0.35, 0, -0.035]
+    # goalPositions = [goalPosition] * len(legIds)
+    # motorDriver.moveLegs(legIds, goalPositions)
+
+    motorDriver.disableMotors()
     for motorId in np.array(motorsIds).flatten():
-        motorsDriver.setVelocityProfile(motorId, 500, 1000)
-        motorsDriver.setPositionPids(motorId, 2000, 200, 80)
+        motorDriver.setMotorDriveMode(motorId, 0)
+        motorDriver.setPositionPids(motorId, 2000, 200, 80)
+        motorDriver.setVelocityProfile(motorId, 10, 20)
+    motorDriver.enableMotors()
 
-    
-    
-    motorsDriver.enableMotors()
-
-    motorsDriver.moveLegs(legIds, goalPositions)
+    motorDriver.moveLegs(legIds, goalPositions)
     goalPosition = [0.35, 0, -0.035]
     goalPositions = [goalPosition] * len(legIds)
-    motorsDriver.moveLegs(legIds, goalPositions)
-
-    motorsDriver.disableMotors()
-    for motorId in np.array(motorsIds).flatten():
-        motorsDriver.setVelocityProfile(motorId, 1, 500)
-    motorsDriver.enableMotors()
+    motorDriver.moveLegs(legIds, goalPositions)
     
 
     #endregion
@@ -78,7 +85,7 @@ if __name__ == "__main__":
         if idx != 0:
             startPose = goalPoses[idx - 1]
 
-        startLegPositions = [motorsDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
+        startLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
         T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
         if idx == 0:
             pins = []
@@ -93,7 +100,7 @@ if __name__ == "__main__":
                 pins.append(pinInGlobal[:,3][0:3])
 
         trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
-        motorsDriver.movePlatformTrajectory(trajectory, pins)
+        motorDriver.movePlatformTrajectory(trajectory, pins)
 
     #endregion
 
