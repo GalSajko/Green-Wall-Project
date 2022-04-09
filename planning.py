@@ -102,7 +102,10 @@ class TrajectoryPlanner:
         biggestDiff = max(
             abs(startPose[0] - goalPose[0]), 
             abs(startPose[1] - goalPose[1]),
-            abs(startPose[2] - goalPose[2]))
+            abs(startPose[2] - goalPose[2]),
+            abs(startPose[3] - goalPose[3]),
+            abs(startPose[4] - goalPose[4]),
+            abs(startPose[5] - goalPose[5]))
         
         # Calculate number of steps from biggest difference.
         numberOfSteps = math.floor(biggestDiff / maxStep)

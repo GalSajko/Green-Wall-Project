@@ -26,6 +26,7 @@ class MotorDriver:
         self.TORQUE_ENABLE_ADDR = 64
         self.GOAL_POSITION_ADDR = 116
         self.PRESENT_POSITION_ADDR = 132
+        self.DRIVE_MODE_ADDR = 10
         self.PROFILE_ACCELERATION_ADDR = 108
         self.PROFILE_VELOCITY_ADDR = 112
         self.READ_MOVING_ADDR = 122
@@ -33,14 +34,10 @@ class MotorDriver:
         self.POSITION_I_GAIN_ADDR = 82
         self.POSITION_D_GAIN_ADDR = 80
         self.BAUDRATE_ADDR = 8
-
-        self.MINIMUM_POSITION_VALUE = 0
-        self.MAXIMUM_POSITION_VALUE = 4095
-        self.MOVING_STATUS_TRESHOLD = 20
-
+        # Treshold to reach before sending new goal position - equals 5 degrees.
+        self.MOVING_TRESHOLD = 100
         self.BAUDRATE = 1000000
-        self.PROTOCOL_VERSION = 2.0
-        
+        self.PROTOCOL_VERSION = 2.0      
         self.USB_DEVICE_NAME = "/dev/ttyUSB0"
         
         self.motorsIds = np.array(motorsIds)
@@ -56,7 +53,6 @@ class MotorDriver:
 
         self.kinematics = calculations.Kinematics()
         self.spider = environment.Spider()
-        self.trajectoryPlanner = planning.TrajectoryPlanner()
 
     def initPort(self):
         """Initialize USB port and set baudrate.
@@ -79,7 +75,7 @@ class MotorDriver:
             # Enable torque.
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
             comm = self.commResultAndErrorReader(result, error)
-            if not comm:
+            if comm:
                 print("Motor %d has been successfully enabled" % motorId) 
     
     def disableMotors(self):
@@ -89,7 +85,7 @@ class MotorDriver:
             # Disable torque.
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
             comm = self.commResultAndErrorReader(result, error)
-            if not comm:
+            if comm:
                 print("Motor %d has been successfully disabled" % motorId)
 
     def readLegPosition(self, legIdx):
@@ -250,8 +246,8 @@ class MotorDriver:
                         presentPositions[idx], result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
                         self.commResultAndErrorReader(result, error)
                 allPresentPositions[i] = presentPositions
-            
-                if (abs(legsEncoderValues - allPresentPositions) < 100).all():
+
+                if (abs(legsEncoderValues - allPresentPositions) < self.MOVING_TRESHOLD).all():
                     poseIdx += 1
                     break
 
@@ -289,7 +285,7 @@ class MotorDriver:
         result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.PROFILE_VELOCITY_ADDR, t3)
         secondComm = self.commResultAndErrorReader(result, error)
 
-        if not (firstComm or secondComm):
+        if firstComm and secondComm:
             print("Motor %d velocity profile has been succesully enabled." % motorId)
 
     def setPositionPids(self, motorId, p, i, d):
@@ -309,7 +305,7 @@ class MotorDriver:
         result, error = self.packetHandler.write2ByteTxRx(self.portHandler, motorId, self.POSITION_D_GAIN_ADDR, d)
         thirdComm = self.commResultAndErrorReader(result, error)
         
-        if not (firstComm or secondComm or thirdComm):
+        if firstComm and secondComm and thirdComm:
             print("Motor %d PIDs have been succesully changed." % motorId)
 
     def setMotorBaudRate(self, motorId, baudrateBit):
@@ -329,16 +325,16 @@ class MotorDriver:
         :param motorId: Motor id.
         :param driveModeBit: Drive mode bit to write on drive mode address.
         """   
-        result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, 10, driveModeBit)
+        result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.DRIVE_MODE_ADDR, driveModeBit)
         comm = self.commResultAndErrorReader(result, error)
         if comm:
-            print("Motor %d drive mode has been succesully enabled." % motorId)
+            print("Motor %d drive mode has been succesully changed." % motorId)
 
     def setCompBaudRate(self, baudrate):
         self.portHandler.setBaudRate(baudrate)
     
     def readMotorSettings(self, motorId):
-        """ Read motors baudrate, velocity and acceleration profile values and print them.
+        """ Read motors baudrate, velocity and acceleration profile values, PIDs and drive mode and print them.
 
         :param motorId: Motor's id.
         :return: Baudrate bit, velocity and acceleration profile values.
@@ -359,9 +355,12 @@ class MotorDriver:
         fifthComm = self.commResultAndErrorReader(result, error)
         d, result, error = self.packetHandler.read2ByteTxRx(self.portHandler, motorId, self.POSITION_D_GAIN_ADDR)
         sixthComm = self.commResultAndErrorReader(result, error)
+        # Read drive mode.
+        driveMode, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.DRIVE_MODE_ADDR)
+        seventhComm = self.commResultAndErrorReader(result, error)
 
         # if not (firstComm or secondComm or thirdComm or fourtComm or fifthComm or sixthComm):
-        print("Motor {0} baudrate: {1}, velocity: {2}, acc: {3}, p: {4}, i: {5}, d: {6}.".format(motorId, baudrate, velocity, acc, p, i, d))
+        print("Motor {0} baudrate: {1}, velocity: {2}, acc: {3}, p: {4}, i: {5}, d: {6}, drive mode: {7}.".format(motorId, baudrate, velocity, acc, p, i, d, driveMode))
     
     def commResultAndErrorReader(self, result, error):
         """Helper function for reading communication result and error.

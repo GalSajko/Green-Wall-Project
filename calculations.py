@@ -213,7 +213,7 @@ class MatrixCalculator:
             [0, 0, 0, 1]
         ])
     
-    def getPinsInGlobal(cls, localLegsPositions, globalPose):
+    def getPinsInGlobal(cls, spiderAnchors, T_GS, localLegsPositions, globalPose):
         """ Calculate global positions of used pins.
 
         :param localLegsPositions: Legs positions in leg-based origins.
@@ -221,12 +221,12 @@ class MatrixCalculator:
         :return: 5x3 array of pins positions in global origin.
         """
         pins = []
-        for idx, t in enumerate(spider.T_ANCHORS):
+        for idx, t in enumerate(spiderAnchors):
             anchorInGlobal = np.dot(T_GS, t)
             pinMatrix = np.array([
-                [1, 0, 0, startLegPositions[idx][0]],
-                [0, 1, 0, startLegPositions[idx][1]],
-                [0, 0, 1, startLegPositions[idx][2]],
+                [1, 0, 0, localLegsPositions[idx][0]],
+                [0, 1, 0, localLegsPositions[idx][1]],
+                [0, 0, 1, localLegsPositions[idx][2]],
                 [0, 0, 0, 1]])
             pinInGlobal = np.dot(anchorInGlobal, pinMatrix)
             pins.append(pinInGlobal[:,3][0:3])
