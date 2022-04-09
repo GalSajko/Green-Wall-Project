@@ -149,7 +149,7 @@ class MotorDriver:
             print("Given parameters are not in correct shape.")
             return
 
-        threshold = 500
+        threshold = 50
         # Compute encoder values for each motor in each leg.
         legsEncoderValues = np.empty_like(goalPositions)
         for idx, legId in enumerate(legIds):

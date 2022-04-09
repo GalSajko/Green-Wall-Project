@@ -121,6 +121,8 @@ class TrajectoryPlanner:
         """
         startPosition = np.array(startPosition)
         goalPosition = np.array(goalPosition)
+        print(startPosition)
+        print(goalPosition)
 
         # Distance between start and goal point.
         d = GeometryTools().calculateEuclideanDistance3d(startPosition, goalPosition)
@@ -128,18 +130,19 @@ class TrajectoryPlanner:
 
         # Length of the curve with half-circular shape.
         l = 0.5 * math.pi * d
-        maxStep = 0.05
+        maxStep = 0.01
         numberOfSteps = math.floor(l / maxStep)
 
         startZ = startPosition[2]
         endZ = goalPosition[2]
 
-        # Angle between horizontal axis and start/end z position.
-        startAngle = -math.asin(startZ / r)
-        endAngle = -math.asin(endZ / r)
         circularTraj = np.linspace(startPosition, goalPosition, numberOfSteps)
-        angles = np.linspace(math.pi / 2 - startAngle, -math.pi / 2 - endAngle, numberOfSteps)
-        circularTraj[:, 2] = np.array([r * math.cos(angle) for angle in angles])
+
+        zFirst = np.linspace(startZ, startZ + r, numberOfSteps / 2)
+        zSecond = np.linspace(startZ + r, endZ, numberOfSteps / 2)
+        z = np.append(zFirst, zSecond)
+        print(z)
+        circularTraj[:, 2] = z
         
         return circularTraj
 
