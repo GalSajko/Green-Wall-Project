@@ -144,7 +144,7 @@ class MotorDriver:
                 break
     
     def moveLegs(self, legIds, goalPositions):
-        """ Move legs in quasi-synchronous manner.
+        """ Move legs in quasi-synchronous manner - note that it is still series communication.
 
         :param legIds: Leg ids.
         :param goalPositions: Goal positions.
@@ -236,7 +236,7 @@ class MotorDriver:
 
             # Use all legs for moving the platform.
             legIds = [i for i in range(5)]
-            # Write goal position (goal angle) for each motor on single leg.
+            # Write goal position for each motor on each leg.
             for i, legId in enumerate(legIds):
                 for idx, motorId in enumerate(self.motorsIds[legId]):
                     result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_POSITION_ADDR, legsEncoderValues[i][idx])
@@ -251,7 +251,7 @@ class MotorDriver:
                         self.commResultAndErrorReader(result, error)
                 allPresentPositions[i] = presentPositions
             
-                if (abs(legsEncoderValues - allPresentPositions) < 20).all():
+                if (abs(legsEncoderValues - allPresentPositions) < 100).all():
                     poseIdx += 1
                     break
 
@@ -273,6 +273,12 @@ class MotorDriver:
         return all(movingArray)
 
     def setVelocityProfile(self, motorId, t1, t3):
+        """Write values in Profile_velocity and Profile_acceleration registers.
+
+        :param motorId: Motor id.
+        :param t1: t1 - look in dynamixel_sdk documentation about Velocity profile.
+        :param t3: t2 - look in dynamixel_sd documentation about Velocity profile.
+        """
         if not t1 < t3:
             print("Unvalid values.")
             return 
@@ -287,7 +293,7 @@ class MotorDriver:
             print("Motor %d velocity profile has been succesully enabled." % motorId)
 
     def setPositionPids(self, motorId, p, i, d):
-        """Set position PIDS for single motor.
+        """Set position PIDs for single motor.
 
         :param motorId: Motor id
         :param p: P value.
