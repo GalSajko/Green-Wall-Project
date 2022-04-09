@@ -33,20 +33,9 @@ def main():
     
     motorsIds = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
     motorDriver = dynamixel.MotorDriver(motorsIds)
-    motorDriver.disableMotors()
-    # Show leg trajectory movement.
-    # legPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-    # leg1Trajectory = trajectoryPlanner.legCircularTrajectory(legPositions[0], [0.25, 0, -0.035])
-    # leg2Trajectory = trajectoryPlanner.legCircularTrajectory(legPositions[1], [0.25, 0, -0.035])
-    # leg3Trajectory = trajectoryPlanner.legCircularTrajectory(legPositions[2], [0.25, 0, -0.035])
-    # leg4Trajectory = trajectoryPlanner.legCircularTrajectory(legPositions[3], [0.25, 0, -0.035])
-    # leg5Trajectory = trajectoryPlanner.legCircularTrajectory(legPositions[4], [0.25, 0, -0.035])
-    # trajectories = [leg1Trajectory, leg2Trajectory, leg3Trajectory, leg4Trajectory, leg5Trajectory]
+
     for motorId in np.array(motorsIds).flatten():
         motorDriver.setVelocityProfile(motorId, 1, 500)
-    # for idx, trajectory in enumerate(trajectories):
-    #     for position in trajectory:
-    #         motorDriver.moveLegs(idx, [position])
 
     # Show parallel movement.
     motorDriver.enableMotors()
@@ -58,12 +47,6 @@ def main():
         [-0.1, -0.1, 0.2, -0.2, -0.2, -0.2],
         [-0.1, 0.1, 0.2, 0.2, 0.2, 0.2],
         [0.1, -0.1, 0.2, -0.2, -0.2, -0.2],
-        # [0, 0, 0.2, -0.2, -0.2, -0.2],
-        # [0, 0.1, 0.2, 0, 0, 0],
-        # [0.1, 0, 0.2, 0, 0, 0],
-        # [0, -0.1, 0.2, 0, 0, 0],
-        # [-0.1, 0, 0.2, 0, 0, 0],
-        # [0, 0.1, 0.2, 0, 0, 0],
         [0, 0, 0.2, 0, 0, 0],
         startPose
     ]
