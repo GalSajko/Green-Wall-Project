@@ -55,7 +55,7 @@ class PathPlanner:
                     distanceToPin = self.geometryTools.calculateEuclideanDistance2d(legAnchor, pin)
                     if self.spider.CONSTRAINS[0] < distanceToPin < self.spider.CONSTRAINS[1]:                       
                         # Than check angle between ideal leg direction and pin.
-                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateAngleBetweenTwoVectors2d(
+                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(
                             self.spider.IDEAL_LEG_VECTORS[idx], 
                             np.array(np.array(pin) - np.array(legAnchor)))
                         if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
@@ -125,20 +125,23 @@ class TrajectoryPlanner:
         # Distance between start and goal point.
         d = GeometryTools().calculateEuclideanDistance3d(startPosition, goalPosition)
         r = d / 2.0
+
         # Length of the curve with half-circular shape.
         l = 0.5 * math.pi * d
-        maxStep = 0.01
+        maxStep = 0.05
         numberOfSteps = math.floor(l / maxStep)
 
-        # Point in the middle between start and goal point.
-        pivotPoint = np.array([goalPosition[0] - startPosition[0], goalPosition[1] - startPosition[1], goalPosition[2] - startPosition[2]]) / 2
-        angles = np.linspace(math.pi / 2, -math.pi / 2, numberOfSteps)
-        direction = np.array(goalPosition - startPosition)
-        direction = direction / np.linalg.norm(direction)
-        # Angle between direction vector and x-axis of leg origin.
-        phi = math.atan2(direction[1], direction[0])
+        startZ = startPosition[2]
+        endZ = goalPosition[2]
+
+        # Angle between horizontal axis and start/end z position.
+        startAngle = -math.asin(startZ / r)
+        endAngle = -math.asin(endZ / r)
+        circularTraj = np.linspace(startPosition, goalPosition, numberOfSteps)
+        angles = np.linspace(math.pi / 2 - startAngle, -math.pi / 2 - endAngle, numberOfSteps)
+        circularTraj[:, 2] = np.array([r * math.cos(angle) for angle in angles])
         
-        firstPoint = np.array([])
+        return circularTraj
 
-
-        print(phi)
+        
+        

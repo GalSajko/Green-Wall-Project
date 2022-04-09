@@ -35,7 +35,7 @@ class MotorDriver:
         self.POSITION_D_GAIN_ADDR = 80
         self.BAUDRATE_ADDR = 8
         # Treshold to reach before sending new goal position - equals 5 degrees.
-        self.MOVING_TRESHOLD = 100
+        self.MOVING_TRESHOLD = 30
         self.BAUDRATE = 1000000
         self.PROTOCOL_VERSION = 2.0      
         self.USB_DEVICE_NAME = "/dev/ttyUSB0"
@@ -149,6 +149,7 @@ class MotorDriver:
             print("Given parameters are not in correct shape.")
             return
 
+        threshold = 500
         # Compute encoder values for each motor in each leg.
         legsEncoderValues = np.empty_like(goalPositions)
         for idx, legId in enumerate(legIds):
@@ -172,7 +173,7 @@ class MotorDriver:
                     self.commResultAndErrorReader(result, error)
             allPresentPositions[i] = presentPositions
         
-            if (abs(legsEncoderValues - allPresentPositions) < self.MOVING_STATUS_TRESHOLD).all():
+            if (abs(legsEncoderValues - allPresentPositions) < threshold).all():
                 break
 
     def movePlatform(self, goalPose, pins):
@@ -217,6 +218,7 @@ class MotorDriver:
         :param trajectory: Trajectory.
         :param pins: Positions of used pins in global origin.
         """
+        threshold = 100
         poseIdx = 0
         while True:
             if poseIdx >= len(trajectory):
@@ -247,7 +249,7 @@ class MotorDriver:
                         self.commResultAndErrorReader(result, error)
                 allPresentPositions[i] = presentPositions
 
-                if (abs(legsEncoderValues - allPresentPositions) < self.MOVING_TRESHOLD).all():
+                if (abs(legsEncoderValues - allPresentPositions) < threshold).all():
                     poseIdx += 1
                     break
 

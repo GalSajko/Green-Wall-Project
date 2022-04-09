@@ -37,29 +37,39 @@ def main():
     for motorId in np.array(motorsIds).flatten():
         # motorDriver.setMotorDriveMode(motorId, 4)
         # motorDriver.setPositionPids(motorId, 800, 0, 0)
+        motorDriver.setVelocityProfile(motorId, 300, 700)
+
+
+    legIds = [0, 1, 2, 3, 4]
+    goalPosition = [0.25, 0, 0.035]
+    goalPositions = [goalPosition] * len(legIds)
+    motorDriver.moveLegs(legIds, goalPositions)
+    goalPositions = [[0.25, 0, -0.035]] * len(legIds)
+    motorDriver.moveLegs(legIds, goalPositions)
+
+    # Show leg trajectory movement.
+    legTrajectory = trajectoryPlanner.legCircularTrajectory(goalPosition, [0.45, 0, -0.035])
+    for motorId in np.array(motorsIds).flatten():
         motorDriver.setVelocityProfile(motorId, 1, 500)
+    for position in legTrajectory:
+        goalPositions = [position] * len(legIds)
+        motorDriver.moveLegs(legIds, goalPositions)
 
-
-    # legIds = [0, 1, 2, 3, 4]
-    # goalPosition = [0.35, 0, 0.035]
-    # goalPositions = [goalPosition] * len(legIds)
-    # motorDriver.moveLegs(legIds, goalPositions)
-    # goalPosition = [0.35, 0, -0.035]
-    # goalPositions = [goalPosition] * len(legIds)
-    # motorDriver.moveLegs(legIds, goalPositions)
+    # Show parallel movement.
 
     startPose = [0, 0, 0.04, 0, 0, 0]
+    # Write any goal pose (rpy included).
     goalPoses = [
         [0, 0, 0.2, 0, 0, 0],
-        [0, 0, 0.2, 0.7, 0, 0],
-        [0, 0, 0.2, 0, 0, 0],
+        [0.1, 0.1, 0.2, 0.2, 0.2, 0.2],
+        [-0.1, -0.1, 0.2, -0.2, -0.2, -0.2],
         # [0, 0, 0.2, -0.2, -0.2, -0.2],
         # [0, 0.1, 0.2, 0, 0, 0],
         # [0.1, 0, 0.2, 0, 0, 0],
         # [0, -0.1, 0.2, 0, 0, 0],
         # [-0.1, 0, 0.2, 0, 0, 0],
         # [0, 0.1, 0.2, 0, 0, 0],
-        # [0, 0, 0.2, 0, 0, 0],
+        [0, 0, 0.2, 0, 0, 0],
         startPose
     ]
 

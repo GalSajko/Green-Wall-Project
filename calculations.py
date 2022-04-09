@@ -136,7 +136,7 @@ class GeometryTools:
         """
         return math.sqrt((firstPoint[0] - secondPoint[0])**2 + (firstPoint[1] - secondPoint[1])**2 + (firstPoint[2] - secondPoint[2])**2)
     
-    def calculateAngleBetweenTwoVectors2d(cls, firstVector, secondVector):
+    def calculateSignedAngleBetweenTwoVectors(cls, firstVector, secondVector):
         """Calculate signed angle between two vectors in 2d.
 
         :param firstVector: First vector.
@@ -147,7 +147,12 @@ class GeometryTools:
         productOfNorms = np.linalg.norm(firstVector) * np.linalg.norm(secondVector)
         angle = math.acos(dotProduct / productOfNorms)
         crossProduct = np.cross(firstVector, secondVector)
-        if crossProduct < 0:
+        # 2d vector.
+        if len(firstVector) <= 2 and crossProduct < 0:
+            angle = -angle
+            return angle
+        # 3d vector.
+        if (crossProduct < 0).any() < 0:
             angle = -angle
         return angle
 
