@@ -85,11 +85,11 @@ class Kinematics:
 
         return q1, q2, q3
 
-    def platformInverseKinematics(self, goalPose, pins):
+    def platformInverseKinematics(self, goalPose, legs):
         """Calculate inverse kinematics for spiders platform.
 
         :param goalPose: Goal pose in global, given as a 1x6 array with positions and rpy orientation.
-        :param pins: Global positions of used pins.
+        :param legs: Global positions of used legs.
         :return joints: 3x5 matrix with joints values for all legs.
         """
         # Get transformation matrix from origin to spider base, from desired goalPose.
@@ -103,8 +103,8 @@ class Kinematics:
             # Position of leg anchor in global.
             anchorInGlobalPosition = anchorInGlobal[:,3][0:3]
 
-            # Vector from anchor to pin in global.
-            anchorToPinGlobal = np.array(pins[idx] - anchorInGlobalPosition)
+            # Vector from anchor to end of leg in global.
+            anchorToPinGlobal = np.array(legs[idx] - anchorInGlobalPosition)
             # Transform this vector in legs local origin - only rotate.
             rotationMatrix = anchorInGlobal[:3, :3]
             anchorToPinLocal = np.dot(np.linalg.inv(rotationMatrix), anchorToPinGlobal)
@@ -218,14 +218,16 @@ class MatrixCalculator:
             [0, 0, 0, 1]
         ])
     
-    def getPinsInGlobal(cls, spiderAnchors, T_GS, localLegsPositions, globalPose):
-        """ Calculate global positions of used pins.
+    def getLegsInGlobal(cls, spiderAnchors, T_GS, localLegsPositions, globalPose):
+        """ Calculate global positions of legs.
 
+        :param spiderAnchors: Anchors positions in spiders origin.
+        :param T_GS: Transformation matrix from global to spiders origin.
         :param localLegsPositions: Legs positions in leg-based origins.
         :param globalPose: Spider's position in global origin.
-        :return: 5x3 array of pins positions in global origin.
+        :return: 5x3 array of legs positions in global origin.
         """
-        pins = []
+        legs = []
         for idx, t in enumerate(spiderAnchors):
             anchorInGlobal = np.dot(T_GS, t)
             pinMatrix = np.array([
@@ -234,7 +236,7 @@ class MatrixCalculator:
                 [0, 0, 1, localLegsPositions[idx][2]],
                 [0, 0, 0, 1]])
             pinInGlobal = np.dot(anchorInGlobal, pinMatrix)
-            pins.append(pinInGlobal[:,3][0:3])
+            legs.append(pinInGlobal[:,3][0:3])
 
-        return pins
+        return legs
         

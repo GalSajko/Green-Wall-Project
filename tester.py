@@ -7,6 +7,7 @@ import time
 import math
 from threading import Thread
 import sys
+import matplotlib.pyplot as plt
 
 import environment
 import simulaton
@@ -14,222 +15,59 @@ import calculations
 import mappers
 import dynamixel
 import planning
-
-def main():
-    #region PATH PLANNING
-    # pathPlanner = planning.PathPlanner()
-    # path = pathPlanner.calculateSpiderBodyPath([0.5, 0.5], [5.5, 3.5], 0.05)
-    # bestParams = [0.0323541 , 0.38081064, 0.58683527]
-    # selectedPins = pathPlanner.calculateSpiderLegsPositionsFF(path, bestParams)
-    # print(selectedPins)
-    #endregion
-
-    #region MOVEMENT.
-    kinematics = calculations.Kinematics()
-    spider = environment.Spider()
-    trajectoryPlanner = planning.TrajectoryPlanner()
-    matrixCalculator = calculations.MatrixCalculator()
-
-    
-    motorsIds = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
-    motorDriver = dynamixel.MotorDriver(motorsIds)
-    motorDriver.disableMotors()
-
-    for motorId in np.array(motorsIds).flatten():
-        motorDriver.setVelocityProfile(motorId, 1, 500)
-
-    # Show parallel movement.
-    motorDriver.enableMotors()
-    startPose = [0, 0, 0.04, 0, 0, 0]
-    # Write any goal pose (rpy included).
-    goalPoses = [
-        [0, 0, 0.2, 0, 0, 0],
-        [0.1, 0.1, 0.2, 0.2, 0.2, 0.2],
-        [-0.1, -0.1, 0.2, -0.2, -0.2, -0.2],
-        [-0.1, 0.1, 0.2, 0.2, 0.2, 0.2],
-        [0.1, -0.1, 0.2, -0.2, -0.2, -0.2],
-        [0, 0, 0.2, 0, 0, 0],
-        # startPose
-    ]
-
-    for idx, goalPose in enumerate(goalPoses):
-        if idx != 0:
-            startPose = goalPoses[idx - 1]
-
-        startLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-        T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
-        if idx == 0:
-            pins = matrixCalculator.getPinsInGlobal(spider.T_ANCHORS, T_GS, startLegPositions, startPose)
-
-        trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
-        motorDriver.movePlatformTrajectory(trajectory, pins)
-
-    # motorDriver.disableMotors()
-    #endregion    
-
-    #region WALKING
-
-    # Stand up and move platform 5 cm forward.
-    time.sleep(1)
-    # motorDriver.enableMotors()
-    startPose = [0, 0, 0.2, 0, 0, 0]
-    goalPoses = [
-        # [0, 0, 0.2, 0, 0, 0],
-        [0.0, 0.05, 0.2, 0, 0, 0]]
-    for idx, goalPose in enumerate(goalPoses):
-        if idx != 0:
-            startPose = goalPoses[idx - 1]
-
-        if idx == 0:
-            startLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-            T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
-            pins = matrixCalculator.getPinsInGlobal(spider.T_ANCHORS, T_GS, startLegPositions, startPose)
-
-        trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
-        motorDriver.movePlatformTrajectory(trajectory, pins)
-    
-    # Move legs 3 and 5 in direction of movement.
-    currentLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-    trajectoryLeg3 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[2], [0.25, -0.08, currentLegPositions[2][2]])
-    trajectoryLeg5 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[4], [0.35, 0.08, currentLegPositions[4][2]])
-    for position in trajectoryLeg3:
-        motorDriver.moveLegs([2], [position])
-    for position in trajectoryLeg5:
-        motorDriver.moveLegs([4], [position])
-
-    # Move legs 2 and 4 in direction of movement.
-    trajectoryLeg2 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[1], [0.35, -0.08, currentLegPositions[1][2]])
-    trajectoryLeg4 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[3], [0.25, 0.08, currentLegPositions[3][2]])
-    for position in trajectoryLeg2:
-        motorDriver.moveLegs([1], [position])
-    for position in trajectoryLeg4:
-        motorDriver.moveLegs([3], [position])
-    
-    # Move leg 1 in direciton of movement.
-    trajectoryLeg1 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[0], [0.45, 0, currentLegPositions[0][2]])
-    for position in trajectoryLeg1:
-        motorDriver.moveLegs([0], [position])
-    
-    # Move platform for 10 cm forward.
-    startPose = [0, 0.05, 0.2, 0, 0, 0]
-    goalPoses = [
-        [0, 0.15, 0.2, 0, 0, 0]]
-    for idx, goalPose in enumerate(goalPoses):
-        if idx != 0:
-            startPose = goalPoses[idx - 1]
-
-        if idx == 0:
-            startLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-            T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
-            pins = matrixCalculator.getPinsInGlobal(spider.T_ANCHORS, T_GS, startLegPositions, startPose)
-
-        trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
-        motorDriver.movePlatformTrajectory(trajectory, pins)
-
-    ###############
-    
-    # Move legs 3 and 5 in direction of movement.
-    currentLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-    trajectoryLeg3 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[2], [0.25, -0.08, currentLegPositions[2][2]])
-    trajectoryLeg5 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[4], [0.35, 0.08, currentLegPositions[4][2]])
-    for position in trajectoryLeg3:
-        motorDriver.moveLegs([2], [position])
-    for position in trajectoryLeg5:
-        motorDriver.moveLegs([4], [position])
-
-    # Move legs 2 and 4 in direction of movement.
-    trajectoryLeg2 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[1], [0.35, -0.08, currentLegPositions[1][2]])
-    trajectoryLeg4 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[3], [0.25, 0.08, currentLegPositions[3][2]])
-    for position in trajectoryLeg2:
-        motorDriver.moveLegs([1], [position])
-    for position in trajectoryLeg4:
-        motorDriver.moveLegs([3], [position])
-    
-    # Move leg 1 in direciton of movement.
-    trajectoryLeg1 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[0], [0.45, 0, currentLegPositions[0][2]])
-    for position in trajectoryLeg1:
-        motorDriver.moveLegs([0], [position])
-    
-    # Move platform for 10 cm forward.
-    startPose = [0, 0.15, 0.2, 0, 0, 0]
-    goalPoses = [
-        [0, 0.25, 0.2, 0, 0, 0]]
-    for idx, goalPose in enumerate(goalPoses):
-        if idx != 0:
-            startPose = goalPoses[idx - 1]
-
-        if idx == 0:
-            startLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-            T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
-            pins = matrixCalculator.getPinsInGlobal(spider.T_ANCHORS, T_GS, startLegPositions, startPose)
-
-        trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
-        motorDriver.movePlatformTrajectory(trajectory, pins)
-    
-    #########
-    
-    # Move legs 3 and 5 in direction of movement.
-    currentLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-    trajectoryLeg3 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[2], [0.25, -0.08, currentLegPositions[2][2]])
-    trajectoryLeg5 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[4], [0.35, 0.08, currentLegPositions[4][2]])
-    for position in trajectoryLeg3:
-        motorDriver.moveLegs([2], [position])
-    for position in trajectoryLeg5:
-        motorDriver.moveLegs([4], [position])
-
-    # Move legs 2 and 4 in direction of movement.
-    trajectoryLeg2 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[1], [0.35, -0.08, currentLegPositions[1][2]])
-    trajectoryLeg4 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[3], [0.25, 0.08, currentLegPositions[3][2]])
-    for position in trajectoryLeg2:
-        motorDriver.moveLegs([1], [position])
-    for position in trajectoryLeg4:
-        motorDriver.moveLegs([3], [position])
-    
-    # Move leg 1 in direciton of movement.
-    trajectoryLeg1 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[0], [0.45, 0, currentLegPositions[0][2]])
-    for position in trajectoryLeg1:
-        motorDriver.moveLegs([0], [position])
-    
-    # Move platform 10cm forward.
-    startPose = [0, 0.25, 0.2, 0, 0, 0]
-    goalPoses = [
-        [0, 0.35, 0.2, 0, 0, 0]]
-    for idx, goalPose in enumerate(goalPoses):
-        if idx != 0:
-            startPose = goalPoses[idx - 1]
-
-        if idx == 0:
-            startLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-            T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
-            pins = matrixCalculator.getPinsInGlobal(spider.T_ANCHORS, T_GS, startLegPositions, startPose)
-
-        trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
-        motorDriver.movePlatformTrajectory(trajectory, pins)
-
-    #########
-    
-    # Move legs 3 and 5 in direction of movement.
-    currentLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
-    trajectoryLeg3 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[2], [0.25, -0.08, currentLegPositions[2][2]])
-    trajectoryLeg5 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[4], [0.35, 0.08, currentLegPositions[4][2]])
-    for position in trajectoryLeg3:
-        motorDriver.moveLegs([2], [position])
-    for position in trajectoryLeg5:
-        motorDriver.moveLegs([4], [position])
-
-    # Move legs 2 and 4 in direction of movement.
-    trajectoryLeg2 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[1], [0.35, -0.08, currentLegPositions[1][2]])
-    trajectoryLeg4 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[3], [0.25, 0.08, currentLegPositions[3][2]])
-    for position in trajectoryLeg2:
-        motorDriver.moveLegs([1], [position])
-    for position in trajectoryLeg4:
-        motorDriver.moveLegs([3], [position])
-    
-    # Move leg 1 in direciton of movement.
-    trajectoryLeg1 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[0], [0.45, 0, currentLegPositions[0][2]])
-    for position in trajectoryLeg1:
-        motorDriver.moveLegs([0], [position])
-    #endregion 
+ 
 
 if __name__ == "__main__":
-    main()
+    spider = environment.Spider()
+    trajectoryPlanner = planning.TrajectoryPlanner()
+    kinematics = calculations.Kinematics()
+    matrixCalculator = calculations.MatrixCalculator()
+    motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
+    motorDriver = dynamixel.MotorDriver(motors) 
+    startPose = [0, 0, 0.2, 0, 0, 0]
+    goalPose = [0, 0.15, 0.2, 0, 0, 0]  
+    trajectory, velocity = trajectoryPlanner.minJerkTrajectory(startPose, goalPose, 3)
+    
+    # plt.plot(trajectory[:,-1], trajectory[:,1], trajectory[:,-1], velocity[:,1])
+    # plt.show()
+
+    legsIds = [0, 1, 2, 3, 4]
+
+    # Calculate angles in joints for each step of trajectory.
+    qD = []
+    timeStep = trajectory[1][-1] - trajectory[0][-1]
+
+    for idx, t in enumerate(trajectory):
+        pose, time = t[:-1], t[-1]
+        T_GS = matrixCalculator.transformMatrixFromGlobalPose(pose)
+        anchorsGlobal = np.array([np.dot(T_GS, tAnchor)[:,3][0:3] for tAnchor in spider.T_ANCHORS])
+
+        if idx == 0:
+            legs = [motorDriver.readLegPosition(i) for i in legsIds]
+            legsGlobal = matrixCalculator.getLegsInGlobal(spider.T_ANCHORS, T_GS, legs, startPose)
+
+        # Positions of legs on each step of trajectory - for calculating legs speed.
+        jointRadians = kinematics.platformInverseKinematics(pose, legsGlobal)
+        motorDegrees = np.array([np.degrees(mappers.mapJointRadiansToMotorRadians(values)) for values in jointRadians])
+        legPositions = np.array([kinematics.legDirectKinematics(legId, motorDegrees[i])[:,3][0:3] for i, legId in enumerate(legsIds)])
+
+        if idx != 0:
+            deltaLegPositions = np.array(legPositions - legPositionsOld)
+            deltaMotorDegrees = np.array(motorDegrees - motorDegreesOld)
+            J = []
+            for i in range(spider.NUMBER_OF_LEGS):
+                J.append(np.array([
+                    [deltaLegPositions[i][0] / deltaMotorDegrees[i][0], deltaLegPositions[i][0] / deltaMotorDegrees[i][1], deltaLegPositions[i][0] / deltaMotorDegrees[i][2]],
+                    [deltaLegPositions[i][1] / deltaMotorDegrees[i][0], deltaLegPositions[i][1] / deltaMotorDegrees[i][1], deltaLegPositions[i][1] / deltaMotorDegrees[i][2]],
+                    [deltaLegPositions[i][2] / deltaMotorDegrees[i][0], deltaLegPositions[i][2] / deltaMotorDegrees[i][1], deltaLegPositions[i][2] / deltaMotorDegrees[i][2]],
+                ]))
+            print(np.array(J))
+            print("========")
+        qD.append(jointRadians)
+
+        legPositionsOld = legPositions
+        motorDegreesOld = motorDegrees
+    
+    # print(np.array(qD))
+
+    

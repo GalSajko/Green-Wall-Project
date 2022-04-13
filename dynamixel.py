@@ -185,15 +185,15 @@ class MotorDriver:
             if (abs(legsEncoderValues - allPresentPositions) < threshold).all():
                 break
 
-    def movePlatform(self, goalPose, pins):
+    def movePlatform(self, goalPose, legs):
         """Move platform on given pose in global origin. Meant to use for testing purposes only, 
         otherwise use movePlatformTrajectory() method.
 
         :param goalPose: Goal pose as 1x6 array with position and rpy rotation.
-        :param pins: 
+        :param legs: 
         """
         # Calculate required joint values.
-        jointsInLegs = self.kinematics.platformInverseKinematics(goalPose, pins)
+        jointsInLegs = self.kinematics.platformInverseKinematics(goalPose, legs)
         legsEncoderValues = np.empty((5, 3))
         for legIdx, jointsInLeg in enumerate(jointsInLegs):
             motorValues = mappers.mapJointRadiansToMotorRadians(jointsInLeg)
@@ -221,11 +221,11 @@ class MotorDriver:
             if (abs(legsEncoderValues - allPresentPositions) < self.MOVING_STATUS_TRESHOLD).all():
                 break  
 
-    def movePlatformTrajectory(self, trajectory, pins):
+    def movePlatformTrajectory(self, trajectory, legs):
         """Move platform along given trajectory.
 
         :param trajectory: Trajectory.
-        :param pins: Positions of used pins in global origin.
+        :param legs: Positions of used legs in global origin.
         """
         threshold = 100
         poseIdx = 0
@@ -233,7 +233,7 @@ class MotorDriver:
             if poseIdx >= len(trajectory):
                 break
             # Calculate required joint values.
-            jointsInLegs = self.kinematics.platformInverseKinematics(trajectory[poseIdx], pins)
+            jointsInLegs = self.kinematics.platformInverseKinematics(trajectory[poseIdx], legs)
             legsEncoderValues = np.empty((5, 3))
             for legIdx, jointsInLeg in enumerate(jointsInLegs):
                 motorValues = mappers.mapJointRadiansToMotorRadians(jointsInLeg)

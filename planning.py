@@ -112,18 +112,18 @@ class TrajectoryPlanner:
 
         return np.linspace(startPose, goalPose, numberOfSteps)
     
-    def legCircularTrajectory(self, startPosition, goalPosition):
+    def legCircularTrajectory(self, startPose, goalPose):
         """ Calculate half-circular trajectory for leg movement.
 
-        :param startPosition: Leg's start position in leg-based origin (read with MotorDriver.readLegPositon).
-        :param goalPosition: Desired position in leg-based origin.
+        :param startPose: Leg's start position in leg-based origin (read with MotorDriver.readLegPositon).
+        :param goalPose: Desired position in leg-based origin.
         :return: Array of points in leg-based origin which represents trajectory.
         """
-        startPosition = np.array(startPosition)
-        goalPosition = np.array(goalPosition)
+        startPose = np.array(startPose)
+        goalPose = np.array(goalPose)
 
         # Distance between start and goal point.
-        d = GeometryTools().calculateEuclideanDistance3d(startPosition, goalPosition)
+        d = GeometryTools().calculateEuclideanDistance3d(startPose, goalPose)
         r = d / 2.0
         if r < 0.05:
             r = 0.05
@@ -136,10 +136,10 @@ class TrajectoryPlanner:
         if numberOfSteps <= 1:
             numberOfSteps = 2
 
-        startZ = startPosition[2]
-        endZ = goalPosition[2]
+        startZ = startPose[2]
+        endZ = goalPose[2]
 
-        circularTraj = np.linspace(startPosition, goalPosition, numberOfSteps)
+        circularTraj = np.linspace(startPose, goalPose, numberOfSteps)
 
         zFirst = np.linspace(startZ, startZ + r, numberOfSteps / 2)
         zSecond = np.linspace(startZ + r, endZ, (numberOfSteps / 2) + 1)
@@ -152,6 +152,39 @@ class TrajectoryPlanner:
             circularTraj[:, 2] = z
         
         return circularTraj
+
+    def minJerkTrajectory(self, startPose, goalPose, duration, startVelocity = [0, 0, 0, 0, 0, 0], goalVelocity = [0, 0, 0, 0, 0, 0]):
+        """Calculate minimum jerk trajectory from start to goal position.
+
+        :param startPose: Start pose (x, y, z, roll, pitch, yaw).
+        :param goalPose: Goal pose (x, y, z, roll, pitch, yaw).
+        :param duration: Duration of movement in seconds.
+        :param startVelocity: Start velocity, defaults to 0
+        :param goalVelocity: Goal velocity, defaults to 0
+        :return: Trajectory with pose and time stamp for each step.
+        """
+
+        if (len(startPose) != len(goalPose)):
+            print("Invalid start or goal poses.")
+            return
+
+        timeStep = 0.1
+        timeVector = np.linspace(0, duration, duration / timeStep)
+
+        trajectory = []
+        velocities = []
+        for t in timeVector:
+            tau = t / duration
+            trajectoryRow = [startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(tau, 5) - 15 * math.pow(tau, 4) + 10 * math.pow(tau, 3)) for i in range(len(startPose))]
+            velocityRow = [goalPose[i] * (30 * math.pow(tau, 4) - 60 * math.pow(tau, 3) + 30 * math.pow(tau, 2)) for i in range(len(startPose))]
+            trajectoryRow.append(t)
+    
+            trajectory.append(trajectoryRow)
+            velocities.append(velocityRow)
+
+
+
+        return np.array(trajectory), np.array(velocities)
 
         
         
