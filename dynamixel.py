@@ -78,15 +78,24 @@ class MotorDriver:
             if comm:
                 print("Motor %d has been successfully enabled" % motorId) 
     
-    def disableMotors(self):
-        """ Disable all of the motors."""
+    def disableMotors(self, legId = 5):
+        """ Disable all of the motors if value of motors parameter is 5. Otherwise, disable motors in given leg."""
         motorsArray = self.motorsIds.flatten()
-        for motorId in motorsArray:
-            # Disable torque.
+        if legId == 5:
+            for motorId in motorsArray:
+                # Disable torque.
+                result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
+                comm = self.commResultAndErrorReader(result, error)
+                if comm:
+                    print("Motor %d has been successfully disabled" % motorId)
+            return
+
+        for motorId in self.motorsIds[legId]:
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
             comm = self.commResultAndErrorReader(result, error)
             if comm:
                 print("Motor %d has been successfully disabled" % motorId)
+
 
     def readLegPosition(self, legIdx):
         """Read legs position, using direct kinematics.

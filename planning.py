@@ -95,7 +95,7 @@ class TrajectoryPlanner:
         startPose = np.array(startPose)
         goalPose = np.array(goalPose)
 
-        # Max allowed distance between two steps is 1mm.
+        # Max allowed distance between two steps is 1cm.
         maxStep = 0.01
 
         # Calculate biggest difference between single coordinates.
@@ -121,17 +121,20 @@ class TrajectoryPlanner:
         """
         startPosition = np.array(startPosition)
         goalPosition = np.array(goalPosition)
-        print(startPosition)
-        print(goalPosition)
 
         # Distance between start and goal point.
         d = GeometryTools().calculateEuclideanDistance3d(startPosition, goalPosition)
         r = d / 2.0
+        if r < 0.05:
+            r = 0.05
 
         # Length of the curve with half-circular shape.
         l = 0.5 * math.pi * d
-        maxStep = 0.01
+        maxStep = 0.02
         numberOfSteps = math.floor(l / maxStep)
+
+        if numberOfSteps <= 1:
+            numberOfSteps = 2
 
         startZ = startPosition[2]
         endZ = goalPosition[2]
@@ -139,10 +142,14 @@ class TrajectoryPlanner:
         circularTraj = np.linspace(startPosition, goalPosition, numberOfSteps)
 
         zFirst = np.linspace(startZ, startZ + r, numberOfSteps / 2)
-        zSecond = np.linspace(startZ + r, endZ, numberOfSteps / 2)
-        z = np.append(zFirst, zSecond)
-        print(z)
-        circularTraj[:, 2] = z
+        zSecond = np.linspace(startZ + r, endZ, (numberOfSteps / 2) + 1)
+
+        try:
+            z = np.append(zFirst, zSecond)
+            circularTraj[:, 2] = z
+        except:
+            z = np.append(zFirst[:-1], zSecond)
+            circularTraj[:, 2] = z
         
         return circularTraj
 
