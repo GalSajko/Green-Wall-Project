@@ -33,7 +33,7 @@ def main():
     
     motorsIds = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
     motorDriver = dynamixel.MotorDriver(motorsIds)
-    motorDriver.disableMotors()
+    # motorDriver.disableMotors()
 
     for motorId in np.array(motorsIds).flatten():
         motorDriver.setVelocityProfile(motorId, 1, 500)
@@ -46,7 +46,7 @@ def main():
         [0, 0, 0.2, 0, 0, 0],
         [0.1, 0.1, 0.2, 0.2, 0.2, 0.2],
         [-0.1, -0.1, 0.2, -0.2, -0.2, -0.2],
-        [-0.1, 0.1, 0.2, 0.2, 0.2, 0.2],
+        [-0.1, 0.1, 0.2, 0.2, 0.2, 0.2], 
         [0.1, -0.1, 0.2, -0.2, -0.2, -0.2],
         [0, 0, 0.2, 0, 0, 0],
         # startPose
@@ -229,6 +229,25 @@ def main():
     trajectoryLeg1 = trajectoryPlanner.legCircularTrajectory(currentLegPositions[0], [0.45, 0, currentLegPositions[0][2]])
     for position in trajectoryLeg1:
         motorDriver.moveLegs([0], [position])
+ 
+    # Move platform 10cm forward.
+    startPose = [0, 0.35, 0.2, 0, 0, 0]
+    goalPoses = [
+        [0, 0.35, 0.04, 0, 0, 0]]
+    for idx, goalPose in enumerate(goalPoses):
+        if idx != 0:
+            startPose = goalPoses[idx - 1]
+
+        if idx == 0:
+            startLegPositions = [motorDriver.readLegPosition(legId) for legId in range(spider.NUMBER_OF_LEGS)]
+            T_GS = matrixCalculator.transformMatrixFromGlobalPose(startPose)
+            pins = matrixCalculator.getPinsInGlobal(spider.T_ANCHORS, T_GS, startLegPositions, startPose)
+
+        trajectory = trajectoryPlanner.platformLinearTrajectory(startPose, goalPose)
+        motorDriver.movePlatformTrajectory(trajectory, pins)
+    
+    time.sleep(1)
+    motorDriver.disableMotors()
     #endregion 
 
 if __name__ == "__main__":
