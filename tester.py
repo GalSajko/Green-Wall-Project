@@ -29,3 +29,9 @@ if __name__ == "__main__":
     J = kinematics.legJacobi(0, [0, 0, 0])
     xDot = [1, 0, 0]
     qDot = np.dot(np.linalg.inv(J), xDot)*(-1)
+
+    bezierTraj = trajectoryPlanner.bezierTrajectory([0, 0, 0], [0.35, 0, 0], 5)
+    print(bezierTraj)
+
+    plt.plot(bezierTraj[:,0], bezierTraj[:,2],)
+    plt.show()

@@ -167,6 +167,9 @@ class TrajectoryPlanner:
         if (len(startPose) != len(goalPose) and len(startPose) != len(startVelocity) and len(startPose) != len(goalVelocity)):
             print("Invalid parameters.")
             return
+        if duration <= 0:
+            print("Invalid duration parameter.")
+            return
 
         timeStep = 0.1
         timeVector = np.linspace(0, duration, duration / timeStep)
@@ -186,19 +189,34 @@ class TrajectoryPlanner:
 
         return np.array(trajectory), np.array(velocities)
 
-    def bezierTrajectory(self, startPose, goalPose, duration):
+    def bezierTrajectory(self, startPoint, goalPoint, duration):
+        """ Calculate cubic bezier trajectory between start and goal pose with fixed intermediate control points.
+
+        :param startPoint: Starting poing.
+        :param goalPoint: Goal point.
+        :param duration: Duration of movement between start and goal point.
+        :return: Cubic Bezier trajectory with positions and time steps.
+        """
+
+        if (len(startPoint) != len(goalPoint)):
+            print("Invalid start and goal points.")
+            return
+        if duration <= 0:
+            print("Invalid duration.")
+            return
+
         timeStep = 0.1
         numberOfSteps = math.floor(duration / timeStep)
         trajectory = []
-        startPose, goalPose = np.array(startPose), np.array(goalPose)
-        firstInterPoint = np.array([startPose[0], startPose[1] + 0.15])
-        secondInterPoint = np.array([goalPose[0], goalPose[1] + 0.15])
-        controlPoints =  np.array([startPose, firstInterPoint, secondInterPoint, goalPose]) 
+        startPoint, goalPoint = np.array(startPoint), np.array(goalPoint)
+        firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + 0.15])
+        secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + 0.15])
+        controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint]) 
         parameterVector = np.linspace(0, 1, numberOfSteps)
         timeVector = np.linspace(0, duration, numberOfSteps)
         for idx, param in enumerate(parameterVector):
             point = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
-            trajectory.append([point[0], point[1], timeVector[idx]])
+            trajectory.append([point[0], point[1], point[2], timeVector[idx]])
 
         return np.array(trajectory)
 
