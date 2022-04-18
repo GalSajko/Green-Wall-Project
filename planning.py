@@ -161,11 +161,11 @@ class TrajectoryPlanner:
         :param duration: Duration of movement in seconds.
         :param startVelocity: Start velocity, defaults to 0
         :param goalVelocity: Goal velocity, defaults to 0
-        :return: Trajectory with pose and time stamp for each step.
+        :return: Trajectory with pose and time stamp for each step and velocities in each pose.
         """
 
-        if (len(startPose) != len(goalPose)):
-            print("Invalid start or goal poses.")
+        if (len(startPose) != len(goalPose) and len(startPose) != len(startVelocity) and len(startPose) != len(goalVelocity)):
+            print("Invalid parameters.")
             return
 
         timeStep = 0.1
@@ -185,6 +185,22 @@ class TrajectoryPlanner:
 
 
         return np.array(trajectory), np.array(velocities)
+
+    def bezierTrajectory(self, startPose, goalPose, duration):
+        timeStep = 0.1
+        numberOfSteps = math.floor(duration / timeStep)
+        trajectory = []
+        startPose, goalPose = np.array(startPose), np.array(goalPose)
+        firstInterPoint = np.array([startPose[0], startPose[1] + 0.15])
+        secondInterPoint = np.array([goalPose[0], goalPose[1] + 0.15])
+        controlPoints =  np.array([startPose, firstInterPoint, secondInterPoint, goalPose]) 
+        parameterVector = np.linspace(0, 1, numberOfSteps)
+        timeVector = np.linspace(0, duration, numberOfSteps)
+        for idx, param in enumerate(parameterVector):
+            point = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
+            trajectory.append([point[0], point[1], timeVector[idx]])
+
+        return np.array(trajectory)
 
         
         

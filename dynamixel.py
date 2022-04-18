@@ -118,7 +118,7 @@ class MotorDriver:
         position = pose[:,3]
         position = position[0:3]
 
-        return position
+        return np.array(position)
 
     def moveLeg(self, legId, goalPosition):
         """Move leg on given position in leg-base origin. Meant to use for testing purposes only, 
@@ -261,6 +261,11 @@ class MotorDriver:
                 if (abs(legsEncoderValues - allPresentPositions) < threshold).all():
                     poseIdx += 1
                     break
+
+    def writeMotorVelocity(self, motorId, velocity):
+        limit = 128
+        
+        result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, 104, velocity)
 
     
     def isLegMoving(self, legId):

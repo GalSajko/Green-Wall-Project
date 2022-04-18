@@ -38,7 +38,7 @@ def mapMotorRadiansToJointRadians(motorValues):
 def mapMotorRadiansToEncoder(jointValues):
     """Map degrees in motors to encoder values.
 
-    :param jointValues: Angles in motors in radians. 
+    :param jointValues: Angles in motors in degrees. 
     :return: Encoder values to match input angles.
     """
     jointValues = np.degrees(jointValues)

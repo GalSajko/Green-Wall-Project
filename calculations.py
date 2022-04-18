@@ -22,27 +22,28 @@ class Kinematics:
             "d" : 0
         }
 
-    def legDirectKinematics(self, legIdx, motorValues):
+    def legDirectKinematics(self, legIdx, jointValues):
         """ Calculate direct kinematics for spiders leg, using DH parameters.  
 
         :param joints: Motors values in degrees.
         :return: Transformation matrix from base to end effector.
         """
 
-        motorValues[1] = motorValues[1] + self.spider.SECOND_JOINTS_OFFSETS[legIdx]
-        motorValues[2] = motorValues[2] - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
-        jointValues = mappers.mapMotorRadiansToJointRadians(np.radians(motorValues))
+        # motorValues[1] = motorValues[1] + self.spider.SECOND_JOINTS_OFFSETS[legIdx]
+        # motorValues[2] = motorValues[2] - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
+        # jointValues = mappers.mapMotorRadiansToJointRadians(np.radians(motorValues))
         q1, q2, q3 = jointValues
-        
-        q2 = q2 - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
-        q3 = q3 + self.spider.SECOND_JOINTS_OFFSETS[legIdx]       
+        L1 = self.spider.LEGS[legIdx][0]
+        L2 = self.spider.LEGS[legIdx][1][0]
+        L3 = self.spider.LEGS[legIdx][1][1]
+        L4 = self.spider.LEGS[legIdx][2]
 
-        H01 = MatrixCalculator().calculateHMatrix(q1, self.DH_MODEL["alpha"][0], self.DH_MODEL["r"][0], self.DH_MODEL["d"])
-        H12 = MatrixCalculator().calculateHMatrix(q2, self.DH_MODEL["alpha"][1], self.DH_MODEL["r"][1], self.DH_MODEL["d"])
-        H23 = MatrixCalculator().calculateHMatrix(q3, self.DH_MODEL["alpha"][2], self.DH_MODEL["r"][2], self.DH_MODEL["d"])
-
-        H03 = np.dot(H01, np.dot(H12, H23))
-        return H03
+        return np.array([
+            [math.cos(q1)*math.cos(q3)*math.sin(q2) + math.cos(q1)*math.cos(q2)*math.sin(q3), math.cos(q1)*math.cos(q2)*math.cos(q3) - math.cos(q1)*math.sin(q2)*math.sin(q3), math.sin(q1), L1*math.cos(q1) + L4*math.cos(q1)*math.cos(q3)*math.sin(q2) + math.cos(q1)*(L2*math.cos(q2) + L3*math.sin(q2)) + L4*math.cos(q1)*math.cos(q2)*math.sin(q3)],
+            [math.cos(q3)*math.sin(q1)*math.sin(q2) + math.cos(q2)*math.sin(q1)*math.sin(q3), math.cos(q2)*math.cos(q3)*math.sin(q1) - math.sin(q1)*math.sin(q2)*math.sin(q3), -math.cos(q1), L1*math.sin(q1) + L4*math.cos(q3)*math.sin(q1)*math.sin(q2) + math.sin(q1)*(L2*math.cos(q2) + L3*math.sin(q2)) + L4*math.cos(q2)*math.sin(q1)*math.sin(q3)],
+            [-math.cos(q2)*math.cos(q3) + math.sin(q2)*math.sin(q3), math.cos(q3)*math.sin(q2) + math.cos(q2)*math.sin(q3), 0, -L3*math.cos(q2) - L4*math.cos(q2)*math.cos(q3) + L2*math.sin(q2) + L4*math.sin(q2)*math.sin(q3)],
+            [0, 0, 0, 1]
+        ])
     
     def legInverseKinematics(self, legIdx, endEffectorPosition):
         """ Calculate inverse kinematics for leg, using geometry - considering L shape of second link.
@@ -55,7 +56,6 @@ class Kinematics:
         endEffectorPosition[2] = -endEffectorPosition[2]
 
         firstLink = self.spider.LEGS[legIdx][0]
-        # REV: move this calculation to Spider().
         virtualSecondLink = np.hypot(self.spider.LEGS[legIdx][1][0], self.spider.LEGS[legIdx][1][1])
         thirdLink = self.spider.LEGS[legIdx][2]
 
@@ -114,6 +114,27 @@ class Kinematics:
             joints.append(np.array([q1, q2, q3]))
 
         return np.array(joints)
+
+    def legJacobi(self, legIdx, jointValues):
+        """ Calculate Jacobian matrix for single leg.
+
+        :param legId: Leg id.
+        :param q1: First joint value.
+        :param q2: Second joint value.
+        :param q3: Third joint value.    
+        :return: 3x3 Jacobian matrix.
+        """
+        q1, q2, q3 = jointValues
+        L1 = self.spider.LEGS[legIdx][0]
+        L2 = self.spider.LEGS[legIdx][1][0]
+        L3 = self.spider.LEGS[legIdx][1][1]
+        L4 = self.spider.LEGS[legIdx][2]
+
+        return np.array([
+            [-L1*math.sin(q1) - L4*math.cos(q3)*math.sin(q1)*math.sin(q2) - math.sin(q1)*(L2*math.cos(q2) + L3*math.sin(q2)) - L4*math.cos(q2)*math.sin(q1)*math.sin(q3), L4*math.cos(q1)*math.cos(q2)*math.cos(q3) + math.cos(q1)*(L3*math.cos(q2) - L2*math.sin(q2)) - L4*math.cos(q1)*math.sin(q2)*math.sin(q3), L4*math.cos(q1)*math.cos(q2)*math.cos(q3) - L4*math.cos(q1)*math.sin(q2)*math.sin(q3)],
+            [L1*math.cos(q1) + L4*math.cos(q1)*math.cos(q3)*math.sin(q2) + math.cos(q1)*(L2*math.cos(q2) + L3*math.sin(q2)) + L4*math.cos(q1)*math.cos(q2)*math.sin(q3), L4*math.cos(q2)*math.cos(q3)*math.sin(q1) + math.sin(q1)*(L3*math.cos(q2) - L2*math.sin(q2)) - L4*math.sin(q1)*math.sin(q2)*math.sin(q3), L4*math.cos(q2)*math.cos(q3)*math.sin(q1) - L4*math.sin(q1)*math.sin(q2)*math.sin(q3)],
+            [0, L2*math.cos(q2) + L3*math.sin(q2) + L4*math.cos(q3)*math.sin(q2) + L4*math.cos(q2)*math.sin(q3), L4*math.cos(q3)*math.sin(q2) + L4*math.cos(q2)*math.sin(q3)]
+            ])
 
 class GeometryTools:
     """Helper class for geometry calculations.
