@@ -177,15 +177,14 @@ class TrajectoryPlanner:
         trajectory = []
         velocities = []
         for t in timeVector:
-            tau = t / duration
-            trajectoryRow = [startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(tau, 5) - 15 * math.pow(tau, 4) + 10 * math.pow(tau, 3)) for i in range(len(startPose))]
-            velocityRow = [goalPose[i] * (30 * math.pow(tau, 4) - 60 * math.pow(tau, 3) + 30 * math.pow(tau, 2)) for i in range(len(startPose))]
+            trajectoryRow = []
+            velocityRow = []
+            for i in range(len(startPose)):
+                trajectoryRow.append(startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(t/duration, 5) - 15 * math.pow(t/duration, 4) + 10 * math.pow(t/duration, 3)))
+                velocityRow.append((30 * math.pow(t, 2) * math.pow(duration - t, 2) * (goalPose[i] - startPose[i])) / math.pow(duration, 5))
             trajectoryRow.append(t)
-    
             trajectory.append(trajectoryRow)
             velocities.append(velocityRow)
-
-
 
         return np.array(trajectory), np.array(velocities)
 

@@ -17,7 +17,7 @@ class Spider:
         self.NUMBER_OF_LEGS = 5
         # Radius of spiders platform, in meters.
         self.BODY_RADIUS = 0.125
-        # Spiders legs, given as lengths of all three links in one leg. Note that second link is in L shape,
+        # Spiders legs, given as lengths of all three links in one leg. Note that second link is in L shape -
         # first value is a length in vertical direction, second value is a horizontal offset.
         self.LEGS = [[0.064, (0.3, 0.025), 0.275],
                      [0.064, (0.3, 0.025), 0.275],
@@ -27,13 +27,13 @@ class Spider:
         self.SECOND_JOINTS_OFFSETS = [math.tan(leg[1][1] / leg[1][0]) for idx, leg in enumerate(self.LEGS)]
         # Angles between legs, looking from spiders origin.
         self.ANGLE_BETWEEN_LEGS = np.radians(360 / self.NUMBER_OF_LEGS)
-        # Positions of leg anchors on spiders platform, given in spiders origin - - matching the actual legs order on spider..
+        # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.
         self.LEG_ANCHORS = self.getLegAnchorsInSpiderOrigin()
         # Unit vectors pointing in radial directions (looking from center of body).
         self.IDEAL_LEG_VECTORS = self.getIdealLegVectors()
         # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
         self.CONSTRAINS = [0.15, 0.45, np.radians(30)]
-        # Array of transform matrices for transformations from base to anchors in base origin.
+        # Array of transformation matrices for transformations from spider base to anchors in base origin.
         self.T_ANCHORS = self.getTransformMatricesToAnchors()
     
     def __new__(cls, *args, **kwargs):
@@ -91,14 +91,14 @@ class Spider:
         T = []
         for i in range(self.NUMBER_OF_LEGS):
             rotationAngle = i * self.ANGLE_BETWEEN_LEGS + constantRoation
-            T.append(np.around(np.array([
+            T.append(np.array([
                 [math.cos(rotationAngle), -math.sin(rotationAngle), 0, self.LEG_ANCHORS[i][0]],
                 [math.sin(rotationAngle), math.cos(rotationAngle), 0, self.LEG_ANCHORS[i][1]],
                 [0, 0, 1, 0],
                 [0, 0, 0, 1]
-            ]), 3))
+            ]))
         
-        return T
+        return np.array(T)
     #endregion
 
 class Wall:
