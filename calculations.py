@@ -4,7 +4,7 @@
 import numpy as np
 import math
 
-import environment
+import environment as env
 import mappers
 
 
@@ -12,7 +12,7 @@ class Kinematics:
     """Class for calculating kinematics of spider robot. Includes direct and reverse kinematics for spiders legs.
     """
     def __init__(self):
-        self.spider = environment.Spider()
+        self.spider = env.Spider()
         # leg DH parameters - note: DH model is slightly different than real spiders leg, because of the shape of second link.
         # Here, DH model takes a second link as a straight line.
         # Missing thetas are variables and will come as a joints values.
@@ -217,18 +217,6 @@ class GeometryTools:
             angle = -angle
         return angle
 
-    def wrapToPi(cls, angle):
-        """Wrap angle to Pi.
-
-        :param angle: Angle
-        :return: Angle wrapped to Pi.
-        """
-        if angle < -math.pi:
-            angle += math.pi * 2
-        elif angle > math.pi:
-            angle -= math.pi * 2
-        return angle
-
 class MatrixCalculator:
     """ Class for calculating matrices."""
     def xyzRpyToMatrix(cls, xyzrpy):
@@ -263,34 +251,16 @@ class MatrixCalculator:
         transformMatrix = np.r_[transformMatrix, [[0, 0, 0, 1]]]
         
         return transformMatrix
-
-    def calculateHMatrix(cls, theta, alpha, r, d):
-        """ Helper function for calculating transformation matrix between two origins, using DH model.
-
-        :param theta: DH parameter theta.
-        :param alpha: DH parameter alpha.
-        :param r: DH parameter r.
-        :param d: DH parameter d.
-        :return: Transformation matrix between two origins.
-        """
-        return np.array([
-            [math.cos(theta), -math.sin(theta) * math.cos(alpha), math.sin(theta) * math.sin(alpha), r * math.cos(theta)],
-            [math.sin(theta), math.cos(theta) * math.cos(alpha), -math.cos(theta) * math.sin(alpha), r * math.sin(theta)],
-            [0, math.sin(alpha), math.cos(alpha), d],
-            [0, 0, 0, 1]
-        ])
     
-    def getLegsInGlobal(cls, spiderAnchors, localLegsPositions, globalPose):
+    def getLegsInGlobal(cls, localLegsPositions, globalPose):
         """ Calculate global positions of legs.
 
-        :param spiderAnchors: Anchors positions in spiders origin.
-        :param T_GS: Transformation matrix from global to spiders origin.
         :param localLegsPositions: Legs positions in leg-based origins.
         :param globalPose: Spider's position in global origin.
         :return: 5x3 array of legs positions in global origin.
         """
         legs = []
-        for idx, t in enumerate(spiderAnchors):
+        for idx, t in enumerate(env.Spider().T_ANCHORS):
             T_GS = cls.xyzRpyToMatrix(globalPose)
             anchorInGlobal = np.dot(T_GS, t)
             pinMatrix = np.array([
@@ -302,4 +272,4 @@ class MatrixCalculator:
             legs.append(pinInGlobal[:,3][0:3])
 
         return np.array(legs)
-        
+       

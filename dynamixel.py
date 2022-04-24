@@ -25,6 +25,7 @@ class MotorDriver:
         # Control table addresses.
         self.TORQUE_ENABLE_ADDR = 64
         self.GOAL_POSITION_ADDR = 116
+        self.GOAL_VELOCITY_ADDR = 104
         self.PRESENT_POSITION_ADDR = 132
         self.DRIVE_MODE_ADDR = 10
         self.PROFILE_ACCELERATION_ADDR = 108
@@ -111,7 +112,6 @@ class MotorDriver:
             self.commResultAndErrorReader(result, error)
             presentPositions.append(presentPosition)
         
-        # Calculate transformation matrix from base to end effector.
         motorDegrees = mappers.mapEncoderToDegrees(presentPositions)
         pose = self.kinematics.legDirectKinematics(legIdx, motorDegrees)
         # Read position from matrix
@@ -119,6 +119,23 @@ class MotorDriver:
         position = position[0:3]
 
         return np.array(position)
+
+    def readMotorsPositionsInLeg(self, legIdx):
+        """Read all motors positions in given leg.
+
+        :param legIdx: Leg id.
+        :return: 1x3 array of motors positions in joints radians.
+        """
+        motorsInLeg = self.motorsIds[legIdx]
+        currentPositions = []
+        for motorId in motorsInLeg:
+            currentPosition, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
+            currentPositions.append(currentPosition)
+        # Encoder values -> motors degrees -> motors radians.
+        motorRadians = np.radians(mappers.mapEncoderToDegrees(currentPositions))
+        # Motor radians -> joints radians.
+        jointsRadians = mappers.mapMotorRadiansToJointRadians(motorRadians)
+        return np.array(jointsRadians)
 
     def moveLeg(self, legId, goalPosition):
         """Move leg on given position in leg-base origin. Meant to use for testing purposes only, 

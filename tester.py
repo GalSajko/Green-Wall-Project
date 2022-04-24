@@ -16,8 +16,10 @@ import calculations
 import mappers
 import dynamixel
 import planning
+import controllers
 
 if __name__ == "__main__":
+    velocityController = controllers.VelocityController()
     spider = environment.Spider()
     trajectoryPlanner = planning.TrajectoryPlanner()
     kinematics = calculations.Kinematics()
@@ -25,7 +27,7 @@ if __name__ == "__main__":
     motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
     legs = [0, 1, 2, 3, 4]
     startPose = [0, 0, 0.3, 0, 0, 0]
-    goalPose = [0, 0, 0.35, 0, 0, 0.5]
+    goalPose = [0, 0, 0.35, 0, 0, 0]
     trajectory, velocity = trajectoryPlanner.minJerkTrajectory(startPose, goalPose, 5)
     timeVector = trajectory[:,-1]
     # Starting leg positions in leg-based origins.
@@ -38,49 +40,9 @@ if __name__ == "__main__":
     ])
 
     # Starting legs poisitons in global origin.
-    startGlobalLegsPositions = matrixCalculator.getLegsInGlobal(spider.T_ANCHORS, startLocalLegsPositions, startPose)
-    
+    startGlobalLegsPositions = matrixCalculator.getLegsInGlobal(startLocalLegsPositions, startPose)
     # Reference joints positions and velocities.
-    qD = []
-    qDd = []
-    # Reference leg-tips velocities.
-    xDd = []
-    for idx, traj in enumerate(trajectory):
-        # Extract data from trajectory and velocity.
-        pose = traj[:-1]
-        velocityGlobal = velocity[idx]
-        linearVelocityGlobal = velocityGlobal[:3]
-        velocityGlobalMatrix = matrixCalculator.xyzRpyToMatrix(velocityGlobal)
-
-        # Calculate current qD from pose with platform IK.
-        currentQd = kinematics.platformInverseKinematics(pose, startGlobalLegsPositions)
-
-        # Rotate spiders reference velocity into anchors velocities which represent reference velocities for single leg.
-        anchorsVelocities = [np.dot(np.linalg.inv(tAnchor[:3,:3]), linearVelocityGlobal) for tAnchor in spider.T_ANCHORS]
-
-        # Add angular velocities.
-        for i, anchorVelocity in enumerate(anchorsVelocities):
-            anchorPosition = spider.LEG_ANCHORS[i]
-            wx, wy, wz = velocityGlobal[3:]
-            anchorsVelocities[i] = np.array([
-                anchorVelocity[0],
-                anchorVelocity[1] + spider.BODY_RADIUS * wz, 
-                anchorVelocity[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
-                ])
-
-        referenceLegVelocities = np.copy(anchorsVelocities) * (-1)
-
-        # Legs jacobi matrices.
-        J = [kinematics.legJacobi(leg, currentQd[leg]) for leg in legs]
-        currentQdd = [np.dot(np.linalg.inv(jac), referenceLegVelocities[j]) for j, jac in enumerate(J)]
-
-        qD.append(currentQd)
-        qDd.append(currentQdd)
-        xDd.append(referenceLegVelocities)
-    
-    qD = np.array(qD)
-    qDd = np.array(qDd)
-    xDd = np.array(xDd)
+    qD, qDd = velocityController.movePlatform(startGlobalLegsPositions, trajectory, velocity)
 
     # Plot trajectory and velocities.
     fig, axs = plt.subplots(3,3)
@@ -113,8 +75,8 @@ if __name__ == "__main__":
     axs[1,2].plot(timeVector, qDd[:,legId][:,0], timeVector, qDd[:,legId][:,1], timeVector, qDd[:,legId][:,2])
     axs[1,2].legend(["1.joint", "2.joint", "3.joint"])
     # Plot reference velocities for leg.
-    axs[2,2].title.set_text("Reference leg-tip velocities.")
-    axs[2,2].plot(timeVector, xDd[:,legId][:,0], timeVector, xDd[:,legId][:,1], timeVector, xDd[:,legId][:,2])
-    axs[2,2].legend(["X direction", "Y direction", "Z direction"])
+    # axs[2,2].title.set_text("Reference leg-tip velocities.")
+    # axs[2,2].plot(timeVector, xDd[:,legId][:,0], timeVector, xDd[:,legId][:,1], timeVector, xDd[:,legId][:,2])
+    # axs[2,2].legend(["X direction", "Y direction", "Z direction"])
     plt.show()
     
