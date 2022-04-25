@@ -25,11 +25,16 @@ if __name__ == "__main__":
     kinematics = calculations.Kinematics()
     matrixCalculator = calculations.MatrixCalculator()
     motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
+    motorDriver = dynamixel.MotorDriver(motors)
+
     legs = [0, 1, 2, 3, 4]
     startPose = [0, 0, 0.3, 0, 0, 0]
     goalPose = [0, 0, 0.35, 0, 0, 0]
     trajectory, velocity = trajectoryPlanner.minJerkTrajectory(startPose, goalPose, 5)
     timeVector = trajectory[:,-1]
+
+    firstLegStartPosition = motorDriver.readLegPosition(0)
+    print(firstLegStartPosition)
     # Starting leg positions in leg-based origins.
     startLocalLegsPositions = np.array([
         [0.364, 0, -0.3],

@@ -6,7 +6,7 @@ import numpy as np
 
 import environment
 import calculations
-from calculations import GeometryTools
+
 
 class PathPlanner:
     """Class for calculating spiders path and its legs positions on each step of the path.
@@ -123,7 +123,7 @@ class TrajectoryPlanner:
         goalPose = np.array(goalPose)
 
         # Distance between start and goal point.
-        d = GeometryTools().calculateEuclideanDistance3d(startPose, goalPose)
+        d = calculations.GeometryTools().calculateEuclideanDistance3d(startPose, goalPose)
         r = d / 2.0
         if r < 0.05:
             r = 0.05

@@ -2,7 +2,6 @@
 
 import math
 import numpy as np
-import calculations
 
 def mapJointRadiansToMotorRadians(jointValues):
     """Map angles from Inverse kinematics in radians into motor angles in radians.

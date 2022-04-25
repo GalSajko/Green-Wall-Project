@@ -37,18 +37,26 @@ class VelocityController:
 
         return np.array(refereneceLegVelocities)
 
-    def movePlatform(self, startGlobalLegsPositions, trajectory, velocity):
-        """Move platform by sending calculated reference values to motors.
+    # def movePlatform(self, startGlobalLegsPositions, trajectory, velocity):
+    #     """Move platform by sending calculated reference values to motors.
 
-        :param startGlobalLegsPosition: Starting legs positions in global origin.
-        :param trajectory: Trajectory for spider's movement.
-        :param velocity: Velocities in each step of trajectory.
-        :return: Reference motors positions and velocities for each leg in each step of trajectory.
+    #     :param startGlobalLegsPosition: Starting legs positions in global origin.
+    #     :param trajectory: Trajectory for spider's movement.
+    #     :param velocity: Velocities in each step of trajectory.
+    #     :return: Reference motors positions and velocities for each leg in each step of trajectory.
+    #     """
+    #     qD = []
+    #     qDd = []
+    #     timeStep = trajectory[1][-1] - trajectory[0][-1]
+    #     for idx, traj in enumerate(trajectory):
+
+    def moveLeg(self, legIdx, trajectory, velocity):
+        """Move leg by sending calculated reference values to motors.
+
+        :param legIdx: Leg id.
+        :param trajectory: Trajectory.
+        :param velocity: Velocities in each trajectory step.
         """
-        qD = []
-        qDd = []
-        timeStep = trajectory[1][-1] - trajectory[0][-1]
-        for idx, traj in enumerate(trajectory):
             
             
 

@@ -113,7 +113,9 @@ class MotorDriver:
             presentPositions.append(presentPosition)
         
         motorDegrees = mappers.mapEncoderToDegrees(presentPositions)
-        pose = self.kinematics.legDirectKinematics(legIdx, motorDegrees)
+        # Motor degrees -> joint radians.
+        jointRadians = mappers.mapMotorRadiansToJointRadians(np.radians(motorDegrees))
+        pose = self.kinematics.legDirectKinematics(legIdx, jointRadians)
         # Read position from matrix
         position = pose[:,3]
         position = position[0:3]

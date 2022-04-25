@@ -5,7 +5,6 @@ import numpy as np
 import math
 
 import environment as env
-import mappers
 
 
 class Kinematics:
