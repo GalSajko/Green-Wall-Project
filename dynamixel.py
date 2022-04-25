@@ -1,6 +1,7 @@
 """ Wrapper module for controlling Dynamixel motors. Wraps some of the functions from dynamixel_sdk module.
 """
 
+from base64 import encode
 import numpy as np
 from dynamixel_sdk import *
 import threading
@@ -138,6 +139,17 @@ class MotorDriver:
         # Motor radians -> joints radians.
         jointsRadians = mappers.mapMotorRadiansToJointRadians(motorRadians)
         return np.array(jointsRadians)
+
+    def moveLegVelocity(self, legIdx, qCDot):
+        """Write reference velocity on all three motors of leg.
+
+        :param legIdx: Leg id
+        :param qCDot: Reference joints velocities in rad/s
+        """
+        motorsInLeg = self.motorsIds[legIdx]
+        encoderValues = mappers.mapJointVelocitiesToEncoderValues(qCDot).astype(int)
+        for idx, motorId in enumerate(motorsInLeg):
+            result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, self.GOAL_VELOCITY_ADDR, encoderValues[idx])
 
     def moveLeg(self, legId, goalPosition):
         """Move leg on given position in leg-base origin. Meant to use for testing purposes only, 
@@ -280,12 +292,6 @@ class MotorDriver:
                 if (abs(legsEncoderValues - allPresentPositions) < threshold).all():
                     poseIdx += 1
                     break
-
-    def writeMotorVelocity(self, motorId, velocity):
-        limit = 128
-        
-        result, error = self.packetHandler.write4ByteTxRx(self.portHandler, motorId, 104, velocity)
-
     
     def isLegMoving(self, legId):
         """Check if leg with legId is moving or not.

@@ -1,5 +1,6 @@
 """ Module for mapping angles between DH model and motor values. """
 
+from json import encoder
 import math
 import numpy as np
 
@@ -64,3 +65,23 @@ def mapEncoderToDegrees(encoderValues):
     jointValues.append(encoderValues[2] * 360.0 / 2**encoderBits)
 
     return np.array(jointValues)
+
+def mapJointVelocitiesToEncoderValues(jointVelocities):
+    """Map calculated joints velocities to encoder values.
+
+    :param jointVelocities: Reference joints velocities in rad/s.
+    :return: Encoder values to match desired joints velocities.
+    """
+    encoderVelocityLimit = 75
+    jointVelocitiyRpmLimit = 17.18
+
+    jointVelocities = np.array(jointVelocities)
+    # Rad/s to rad/min.
+    jointVelocitiesRpm = 60 * jointVelocities
+
+    # Convert to encoder values.
+    encoderValues = jointVelocitiesRpm * (encoderVelocityLimit / jointVelocitiyRpmLimit)
+    encoderValues[1] = -encoderValues[1]
+
+    return encoderValues
+

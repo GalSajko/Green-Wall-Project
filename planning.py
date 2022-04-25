@@ -185,7 +185,6 @@ class TrajectoryPlanner:
             trajectoryRow.append(t)
             trajectory.append(trajectoryRow)
             velocities.append(velocityRow)
-
         return np.array(trajectory), np.array(velocities)
 
     def bezierTrajectory(self, startPoint, goalPoint, duration):
