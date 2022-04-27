@@ -1,16 +1,14 @@
 """ Wrapper module for controlling Dynamixel motors. Wraps some of the functions from dynamixel_sdk module.
 """
 
-from base64 import encode
 import numpy as np
 from dynamixel_sdk import *
-import threading
-import time
+import struct
+
 
 import calculations
 import mappers
 import environment
-import planning
 
 class MotorDriver:
     """ Class for controlling Dynamixel motors.
@@ -36,19 +34,22 @@ class MotorDriver:
         self.POSITION_I_GAIN_ADDR = 82
         self.POSITION_D_GAIN_ADDR = 80
         self.BAUDRATE_ADDR = 8
-        # Treshold to reach before sending new goal position - equals 5 degrees.
         self.MOVING_TRESHOLD = 30
-        self.BAUDRATE = 1000000
+        self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0      
         self.USB_DEVICE_NAME = "/dev/ttyUSB0"
+        self.PRESENT_POSITION_DATA_LENGTH = 4
+        self.GOAL_VELOCITY_DATA_LENGTH = 4
         
         self.motorsIds = np.array(motorsIds)
-
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
         self.packetHandler = PacketHandler(self.PROTOCOL_VERSION)
 
-        self.setCompBaudRate(self.BAUDRATE)
+        # Group sync positions reader and group sync velocity writer.
+        self.groupSyncRead = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
+        self.groupSyncWrite = GroupSyncWrite(self.portHandler, self.packetHandler, self.GOAL_VELOCITY_ADDR, self.GOAL_VELOCITY_DATA_LENGTH)
 
+        self.setCompBaudRate(self.BAUDRATE)
         self.initPort()
         if enableMotors:
             self.enableMotors()
@@ -98,6 +99,52 @@ class MotorDriver:
             if comm:
                 print("Motor %d has been successfully disabled" % motorId)
 
+    def addGroupSyncReadParams(self, legIdx):
+        """Add parameters (motors ids of leg) to group sync reader parameters storage.
+
+        :param legIdx: Array of leg ids. 
+        """
+        motors = np.array(self.motorsIds[legIdx]).flatten()
+        for motor in motors:
+            result = self.groupSyncRead.addParam(motor)
+            if not result:
+                print("Failed adding parameter %d to Group Sync Reader" % motor)
+                return False
+        return True
+    
+    def syncWriteMotorsVelocitiesInLeg(self, legIdx, qCd, add = True):
+
+        motorsInLeg = self.motorsIds[legIdx]
+        encoderVelcoties = mappers.mapJointVelocitiesToEncoderValues(qCd).astype(int)
+        for i, motor in enumerate(motorsInLeg):
+            qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelcoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelcoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelcoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelcoties[i]))]
+            # Add or change parameters in storage.
+            if add:
+                result = self.groupSyncWrite.addParam(motor, qCdBytes)
+                if not result:
+                    print("Failed adding parameter %d to Group Sync Writer" % motor)
+                    return False
+            else:
+                result = self.groupSyncWrite.changeParam(motor, qCdBytes)
+                if not result:
+                    print("Failed changing Group Sync Writer parameter %d" % motor)
+                    return False   
+        # Write velocities to motors.
+        result = self.groupSyncWrite.txPacket()
+        if result != COMM_SUCCESS:
+            print("Failed to write velocities to motors.")
+            return False
+        return True              
+
+    def clearGroupSyncReadParams(self):
+        """Clear group sync reader parameters storage.
+        """
+        self.groupSyncRead.clearParam()
+    
+    def clearGroupSyncWriteParams(self):
+        """Clear group sync writer parameters storage.
+        """
+        self.groupSyncWrite.clearParam()
 
     def readLegPosition(self, legIdx):
         """Read legs position, using direct kinematics.
@@ -113,7 +160,7 @@ class MotorDriver:
             self.commResultAndErrorReader(result, error)
             presentPositions.append(presentPosition)
         
-        motorDegrees = mappers.mapEncoderToDegrees(presentPositions)
+        motorDegrees = mappers.mapEncoderToMotorsDegrees(presentPositions)
         # Motor degrees -> joint radians.
         jointRadians = mappers.mapMotorRadiansToJointRadians(np.radians(motorDegrees))
         pose = self.kinematics.legDirectKinematics(legIdx, jointRadians)
@@ -123,25 +170,18 @@ class MotorDriver:
 
         return np.array(position)
 
-    def readMotorsPositionsInLeg(self, legIdx):
-        """Read all motors positions in given leg.
+    def syncReadMotorsPositionsInLeg(self, legIdx):
+        """Read all motors positions in given leg with sync reader.
 
         :param legIdx: Leg id.
-        :return: 1x3 array of motors positions in joints radians.
+        :return: 1x3 array with positions of all three joints in leg.
         """
-        motorsInLeg = self.motorsIds[legIdx]
-        currentPositions = []
-        for motorId in motorsInLeg:
-            currentPosition, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
-            currentPositions.append(currentPosition)
-        # Encoder values -> motors degrees -> motors radians.
-        motorRadians = np.radians(mappers.mapEncoderToDegrees(currentPositions))
-        # Motor radians -> joints radians.
-        jointsRadians = mappers.mapMotorRadiansToJointRadians(motorRadians)
-        return np.array(jointsRadians)
+        self.groupSyncRead.txRxPacket()
+        positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[legIdx]]
+        return mappers.mapEncoderToJointRadians(positions)
 
     def moveLegVelocity(self, legIdx, qCDot):
-        """Write reference velocity on all three motors of leg.
+        """Write reference velocity to all three motors of leg.
 
         :param legIdx: Leg id
         :param qCDot: Reference joints velocities in rad/s
@@ -228,7 +268,6 @@ class MotorDriver:
         legsEncoderValues = np.empty((5, 3))
         for legIdx, jointsInLeg in enumerate(jointsInLegs):
             motorValues = mappers.mapJointRadiansToMotorRadians(jointsInLeg)
-            encoderValues = mappers.mapMotorRadiansToEncoder(motorValues)
             legsEncoderValues[legIdx] = mappers.mapMotorRadiansToEncoder(motorValues)
         legsEncoderValues = np.array(legsEncoderValues).astype(int)
 
@@ -268,7 +307,6 @@ class MotorDriver:
             legsEncoderValues = np.empty((5, 3))
             for legIdx, jointsInLeg in enumerate(jointsInLegs):
                 motorValues = mappers.mapJointRadiansToMotorRadians(jointsInLeg)
-                encoderValues = mappers.mapMotorRadiansToEncoder(motorValues)
                 legsEncoderValues[legIdx] = mappers.mapMotorRadiansToEncoder(motorValues)
             legsEncoderValues = np.array(legsEncoderValues).astype(int)  
 

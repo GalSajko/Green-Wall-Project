@@ -49,8 +49,8 @@ def mapMotorRadiansToEncoder(jointValues):
 
     return encoderValues
 
-def mapEncoderToDegrees(encoderValues):
-    """Map encoder values to motor degrees.
+def mapEncoderToMotorsDegrees(encoderValues):
+    """Map encoder values to motors degrees.
 
     :param encoderValues: Encoder values for each motor in leg.
     :return: Motors degrees for each motor in leg.
@@ -66,6 +66,17 @@ def mapEncoderToDegrees(encoderValues):
 
     return np.array(jointValues)
 
+def mapEncoderToJointRadians(encoderValues):
+    """Map encoders values to joints radians.
+
+    :param encoderValues: Encoders values for each motor in single leg.
+    """
+    encoderValues = np.array(encoderValues)
+    k = np.array([math.pi / 2048, -math.pi / 2048, math.pi / 2048])
+    n = np.array([-math.pi, math.pi, -3*math.pi / 2])
+
+    return np.array(k * encoderValues + n)
+
 def mapJointVelocitiesToEncoderValues(jointVelocities):
     """Map calculated joints velocities to encoder values.
 
@@ -77,7 +88,7 @@ def mapJointVelocitiesToEncoderValues(jointVelocities):
 
     jointVelocities = np.array(jointVelocities)
     # Rad/s to rad/min.
-    jointVelocitiesRpm = 60 * jointVelocities
+    jointVelocitiesRpm = (60 / (2*math.pi)) * jointVelocities
 
     # Convert to encoder values.
     encoderValues = jointVelocitiesRpm * (encoderVelocityLimit / jointVelocitiyRpmLimit)

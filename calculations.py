@@ -215,6 +215,18 @@ class GeometryTools:
         if (crossProduct < 0).any() < 0:
             angle = -angle
         return angle
+    
+    def wrapToPi(cls, angle):
+        """Wrap angle to Pi.
+
+        :param angle: Angle
+        :return: Angle wrapped to Pi.
+        """
+        if angle < -math.pi:
+            angle += math.pi * 2
+        elif angle > math.pi:
+            angle -= math.pi * 2
+        return angle
 
 class MatrixCalculator:
     """ Class for calculating matrices."""

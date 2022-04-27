@@ -12,6 +12,7 @@ class VelocityController:
     def __init__ (self):
         self.matrixCalculator = calculations.MatrixCalculator()
         self.kinematics = calculations.Kinematics()
+        self.geometryTools = calculations.GeometryTools()
         self.spider = env.Spider()
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors, False)
@@ -46,9 +47,8 @@ class VelocityController:
         :param legIdx: Leg id.
         :param xD: Current reference leg-tip position.
         :param xDd: Current reference leg-tip velocity.
-        :return: Reference motors positions and velcoities calculated from leg-tip reference.
+        :return: Reference motors positions and velocities calculated from leg-tip reference.
         """
-
         currentQd = self.kinematics.legInverseKinematics(legIdx, xD)
         J = self.kinematics.legJacobi(legIdx, currentQd)
         currentQdd = np.dot(np.linalg.inv(J), xDd)
@@ -71,26 +71,6 @@ class VelocityController:
             currentQdd.append(np.dot(np.linalg.inv(J), referenceLegsVelocities[leg]))
         
         return np.array(currentQd), np.array(currentQdd)
-    
-    def legController(self, currentQdLeg, currentQddLeg, legIdx):
-        """Calculate reference motor values for single leg, for moving along a given trajectory.
-
-        :param currentQd: Current motors reference positions.
-        :param currentQdd: Current motors reference velocities.
-        :param currentQa: Current motors positions.
-        :return: Reference motors values.
-        """  
-        # Read current leg-motors positions.
-        qA = self.motorDriver.readMotorsPositionsInLeg(legIdx)
-        # Position error.
-        error = currentQdLeg - qA
-        # Position P-controller (maybe upgrade to PD-controller later).
-        Kp = 0.8
-        qC = Kp * error
-        # Add reference velocity.
-        qCdot = qC + currentQddLeg
-
-        return np.array(qCdot)
 
     def moveLeg(self, legIdx, trajectory, velocity):
         """Move leg along given trajectory.
@@ -100,24 +80,41 @@ class VelocityController:
         :param velocity: Velocity.
         """
         timeStep = trajectory[1][-1] - trajectory[0][-1]
-        Kp = 0.8
-        for idx, pose in enumerate(trajectory):
-            startTime = time.time()
-            currentQd, currentQdd = self.getCurrentQdQddLeg(legIdx, pose[:3], velocity[idx][:3]) 
+        Kp = 10
+        Kd = 1
+        lastError = 0
+        self.motorDriver.clearGroupSyncReadParams()
+        self.motorDriver.clearGroupSyncWriteParams()
+        if self.motorDriver.addGroupSyncReadParams(legIdx):
+            for idx, pose in enumerate(trajectory):
+                startTime = time.time()
+                currentQd, currentQdd = self.getCurrentQdQddLeg(legIdx, pose[:3], velocity[idx][:3])
+                qA = self.motorDriver.syncReadMotorsPositionsInLeg(legIdx)
+                error = currentQd - qA
+                dE = (error - lastError) / timeStep
+                qCd = (Kp * error + Kd * dE) + currentQdd
+                lastError = error
 
-            qA = self.motorDriver.readMotorsPositionsInLeg(legIdx)
-            error = currentQd - qA
+                self.motorDriver.syncWriteMotorsVelocitiesInLeg(legIdx, qCd, idx == 0)
+    
+                if idx == len(trajectory) - 1:
+                    print("ON POSITIONS")
+                    qCd = [0, 0, 0]
+                    self.motorDriver.syncWriteMotorsVelocitiesInLeg(legIdx, qCd, idx == 0)
+                    break
+                else:
+                    idx += 1
+                try:
+                    time.sleep(timeStep - (time.time() - startTime))
+                except:
+                    time.sleep(0)
+                
 
-            qCd = (Kp * error) + currentQdd
-
-            if idx == len(trajectory) - 1:
-                qCd = [0, 0, 0]
-
-            self.motorDriver.moveLegVelocity(legIdx, qCd)
-            endTime = time.time()
-            print(endTime - startTime)
-            if idx != len(trajectory) - 1:
-                time.sleep(timeStep - (time.time() - startTime))
+            self.motorDriver.clearGroupSyncReadParams()
+            self.motorDriver.clearGroupSyncWriteParams()
+            return True
+        
+        return False
             
 
 
