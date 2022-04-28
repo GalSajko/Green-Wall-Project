@@ -1,10 +1,11 @@
-from os import times
 import numpy as np
+import time
+import matplotlib.pyplot as plt
 
 import calculations 
 import environment as env
 import dynamixel as dmx
-import time
+
 
 class VelocityController:
     """ Class for velocity-control of spider's movement.
@@ -15,7 +16,7 @@ class VelocityController:
         self.geometryTools = calculations.GeometryTools()
         self.spider = env.Spider()
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
-        self.motorDriver = dmx.MotorDriver(motors, False)
+        self.motorDriver = dmx.MotorDriver(motors)
 
     def getSpiderToLegReferenceVelocities(self, spiderVelocity):
         """Calculate current reference leg velocities from current spider velocity.
@@ -71,12 +72,12 @@ class VelocityController:
         qD = []
         qDd = []
         for idx, pose in enumerate(xD):
-            currentQd = self.kinematics.platformInverseKinematics(pose[:,-1], globalLegsPositions)
+            currentQd = self.kinematics.platformInverseKinematics(pose[:-1], globalLegsPositions)
             referenceLegsVelocities = self.getSpiderToLegReferenceVelocities(xDd[idx])
             currentQdd = []
             for leg in range(self.spider.NUMBER_OF_LEGS):
                 J = self.kinematics.legJacobi(leg, currentQd[leg])
-                currentQdd.append(np.dot(np.linalg.inv(J), referenceLegsVelocities))
+                currentQdd.append(np.dot(np.linalg.inv(J), referenceLegsVelocities[leg]))
             qD.append(currentQd)
             qDd.append(currentQdd)
         
@@ -111,16 +112,15 @@ class VelocityController:
             qDds.append(qDd)
         # Index of longer trajectory:
         longerIdx = trajectories.index(max(trajectories, key = len))
-        # lastErrors = np.zeros(len(legsIds))
         lastErrors = np.zeros([len(legsIds), 3])
         Kp = 10
         Kd = 1
         # Use indexes of longest trajectory.
         for i, _ in enumerate(trajectories[longerIdx]):
+            startTime = time.time()
             # Read motors positions in all legs.
             qA = self.motorDriver.syncReadMotorsPositionsInLegs(legsIds)
             qCds = []
-            startTime = time.time()
             for l, leg in enumerate(legsIds):
                 # If index is still whithin boundaries of current trajectory.
                 if i < len(trajectories[l]) - 1:
@@ -145,19 +145,51 @@ class VelocityController:
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
-    # def movePlatform(self, trajectory, velocity, globalStartPose):
-    #     """Move spider body as a parallel platform along a given trajectory.
+    def movePlatform(self, trajectory, velocity, globalStartPose):
+        """Move spider body as a parallel platform along a given trajectory.
 
-    #     :param trajectory: Spider's body trajectory.
-    #     :param velocity: Spider's body velocity.
-    #     :return: True if movement was successfull, false otherwise.
-    #     """
-    #     localLegsPositions = [self.motorDriver.readLegPosition(leg) for leg in range(self.spider.NUMBER_OF_LEGS)]
-    #     globalLegsPositions = self.matrixCalculator.getLegsInGlobal(localLegsPositions, globalStartPose)
-    #     qD, qDd = self.getQdQddPlatformFF(trajectory, velocity, globalLegsPositions)
+        :param trajectory: Spider's body trajectory.
+        :param velocity: Spider's body velocity.
+        :return: True if movement was successfull, false otherwise.
+        """
+        localLegsPositions = [self.motorDriver.readLegPosition(leg) for leg in range(self.spider.NUMBER_OF_LEGS)]
+        globalLegsPositions = self.matrixCalculator.getLegsInGlobal(localLegsPositions, globalStartPose)
 
+        legsIds = [leg for leg in range(self.spider.NUMBER_OF_LEGS)]
+        qDs, qDds = self.getQdQddPlatformFF(trajectory, velocity, globalLegsPositions)
 
-        
+        self.motorDriver.clearGroupSyncReadParams()
+        self.motorDriver.clearGroupSyncWriteParams()
+        if not self.motorDriver.addGroupSyncReadParams(legsIds):
+            return False
+
+        lastErrors = np.zeros([len(legsIds), 3])
+        Kp = 0
+        Kd = 0
+        timeStep = trajectory[1][-1] - trajectory[0][-1]
+
+        for idx, qD in enumerate(qDs):
+            startTime = time.time()
+            qA = self.motorDriver.syncReadMotorsPositionsInLegs(legsIds)
+            errors = qA - qD
+            dE = (errors - lastErrors) / timeStep
+            qCds = Kp * errors + Kd * dE + qDds[idx]
+            lastErrors = errors
+
+            if idx == len(trajectory) - 1:
+                qCds = np.zeros([len(legsIds), 3])
+            
+            if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legsIds, qCds, idx == 0):
+                return False
+
+            try:
+                time.sleep(timeStep - (time.time() - startTime))
+            except:
+                time.sleep(0)
+
+        self.motorDriver.clearGroupSyncReadParams()
+        self.motorDriver.clearGroupSyncWriteParams()
+        return True
 
             
 

@@ -119,7 +119,6 @@ class MotorDriver:
         :return: nx3 matrix with motors positions where n is number of given legs.
         """
         self.groupSyncRead.txRxPacket()
-        positions = []
         mappedPositions = []
         for leg in legsIds:
             positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]

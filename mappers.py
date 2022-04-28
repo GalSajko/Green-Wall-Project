@@ -70,6 +70,7 @@ def mapEncoderToJointRadians(encoderValues):
     """Map encoders values to joints radians.
 
     :param encoderValues: Encoders values for each motor in single leg.
+    :return: 1x3 array of joints values in leg.
     """
     encoderValues = np.array(encoderValues)
     k = np.array([math.pi / 2048, -math.pi / 2048, math.pi / 2048])

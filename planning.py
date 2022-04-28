@@ -171,7 +171,7 @@ class TrajectoryPlanner:
             print("Invalid duration parameter.")
             return
 
-        timeStep = 0.02
+        timeStep = 0.05
         timeVector = np.linspace(0, duration, duration / timeStep)
 
         trajectory = []
