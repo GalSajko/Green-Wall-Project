@@ -100,7 +100,7 @@ class MotorDriver:
                 print("Motor %d has been successfully disabled" % motorId)
 
     def addGroupSyncReadParams(self, legIdx):
-        """Add parameters (motors ids of leg) to group sync reader parameters storage.
+        """Add parameters (motors ids of legs) to group sync reader parameters storage.
 
         :param legIdx: Array of leg ids. 
         """
@@ -112,23 +112,40 @@ class MotorDriver:
                 return False
         return True
     
-    def syncWriteMotorsVelocitiesInLeg(self, legIdx, qCd, add = True):
+    def syncReadMotorsPositionsInLegs(self, legsIds):
+        """Read motors positions in given legs with sync reader.
 
-        motorsInLeg = self.motorsIds[legIdx]
-        encoderVelcoties = mappers.mapJointVelocitiesToEncoderValues(qCd).astype(int)
-        for i, motor in enumerate(motorsInLeg):
-            qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelcoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelcoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelcoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelcoties[i]))]
-            # Add or change parameters in storage.
-            if add:
-                result = self.groupSyncWrite.addParam(motor, qCdBytes)
-                if not result:
-                    print("Failed adding parameter %d to Group Sync Writer" % motor)
-                    return False
-            else:
-                result = self.groupSyncWrite.changeParam(motor, qCdBytes)
-                if not result:
-                    print("Failed changing Group Sync Writer parameter %d" % motor)
-                    return False   
+        :param legsIds: Legs ids.
+        :return: nx3 matrix with motors positions where n is number of given legs.
+        """
+        self.groupSyncRead.txRxPacket()
+        positions = []
+        mappedPositions = []
+        for leg in legsIds:
+            positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
+            mappedPositions.append(mappers.mapEncoderToJointRadians(positions))
+            
+        return np.array(mappedPositions)
+
+    
+    def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd, add = True):
+        
+        for idx, leg in enumerate(legIdx):
+            motorsInLeg = self.motorsIds[leg]
+            encoderVelocoties = mappers.mapJointVelocitiesToEncoderValues(qCd[idx]).astype(int)
+            for i, motor in enumerate(motorsInLeg):
+                qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocoties[i]))]
+                # Add or change parameters in storage.
+                if add:
+                    result = self.groupSyncWrite.addParam(motor, qCdBytes)
+                    if not result:
+                        print("Failed adding parameter %d to Group Sync Writer" % motor)
+                        return False
+                else:
+                    result = self.groupSyncWrite.changeParam(motor, qCdBytes)
+                    if not result:
+                        print("Failed changing Group Sync Writer parameter %d" % motor)
+                        return False   
         # Write velocities to motors.
         result = self.groupSyncWrite.txPacket()
         if result != COMM_SUCCESS:
