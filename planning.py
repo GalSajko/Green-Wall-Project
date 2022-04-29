@@ -84,75 +84,6 @@ class PathPlanner:
 class TrajectoryPlanner:
     """ Class for calculating different trajectories.
     """
-    def platformLinearTrajectory(self, startPose, goalPose):
-        """ Calculate linear trajectory for platform movement.
-
-        :param startPose: Start pose in global, 1x6 vector with position and rpy orientation.
-        :param goalPose: Goal pose in global, 1x6 vector with position and rpy orientation
-        :return: Array of points in global origin which represents trajectory.
-        """
-
-        startPose = np.array(startPose)
-        goalPose = np.array(goalPose)
-
-        # Max allowed distance between two steps is 1cm.
-        maxStep = 0.01
-
-        # Calculate biggest difference between single coordinates.
-        biggestDiff = max(
-            abs(startPose[0] - goalPose[0]), 
-            abs(startPose[1] - goalPose[1]),
-            abs(startPose[2] - goalPose[2]),
-            abs(startPose[3] - goalPose[3]),
-            abs(startPose[4] - goalPose[4]),
-            abs(startPose[5] - goalPose[5]))
-        
-        # Calculate number of steps from biggest difference.
-        numberOfSteps = math.floor(biggestDiff / maxStep)
-
-        return np.linspace(startPose, goalPose, numberOfSteps)
-    
-    def legCircularTrajectory(self, startPose, goalPose):
-        """ Calculate half-circular trajectory for leg movement.
-
-        :param startPose: Leg's start position in leg-based origin (read with MotorDriver.readLegPositon).
-        :param goalPose: Desired position in leg-based origin.
-        :return: Array of points in leg-based origin which represents trajectory.
-        """
-        startPose = np.array(startPose)
-        goalPose = np.array(goalPose)
-
-        # Distance between start and goal point.
-        d = calculations.GeometryTools().calculateEuclideanDistance3d(startPose, goalPose)
-        r = d / 2.0
-        if r < 0.05:
-            r = 0.05
-
-        # Length of the curve with half-circular shape.
-        l = 0.5 * math.pi * d
-        maxStep = 0.02
-        numberOfSteps = math.floor(l / maxStep)
-
-        if numberOfSteps <= 1:
-            numberOfSteps = 2
-
-        startZ = startPose[2]
-        endZ = goalPose[2]
-
-        circularTraj = np.linspace(startPose, goalPose, numberOfSteps)
-
-        zFirst = np.linspace(startZ, startZ + r, numberOfSteps / 2)
-        zSecond = np.linspace(startZ + r, endZ, (numberOfSteps / 2) + 1)
-
-        try:
-            z = np.append(zFirst, zSecond)
-            circularTraj[:, 2] = z
-        except:
-            z = np.append(zFirst[:-1], zSecond)
-            circularTraj[:, 2] = z
-        
-        return circularTraj
-
     def minJerkTrajectory(self, startPose, goalPose, duration, startVelocity = [0, 0, 0, 0, 0, 0], goalVelocity = [0, 0, 0, 0, 0, 0]):
         """Calculate minimum jerk trajectory from start to goal position.
 
@@ -203,18 +134,22 @@ class TrajectoryPlanner:
             print("Invalid duration.")
             return
 
-        timeStep = 0.1
+        timeStep = 0.02
         numberOfSteps = math.floor(duration / timeStep)
-        trajectory = []
+
         startPoint, goalPoint = np.array(startPoint), np.array(goalPoint)
         firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + 0.15])
         secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + 0.15])
         controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint]) 
         parameterVector = np.linspace(0, 1, numberOfSteps)
+
+        trajectory = []
+        velocity = []
         timeVector = np.linspace(0, duration, numberOfSteps)
-        for idx, param in enumerate(parameterVector):
-            point = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
-            trajectory.append([point[0], point[1], point[2], timeVector[idx]])
+        for idx, time in enumerate(timeVector):
+            param = time / duration
+            trajectoryPoint = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
+            trajectory.append([trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], timeVector[idx]])
 
         return np.array(trajectory)
 

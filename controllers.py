@@ -17,30 +17,6 @@ class VelocityController:
         self.spider = env.Spider()
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
-
-    def getSpiderToLegReferenceVelocities(self, spiderVelocity):
-        """Calculate current reference leg velocities from current spider velocity.
-
-        :param spiderVelocity: Current spider's velocity.
-        :return: Reference legs velocities.
-        """
-        linearSpiderVelocity = spiderVelocity[:3]
-        anguarSpiderVelocity = spiderVelocity[3:]
-
-        # Rotate spiders reference velocity into anchors velocities which represent reference velocities for single leg.
-        anchorsVelocities = [np.dot(np.linalg.inv(tAnchor[:3,:3]), linearSpiderVelocity) for tAnchor in self.spider.T_ANCHORS]
-        # Add angular velocities.
-        for i, anchorVelocity in enumerate(anchorsVelocities):
-            anchorPosition = self.spider.LEG_ANCHORS[i]
-            wx, wy, wz = anguarSpiderVelocity
-            anchorsVelocities[i] = np.array([
-                anchorVelocity[0],
-                anchorVelocity[1] + self.spider.BODY_RADIUS * wz,
-                anchorVelocity[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
-            ])
-        refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
-
-        return np.array(refereneceLegVelocities)
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -73,7 +49,7 @@ class VelocityController:
         qDd = []
         for idx, pose in enumerate(xD):
             currentQd = self.kinematics.platformInverseKinematics(pose[:-1], globalLegsPositions)
-            referenceLegsVelocities = self.getSpiderToLegReferenceVelocities(xDd[idx])
+            referenceLegsVelocities = self.kinematics.getSpiderToLegReferenceVelocities(xDd[idx])
             currentQdd = []
             for leg in range(self.spider.NUMBER_OF_LEGS):
                 J = self.kinematics.legJacobi(leg, currentQd[leg])
@@ -164,21 +140,21 @@ class VelocityController:
             return False
 
         lastErrors = np.zeros([len(legsIds), 3])
-        Kp = 0
-        Kd = 0
+        Kp = 10
+        Kd = 1
         timeStep = trajectory[1][-1] - trajectory[0][-1]
 
         for idx, qD in enumerate(qDs):
             startTime = time.time()
             qA = self.motorDriver.syncReadMotorsPositionsInLegs(legsIds)
-            errors = qA - qD
+            errors = qD - qA
             dE = (errors - lastErrors) / timeStep
             qCds = Kp * errors + Kd * dE + qDds[idx]
             lastErrors = errors
 
             if idx == len(trajectory) - 1:
                 qCds = np.zeros([len(legsIds), 3])
-            
+
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legsIds, qCds, idx == 0):
                 return False
 

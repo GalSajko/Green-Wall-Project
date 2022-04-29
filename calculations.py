@@ -83,7 +83,7 @@ class Kinematics:
     def platformInverseKinematics(self, goalPose, legs):
         """Calculate inverse kinematics for spiders platform.
 
-        :param goalPose: Goal pose in global, given as a 1x6 array with positions and rpy orientation.
+        :param goalPose: Goal pose in global, given as a 1x6 array with positions and xyz orientation.
         :param legs: Global positions of used legs.
         :return: 3x5 matrix with joints values for all legs.
         """
@@ -174,6 +174,30 @@ class Kinematics:
             [-r*math.cos(q1), 0, 0]
         ])
 
+    def getSpiderToLegReferenceVelocities(self, spiderVelocity):
+        """Calculate current reference leg velocities from current spider velocity.
+
+        :param spiderVelocity: Current spider's velocity.
+        :return: Reference legs velocities.
+        """
+        linearSpiderVelocity = spiderVelocity[:3]
+        anguarSpiderVelocity = spiderVelocity[3:]
+
+        # Rotate spiders reference velocity into anchors velocities which represent reference velocities for single leg.
+        anchorsVelocities = [np.dot(np.linalg.inv(tAnchor[:3,:3]), linearSpiderVelocity) for tAnchor in self.spider.T_ANCHORS]
+        # Add angular velocities.
+        for i, anchorVelocity in enumerate(anchorsVelocities):
+            anchorPosition = self.spider.LEG_ANCHORS[i]
+            wx, wy, wz = anguarSpiderVelocity
+            anchorsVelocities[i] = np.array([
+                anchorVelocity[0],
+                anchorVelocity[1] + self.spider.BODY_RADIUS * wz,
+                anchorVelocity[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
+            ])
+        refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
+
+        return np.array(refereneceLegVelocities)
+
 class GeometryTools:
     """Helper class for geometry calculations.
     """
@@ -225,12 +249,12 @@ class MatrixCalculator:
         position = xyzrpy[0:3]
         rpy = xyzrpy[3:]
 
-        pitch = np.array([
+        roll = np.array([
             [math.cos(rpy[1]), 0, math.sin(rpy[1])],
             [0, 1, 0],
             [-math.sin(rpy[1]), 0, math.cos(rpy[1])]
         ])
-        roll = np.array([
+        pitch = np.array([
             [1, 0, 0],
             [0, math.cos(rpy[0]), -math.sin(rpy[0])],
             [0, math.sin(rpy[0]), math.cos(rpy[0])] 
@@ -241,7 +265,7 @@ class MatrixCalculator:
             [0, 0, 1]
         ])
 
-        rotationMatrix = np.dot(roll, np.dot(pitch, yaw))
+        rotationMatrix = np.dot(pitch, np.dot(roll, yaw))
 
         transformMatrix = np.c_[rotationMatrix, position]
         transformMatrix = np.r_[transformMatrix, [[0, 0, 0, 1]]]
