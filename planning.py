@@ -2,6 +2,7 @@
 """
 
 import math
+from multiprocessing.sharedctypes import Value
 import numpy as np 
 
 import environment
@@ -124,7 +125,7 @@ class TrajectoryPlanner:
         :param startPoint: Starting poing.
         :param goalPoint: Goal point.
         :param duration: Duration of movement between start and goal point.
-        :return: Cubic Bezier trajectory with positions and time steps.
+        :return: Cubic Bezier trajectory with positions and time steps and velocities in each step.
         """
 
         if (len(startPoint) != len(goalPoint)):
@@ -138,20 +139,42 @@ class TrajectoryPlanner:
         numberOfSteps = math.floor(duration / timeStep)
 
         startPoint, goalPoint = np.array(startPoint), np.array(goalPoint)
-        firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + 0.15])
-        secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + 0.15])
-        controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint]) 
-        parameterVector = np.linspace(0, 1, numberOfSteps)
+        firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + 0.3 * np.linalg.norm(goalPoint - startPoint)])
+        secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + 0.3 * np.linalg.norm(goalPoint - startPoint)])
+        controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint])
 
         trajectory = []
-        velocity = []
         timeVector = np.linspace(0, duration, numberOfSteps)
-        for idx, time in enumerate(timeVector):
+
+        for time in timeVector:
             param = time / duration
             trajectoryPoint = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
-            trajectory.append([trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], timeVector[idx]])
+            trajectory.append([trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], time])
 
-        return np.array(trajectory)
+        trajectory = np.array(trajectory)
+
+        d = np.array([
+            trajectory[:,0][-1] - trajectory[:,0][0],
+            trajectory[:,1][-1] - trajectory[:,1][0],
+            max(trajectory[:,2]) - trajectory[:,2][0] + max(trajectory[:,2]) - trajectory[:,2][-1]])
+
+        vMax = 2 * (d / duration)
+        a = 3 * vMax / duration
+        t1 = duration / 3.0
+        t2 = 2 * duration / 3.0
+
+        velocity = []
+        for time in timeVector:
+            if 0 <= time <= t1:
+                velocity.append(a * time)
+            elif t1 < time < t2:
+                velocity.append(vMax)
+            elif t2 <= time <= duration:
+                velocity.append(vMax - a * (time- t2))
+
+        return np.array(trajectory), np.array(velocity)
+
+    
 
         
         

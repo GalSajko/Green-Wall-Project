@@ -81,7 +81,7 @@ class MotorDriver:
             if comm:
                 print("Motor %d has been successfully enabled" % motorId) 
     
-    def disableMotors(self, legId = 5):
+    def disableLegs(self, legId = 5):
         """ Disable all of the motors if value of motors parameter is 5. Otherwise, disable motors in given leg."""
         motorsArray = self.motorsIds.flatten()
         if legId == 5:
