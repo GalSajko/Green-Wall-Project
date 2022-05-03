@@ -122,10 +122,10 @@ class TrajectoryPlanner:
     def bezierTrajectory(self, startPoint, goalPoint, duration):
         """ Calculate cubic bezier trajectory between start and goal pose with fixed intermediate control points.
 
-        :param startPoint: Starting poing.
+        :param startPoint: Starting point
         :param goalPoint: Goal point.
         :param duration: Duration of movement between start and goal point.
-        :return: Cubic Bezier trajectory with positions and time steps and velocities in each step.
+        :return: Cubic Bezier trajectory with positions, time steps and velocities in each step.
         """
 
         if (len(startPoint) != len(goalPoint)):

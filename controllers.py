@@ -1,10 +1,10 @@
 import numpy as np
 import time
-import matplotlib.pyplot as plt
 
 import calculations 
 import environment as env
 import dynamixel as dmx
+import planning
 
 
 class VelocityController:
@@ -15,6 +15,7 @@ class VelocityController:
         self.kinematics = calculations.Kinematics()
         self.geometryTools = calculations.GeometryTools()
         self.spider = env.Spider()
+        self.trajectoryPlanner = planning.TrajectoryPlanner()
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
     
@@ -67,13 +68,9 @@ class VelocityController:
         :param velocity: 2D array of legs tips velocities.
         :return: True if movements were successfull, false otherwise.
         """
-        # if len(legsIds) > 2:
-        #     print("Cannot move more than 2 legs at the same time!")
-        #     return False
         if len(legsIds) != len(trajectories) and len(legsIds) != len(velocities):
-            print("Invalid parameters.")
-            return False
-        
+            raise ValueError("Invalid parameters!")
+
         qDs = []
         qDds = []
         # Time steps of all trajectories should be the same (it is defined in trajectory planner).
@@ -120,6 +117,40 @@ class VelocityController:
         self.motorDriver.clearGroupSyncReadParams()
         self.motorDriver.clearGroupSyncWriteParams()
         return True
+
+    def moveLegsWrapper(self, legsIds, globalGoalPositions, spiderPose):
+        """Wrapper function for moving any number of legs (within number of spiders legs) to desired pins on the wall. 
+        Includes transformation from global to legs-local pins positions and computing trajectories.
+
+        :param legsIds: Array of legs ids.
+        :param globalGoalPositions: Array of global goal positions (represents desired pins positions).
+        :param spiderPose: Array of xyzrpy global position of spider's body.
+        :raises ValueError: Exception is thrown if legsIds and globalGoalPositions parameters dont have same length.
+        :return: True if movements were successfull, false otherwise.
+        """
+        if len(legsIds) != len(globalGoalPositions):
+            raise ValueError("Invalid legs ids or goal positions.")
+        
+        # Transformation matrix of global spider's pose.
+        T_GS = self.matrixCalculator.xyzRpyToMatrix(spiderPose)
+
+        # Calculate trajectories for each leg movement from local positions.
+        bezierTrajectories = []
+        bezierVelocities = []
+        for legIdx, leg in enumerate(legsIds):
+            # Read starting legs positions and transform global goal positions into local.
+            startPosition = self.motorDriver.readLegPosition(leg)
+            T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
+            localGoalPosition = np.dot(np.linalg.inv(T_GA), globalGoalPositions[legIdx])
+            # TODO: How to calculate movement duration for each pin-to-pin movement?
+            traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, 5)
+            bezierTrajectories.append(traj)
+            bezierVelocities.append(vel)
+        
+        result = self.moveLegs(legsIds, bezierTrajectories, bezierVelocities)
+
+        return result
+        
 
     def movePlatform(self, trajectory, velocity, globalStartPose):
         """Move spider body as a parallel platform along a given trajectory.
