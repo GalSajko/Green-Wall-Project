@@ -133,7 +133,6 @@ class VelocityController:
         
         # Transformation matrix of global spider's pose.
         T_GS = self.matrixCalculator.xyzRpyToMatrix(spiderPose)
-
         # Calculate trajectories for each leg movement from local positions.
         bezierTrajectories = []
         bezierVelocities = []
@@ -141,7 +140,8 @@ class VelocityController:
             # Read starting legs positions and transform global goal positions into local.
             startPosition = self.motorDriver.readLegPosition(leg)
             T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
-            localGoalPosition = np.dot(np.linalg.inv(T_GA), globalGoalPositions[legIdx])
+            globalGoalPositions[legIdx] = np.append(globalGoalPositions[legIdx], 1)
+            localGoalPosition = np.dot(np.linalg.inv(T_GA), globalGoalPositions[legIdx])[:3]
             # TODO: How to calculate movement duration for each pin-to-pin movement?
             traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, 5)
             bezierTrajectories.append(traj)

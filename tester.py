@@ -17,7 +17,15 @@ if __name__ == "__main__":
 
     # LEGS MOVEMENT
     motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
-    # motorDriver = dynamixel.MotorDriver(motors)
+    motorDriver = dynamixel.MotorDriver(motors)
+    motorDriver.disableLegs(2)
+
+    spiderPose = [0.447, 0.355, 0, 0, 0, 0]
+
+    leg2GlobalGoal = [0, 0, 0]
+
+    velocityController.moveLegsWrapper([2], [leg2GlobalGoal], spiderPose)
+
 
     # motorDriver.disableLegs(2)
     # motorDriver.disableLegs(4)
