@@ -210,15 +210,17 @@ class VelocityController:
         :return: True if walking procedure was successfull, false otherwise.
         """
         platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose, 0.05)
+
         # Move legs on starting positions, based on calculations for starting spider's position.      
         if not self.moveLegsWrapper(5, pins[0], platformPoses[0]):
             print("Platform movement error!")
-            return
+            return False
+
         # First lift platform on walking height.
         startWalkingPose = np.copy(globalStartPose)
         startWalkingPose[2] = 0.15
-        traj, vel = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 5)
-        result = self.movePlatform(traj, vel, globalStartPose)
+        platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 5)
+        result = self.movePlatform(platformTrajectory, platformVelocity, globalStartPose)
 
         # Move through calculated poses.
         for poseIdx, pose in enumerate(platformPoses):
@@ -229,16 +231,17 @@ class VelocityController:
             result = self.movePlatform(platformTrajectory, platformVelocity, pose[poseIdx - 1])
             if not result:
                 print("Platform movement error!")
-                return
+                return False
             # Select indexes of legs which have to move.
-            legsToMoveIdxs = np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))
+            legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
             # Move legs.
             for legIdx in legsToMoveIdxs:
                 result = self.moveLegsWrapper([legIdx], pins[poseIdx][legIdx], pose[poseIdx], 5)
                 if not result:
                     print("Leg movement error!")
-                    return
+                    return False
 
+        return True
 
 
 
