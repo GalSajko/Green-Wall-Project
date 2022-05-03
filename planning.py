@@ -15,7 +15,7 @@ class PathPlanner:
     def __init__(self):
         self.spider = environment.Spider()
         self.wall = environment.Wall()
-        self.pins = self.wall.createGrid()
+        self.pins = self.wall.createSquaredGrid()
         self.geometryTools = calculations.GeometryTools()
 
     def calculateSpiderBodyPath(self, start, goal, maxStep):
@@ -60,7 +60,7 @@ class PathPlanner:
                             self.spider.IDEAL_LEG_VECTORS[idx], 
                             np.array(np.array(pin) - np.array(legAnchor)))
                         if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
-                            if step != 0 and step != len(path) - 1:
+                            if step not in (0, len(path) - 1):
                                 previousPin = selectedPins[step - 1][idx]
                                 # criterion - pick pin with best distance, minimum angle and those with minimum distance from previous pin (avoid unnecesarry movement).
                                 distanceBetweenSelectedAndPreviousPin = self.geometryTools.calculateEuclideanDistance2d(previousPin, pin)

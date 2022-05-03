@@ -24,7 +24,7 @@ class Spider:
                      [0.064, (0.3, 0.025), 0.275],
                      [0.064, (0.3, 0.025), 0.277],
                      [0.064, (0.3, 0.025), 0.275]]
-        self.SECOND_JOINTS_OFFSETS = [math.tan(leg[1][1] / leg[1][0]) for idx, leg in enumerate(self.LEGS)]
+        self.SECOND_JOINTS_OFFSETS = [math.tan(leg[1][1] / leg[1][0]) for leg in self.LEGS]
         # Angles between legs, looking from spiders origin.
         self.ANGLE_BETWEEN_LEGS = np.radians(360 / self.NUMBER_OF_LEGS)
         # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.
@@ -32,7 +32,7 @@ class Spider:
         # Unit vectors pointing in radial directions (looking from center of body).
         self.IDEAL_LEG_VECTORS = self.getIdealLegVectors()
         # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
-        self.CONSTRAINS = [0.15, 0.45, np.radians(30)]
+        self.CONSTRAINS = [0.15, 0.5, np.radians(30)]
         # Array of transformation matrices for transformations from spider base to anchors in base origin.
         self.T_ANCHORS = self.getTransformMatricesToAnchors()
     
@@ -51,13 +51,12 @@ class Spider:
         legAngles = self.getLegAnglesXAxis()
         # Positions of leg anchors on spiders platform in spiders origin.
         legAnchors = [[self.BODY_RADIUS * math.cos(angle), self.BODY_RADIUS * math.sin(angle)] for angle in legAngles]
-        legAnchors = np.around(legAnchors, 3)
 
-        # Reverse to math actual spiders legs order.
+        # Reverse to match actual spiders legs order.
         legAnchorsReversed = np.flip(legAnchors[1:], 0)
         legAnchorsReversed = np.insert(legAnchorsReversed, 0, legAnchors[0], 0)
 
-        return np.around(np.array(legAnchorsReversed), 3)
+        return np.array(legAnchorsReversed)
     
     def getIdealLegVectors(self):
         """ Helper functions for setting ideal leg vectors in spiders origin. 
@@ -70,7 +69,11 @@ class Spider:
         idealLegVectors = [np.array([legAnchor[0] + math.cos(legAngles[idx]), legAnchor[1] + math.sin(legAngles[idx])]) - legAnchor
             for idx, legAnchor in enumerate(self.LEG_ANCHORS)]
 
-        return np.array(idealLegVectors)
+        # Reverse to match actual spiders legs order.
+        idealLegVectorsReversed = np.flip(idealLegVectors[1:], 0)
+        idealLegVectorsReversed = np.insert(idealLegVectorsReversed, 0, idealLegVectors[0], 0)
+
+        return np.array(idealLegVectorsReversed)
 
     def getLegAnglesXAxis(self):
         """ Helper function for calculating angles between leg anchors and spiders x axis. 
@@ -109,22 +112,22 @@ class Wall:
 
     def __init__(self):
         # Wall size given in meters - (x, y).
-        self.WALL_SIZE = [6, 4]
+        self.WALL_SIZE = [0.85, 1.4]
         # Pin raster - distances between pins in (x, y).
-        self.WALL_RASTER = [0.2, 0.2]
+        self.WALL_RASTER = [0.2, 0.226]
     
     def __new__(cls, *args, **kwargs):
             if not isinstance(cls.instance, cls):
                 cls.instance = object.__new__(cls)
             return cls.instance
 
-    def createGrid(self):
+    def createRhombusGrid(self):
         """ Calculate pins positions. Pins are placed in rhombus pattern. 
 
         :return: Numpy array of pins positions in wall origin - (0, 0) is in the bottom-left corner of the wall.
         """
         # Distance from edge of the wall and first row/column of pins.
-        edgeOffset = 0.05
+        edgeOffset = 0.0
 
         # Calculate number of pins in X and Y directions of the wall (x - horizontal, y - vertical).
         numberOfPinsInX = math.ceil(self.WALL_SIZE[0] / (self.WALL_RASTER[0] * math.sqrt(2)))
@@ -147,4 +150,21 @@ class Wall:
                 if (edgeOffset <= x < self.WALL_SIZE[0]) and (edgeOffset <= y < self.WALL_SIZE[1]):
                     pins.append([x ,y])
 
+        return np.array(pins)
+    
+    def createSquaredGrid(self):
+        """Calculate pins positions. Pins are placed in square pattern.
+
+        :return: Numpy array of pins positions in wall origin - (0, 0) is in the left-bottom corner of the wall.
+        """
+        numberOfPinsInX = math.ceil(self.WALL_SIZE[0] / self.WALL_RASTER[0])
+        numberOfPinsInY = math.ceil(self.WALL_SIZE[1] / self.WALL_RASTER[1])
+        xGrid = np.linspace(0, self.WALL_SIZE[0], numberOfPinsInX)
+        yGrid = np.linspace(0, self.WALL_SIZE[1], numberOfPinsInY)
+
+        pins = []
+        for x in xGrid:
+            for y in yGrid:
+                pins.append([x, y])
+            
         return np.array(pins)
