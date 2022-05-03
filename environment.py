@@ -159,8 +159,9 @@ class Wall:
         """
         numberOfPinsInX = math.ceil(self.WALL_SIZE[0] / self.WALL_RASTER[0])
         numberOfPinsInY = math.ceil(self.WALL_SIZE[1] / self.WALL_RASTER[1])
-        xGrid = np.linspace(0, self.WALL_SIZE[0], numberOfPinsInX)
-        yGrid = np.linspace(0, self.WALL_SIZE[1], numberOfPinsInY)
+
+        xGrid = [x * self.WALL_RASTER[0] for x in range(int(numberOfPinsInX))]
+        yGrid = [y * self.WALL_RASTER[1] for y in range(int(numberOfPinsInY))]
 
         pins = []
         for x in xGrid:

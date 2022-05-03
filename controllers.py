@@ -16,6 +16,7 @@ class VelocityController:
         self.geometryTools = calculations.GeometryTools()
         self.spider = env.Spider()
         self.trajectoryPlanner = planning.TrajectoryPlanner()
+        self.pathPlanner = planning.PathPlanner('squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
     
@@ -118,7 +119,7 @@ class VelocityController:
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
-    def moveLegsWrapper(self, legsIds, globalGoalPositions, spiderPose):
+    def moveLegsWrapper(self, legsIds, globalGoalPositions, spiderPose, durations):
         """Wrapper function for moving any number of legs (within number of spiders legs) to desired pins on the wall. 
         Includes transformation from global to legs-local pins positions and computing trajectories.
 
@@ -128,9 +129,11 @@ class VelocityController:
         :raises ValueError: Exception is thrown if legsIds and globalGoalPositions parameters dont have same length.
         :return: True if movements were successfull, false otherwise.
         """
-        if len(legsIds) != len(globalGoalPositions):
-            raise ValueError("Invalid legs ids or goal positions.")
-        
+        if legsIds == 5:
+            legsIds = [0, 1, 2, 3, 4]
+        if len(legsIds) != len(globalGoalPositions) and len(legsIds) != len(durations):
+            raise ValueError("Invalid values of legsIds, goalGlobalPositions or durations parameters.")
+
         # Transformation matrix of global spider's pose.
         T_GS = self.matrixCalculator.xyzRpyToMatrix(spiderPose)
         # Calculate trajectories for each leg movement from local positions.
@@ -140,10 +143,10 @@ class VelocityController:
             # Read starting legs positions and transform global goal positions into local.
             startPosition = self.motorDriver.readLegPosition(leg)
             T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
-            globalGoalPositions[legIdx] = np.append(globalGoalPositions[legIdx], 1)
-            localGoalPosition = np.dot(np.linalg.inv(T_GA), globalGoalPositions[legIdx])[:3]
+            legGlobalGoalPosition = np.append(globalGoalPositions[legIdx], 1)
+            localGoalPosition = np.dot(np.linalg.inv(T_GA), legGlobalGoalPosition)[:3]
             # TODO: How to calculate movement duration for each pin-to-pin movement?
-            traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, 5)
+            traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, durations[legIdx])
             bezierTrajectories.append(traj)
             bezierVelocities.append(vel)
         
@@ -157,6 +160,7 @@ class VelocityController:
 
         :param trajectory: Spider's body trajectory.
         :param velocity: Spider's body velocity.
+        :param globalStartPose: Global pose of spider at the beginning of the platform movement.
         :return: True if movement was successfull, false otherwise.
         """
         localLegsPositions = [self.motorDriver.readLegPosition(leg) for leg in range(self.spider.NUMBER_OF_LEGS)]
@@ -198,10 +202,43 @@ class VelocityController:
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
-            
+    def walk(self, globalStartPose, globalGoalPose):
+        """Walking procedure for spider to walk from start to goal point on the wall.
 
+        :param globalStartPose: Spider's starting pose on the wall.
+        :param globalGoalPose: Spider's goal pose on the wall.
+        :return: True if walking procedure was successfull, false otherwise.
+        """
+        platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose, 0.05)
+        # Move legs on starting positions, based on calculations for starting spider's position.      
+        if not self.moveLegsWrapper(5, pins[0], platformPoses[0]):
+            print("Platform movement error!")
+            return
+        # First lift platform on walking height.
+        startWalkingPose = np.copy(globalStartPose)
+        startWalkingPose[2] = 0.15
+        traj, vel = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 5)
+        result = self.movePlatform(traj, vel, globalStartPose)
 
-        
+        # Move through calculated poses.
+        for poseIdx, pose in enumerate(platformPoses):
+            if poseIdx == 0:
+                continue
+            # Move platform.
+            platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(pose[poseIdx - 1], pose[poseIdx], 5)
+            result = self.movePlatform(platformTrajectory, platformVelocity, pose[poseIdx - 1])
+            if not result:
+                print("Platform movement error!")
+                return
+            # Select indexes of legs which have to move.
+            legsToMoveIdxs = np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))
+            # Move legs.
+            for legIdx in legsToMoveIdxs:
+                result = self.moveLegsWrapper([legIdx], pins[poseIdx][legIdx], pose[poseIdx], 5)
+                if not result:
+                    print("Leg movement error!")
+                    return
+
 
 
 

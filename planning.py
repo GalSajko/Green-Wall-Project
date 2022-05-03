@@ -12,10 +12,15 @@ import calculations
 class PathPlanner:
     """Class for calculating spiders path and its legs positions on each step of the path.
     """
-    def __init__(self):
+    def __init__(self, gridPattern = 'squared'):
         self.spider = environment.Spider()
         self.wall = environment.Wall()
-        self.pins = self.wall.createSquaredGrid()
+        if gridPattern == 'squared':
+            self.pins = self.wall.createSquaredGrid()
+        elif gridPattern == 'rhombus':
+            self.pins = self.wall.createSquaredGrid()
+        else:
+            raise ValueError("Invalid value of gridPattern parameter.")
         self.geometryTools = calculations.GeometryTools()
 
     def calculateSpiderBodyPath(self, start, goal, maxStep):
@@ -81,6 +86,30 @@ class PathPlanner:
             selectedPins.append(selectedPinsOnEachStep)
 
         return selectedPins
+    
+    def calculateWalkingMovesFF(self, globalStartPose, globalGoalPose, maxStep):
+        """Feed forward calculations of platform and legs positions during walking procedure. 
+        Platform is moving until one (or more) of the legs has to move on new pin.
+
+        :param globalStartPose: Spider's starting pose in global (wall) origin
+        :param globalGoalPose: Spider's goal pose in global (wall) origin.
+        :param maxStep: Platform step.
+        :return: Arrays of calculated platform poses and selected pins.
+        """
+        path2d = self.calculateSpiderBodyPath(globalStartPose[:2], globalGoalPose[:2], maxStep)
+        selectedPins = self.calculateSpiderLegsPositionsFF(path2d, [0.2, 0.4, 0.4])
+        platformPoses = [np.array(globalStartPose)]
+        selectedDiffPins = [np.array(selectedPins[0])]
+
+        for idx, pins in enumerate(selectedPins):
+            if idx == 0:
+                continue
+            if (np.array(pins) - np.array(selectedPins[idx - 1])).any():
+                selectedDiffPins.append(np.array(pins))
+                platformPoses.append([path2d[idx][0], path2d[idx][1], 0.15, 0, 0, 0])
+
+        return np.array(platformPoses), np.array(selectedDiffPins)
+
 
 class TrajectoryPlanner:
     """ Class for calculating different trajectories.

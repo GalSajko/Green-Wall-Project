@@ -77,7 +77,7 @@ class Plotter:
                 legTips.append(legTip)
 
             plt.draw()
-            plt.pause(0.1)
+            plt.pause(5)
 
             # Remove all drawn components from board, unless spider is at the end of the path.
             if (x != path[-1][0] or y != path[-1][1]):
