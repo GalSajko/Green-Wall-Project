@@ -99,12 +99,14 @@ class PathPlanner:
         path2d = self.calculateSpiderBodyPath(globalStartPose[:2], globalGoalPose[:2], maxStep)
         selectedPins = self.calculateSpiderLegsPositionsFF(path2d, [0.2, 0.4, 0.4])
         platformPoses = [np.array(globalStartPose)]
-        selectedDiffPins = [np.array(selectedPins[0])]
+        startingPins = np.append(selectedPins[0], [[self.wall.PIN_HEIGHT]] * self.spider.NUMBER_OF_LEGS, axis = 1)
+        selectedDiffPins = [np.array(startingPins)]
 
         for idx, pins in enumerate(selectedPins):
             if idx == 0:
                 continue
             if (np.array(pins) - np.array(selectedPins[idx - 1])).any():
+                pins = np.append(pins, [[self.wall.PIN_HEIGHT]] * self.spider.NUMBER_OF_LEGS, axis = 1)
                 selectedDiffPins.append(np.array(pins))
                 platformPoses.append([path2d[idx][0], path2d[idx][1], 0.15, 0, 0, 0])
 
@@ -168,8 +170,8 @@ class TrajectoryPlanner:
         numberOfSteps = math.floor(duration / timeStep)
 
         startPoint, goalPoint = np.array(startPoint), np.array(goalPoint)
-        firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + 0.3 * np.linalg.norm(goalPoint - startPoint)])
-        secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + 0.3 * np.linalg.norm(goalPoint - startPoint)])
+        firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + 0.7 * np.linalg.norm(goalPoint - startPoint)])
+        secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + 0.7 * np.linalg.norm(goalPoint - startPoint)])
         controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint])
 
         trajectory = []

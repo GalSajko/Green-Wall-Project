@@ -123,15 +123,15 @@ class VelocityController:
         """Wrapper function for moving any number of legs (within number of spiders legs) to desired pins on the wall. 
         Includes transformation from global to legs-local pins positions and computing trajectories.
 
-        :param legsIds: Array of legs ids.
+        :param legsIds: Array of legs ids, if value is 5 than all legs are selected.
         :param globalGoalPositions: Array of global goal positions (represents desired pins positions).
         :param spiderPose: Array of xyzrpy global position of spider's body.
-        :raises ValueError: Exception is thrown if legsIds and globalGoalPositions parameters dont have same length.
+        :raises ValueError: Exception is thrown if legsIds, globalGoalPositions and durations parameters dont have same length.
         :return: True if movements were successfull, false otherwise.
         """
         if legsIds == 5:
             legsIds = [0, 1, 2, 3, 4]
-        if len(legsIds) != len(globalGoalPositions) and len(legsIds) != len(durations):
+        if len(legsIds) != len(globalGoalPositions) or len(legsIds) != len(durations):
             raise ValueError("Invalid values of legsIds, goalGlobalPositions or durations parameters.")
 
         # Transformation matrix of global spider's pose.
@@ -211,24 +211,30 @@ class VelocityController:
         """
         platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose, 0.05)
 
-        # Move legs on starting positions, based on calculations for starting spider's position.      
-        if not self.moveLegsWrapper(5, pins[0], platformPoses[0]):
-            print("Platform movement error!")
-            return False
+        # print(pins[0])
+        # legId = 2
+        # Move legs on starting positions, based on calculations for starting spider's position.     
+        # if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 2.5):
+        #     print("Platform movement error!")
+        #     return False   
 
         # First lift platform on walking height.
         startWalkingPose = np.copy(globalStartPose)
-        startWalkingPose[2] = 0.15
+        startWalkingPose[2] = platformPoses[-1][2]
         platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 5)
         result = self.movePlatform(platformTrajectory, platformVelocity, globalStartPose)
 
+        platformPoses = np.insert(platformPoses, 1, startWalkingPose, axis = 0)
+        # platformPoses[0] = startWalkingPose
+
         # Move through calculated poses.
         for poseIdx, pose in enumerate(platformPoses):
-            if poseIdx == 0:
+            # Skip first two poses because platform is already in startWalkingPose.
+            if poseIdx == 0 or poseIdx == 1:
                 continue
             # Move platform.
-            platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(pose[poseIdx - 1], pose[poseIdx], 5)
-            result = self.movePlatform(platformTrajectory, platformVelocity, pose[poseIdx - 1])
+            platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(platformPoses[poseIdx - 1], pose, 5)
+            result = self.movePlatform(platformTrajectory, platformVelocity, platformPoses[poseIdx - 1])
             if not result:
                 print("Platform movement error!")
                 return False
@@ -236,7 +242,7 @@ class VelocityController:
             legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
             # Move legs.
             for legIdx in legsToMoveIdxs:
-                result = self.moveLegsWrapper([legIdx], pins[poseIdx][legIdx], pose[poseIdx], 5)
+                result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 5)
                 if not result:
                     print("Leg movement error!")
                     return False
