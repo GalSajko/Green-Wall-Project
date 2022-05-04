@@ -23,8 +23,8 @@ if __name__ == "__main__":
     # motorDriver = dynamixel.MotorDriver(motors)
     # motorDriver.disableLegs(5)
 
-    spiderStartPose = [0.4, 0.33, 0.06, 0, 0, 0]
-    spiderGoalPose = [0.4, 1.0, 0.15, 0, 0, 0]
+    spiderStartPose = [0.4, 0.33, 0.061, 0, 0, 0]
+    spiderGoalPose = [0.4, 1.0, 0.20, 0, 0, 0]
 
 
     velocityController.walk(spiderStartPose, spiderGoalPose)

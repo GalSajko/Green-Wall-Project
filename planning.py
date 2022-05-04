@@ -108,7 +108,7 @@ class PathPlanner:
             if (np.array(pins) - np.array(selectedPins[idx - 1])).any():
                 pins = np.append(pins, [[self.wall.PIN_HEIGHT]] * self.spider.NUMBER_OF_LEGS, axis = 1)
                 selectedDiffPins.append(np.array(pins))
-                platformPoses.append([path2d[idx][0], path2d[idx][1], 0.15, 0, 0, 0])
+                platformPoses.append([path2d[idx][0], path2d[idx][1], 0.2, 0, 0, 0])
 
         return np.array(platformPoses), np.array(selectedDiffPins)
 

@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import math
 
 import calculations 
 import environment as env
@@ -211,17 +212,15 @@ class VelocityController:
         """
         platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose, 0.05)
 
-        # print(pins[0])
-        # legId = 2
         # Move legs on starting positions, based on calculations for starting spider's position.     
-        # if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 2.5):
-        #     print("Platform movement error!")
-        #     return False   
+        if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 3.5):
+            print("Platform movement error!")
+            return False   
 
         # First lift platform on walking height.
         startWalkingPose = np.copy(globalStartPose)
         startWalkingPose[2] = platformPoses[-1][2]
-        platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 5)
+        platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 4)
         result = self.movePlatform(platformTrajectory, platformVelocity, globalStartPose)
 
         platformPoses[0] = startWalkingPose
@@ -231,7 +230,10 @@ class VelocityController:
             if poseIdx == 0:
                 continue
             # Move platform.
-            platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(platformPoses[poseIdx - 1], pose, 5)
+            dist = np.linalg.norm(platformPoses[poseIdx - 1][:3] - pose[:3])
+            parallelMovementDuration = 2.5 * dist / 0.05
+            
+            platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(platformPoses[poseIdx - 1], pose, parallelMovementDuration)
             result = self.movePlatform(platformTrajectory, platformVelocity, platformPoses[poseIdx - 1])
             if not result:
                 print("Platform movement error!")
@@ -240,7 +242,7 @@ class VelocityController:
             legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
             # Move legs.
             for legIdx in legsToMoveIdxs:
-                result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 7)
+                result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 4)
                 if not result:
                     print("Leg movement error!")
                     return False
