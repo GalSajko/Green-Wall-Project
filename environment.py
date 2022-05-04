@@ -32,7 +32,7 @@ class Spider:
         # Unit vectors pointing in radial directions (looking from center of body).
         self.IDEAL_LEG_VECTORS = self.getIdealLegVectors()
         # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
-        self.CONSTRAINS = [0.15, 0.5, np.radians(25)]
+        self.CONSTRAINS = [0.2, 0.45, np.radians(25)]
         # Array of transformation matrices for transformations from spider base to anchors in base origin.
         self.T_ANCHORS = self.getTransformMatricesToAnchors()
     

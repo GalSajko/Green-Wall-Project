@@ -26,12 +26,13 @@ if __name__ == "__main__":
     spiderStartPose = [0.4, 0.33, 0.06, 0, 0, 0]
     spiderGoalPose = [0.4, 1.0, 0.15, 0, 0, 0]
 
-    velocityController.walk(spiderStartPose, spiderGoalPose)
 
-    # path = pathPlanner.calculateSpiderBodyPath(spiderStartPose[:2], spiderGoalPose[:2], 0.05)
-    # bestParams = [0.2 , 0.4, 0.4]
-    # selectedPins = pathPlanner.calculateSpiderLegsPositionsFF(path, bestParams)
-    # plotter.plotSpiderMovement(path, selectedPins)
+    # velocityController.walk(spiderStartPose, spiderGoalPose)
+
+    path = pathPlanner.calculateSpiderBodyPath(spiderStartPose[:2], spiderGoalPose[:2], 0.05)
+    bestParams = [0.2 , 0.4, 0.4]
+    selectedPins = pathPlanner.calculateSpiderLegsPositionsFF(path, bestParams)
+    plotter.plotSpiderMovement(path, selectedPins)
 
 
     

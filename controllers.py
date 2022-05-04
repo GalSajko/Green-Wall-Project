@@ -224,13 +224,11 @@ class VelocityController:
         platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 5)
         result = self.movePlatform(platformTrajectory, platformVelocity, globalStartPose)
 
-        platformPoses = np.insert(platformPoses, 1, startWalkingPose, axis = 0)
-        # platformPoses[0] = startWalkingPose
+        platformPoses[0] = startWalkingPose
 
         # Move through calculated poses.
         for poseIdx, pose in enumerate(platformPoses):
-            # Skip first two poses because platform is already in startWalkingPose.
-            if poseIdx == 0 or poseIdx == 1:
+            if poseIdx == 0:
                 continue
             # Move platform.
             platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(platformPoses[poseIdx - 1], pose, 5)
@@ -242,7 +240,7 @@ class VelocityController:
             legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
             # Move legs.
             for legIdx in legsToMoveIdxs:
-                result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 5)
+                result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 7)
                 if not result:
                     print("Leg movement error!")
                     return False
