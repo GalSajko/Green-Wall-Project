@@ -19,15 +19,18 @@ if __name__ == "__main__":
     pathPlanner = planning.PathPlanner('squared')
 
     # LEGS MOVEMENT
-    motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
+    # motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
     # motorDriver = dynamixel.MotorDriver(motors)
     # motorDriver.disableLegs(5)
 
     spiderStartPose = [0.4, 0.33, 0.061, 0, 0, 0]
     spiderGoalPose = [0.4, 1.0, 0.20, 0, 0, 0]
 
-
     velocityController.walk(spiderStartPose, spiderGoalPose)
+
+    velocityController.walk(spiderGoalPose, spiderStartPose, False)
+
+    velocityController.movePlatformWrapper([0.4, 0.33, 0.2, 0, 0, 0], spiderStartPose, 4)
 
     # path = pathPlanner.calculateSpiderBodyPath(spiderStartPose[:2], spiderGoalPose[:2], 0.05)
     # bestParams = [0.2 , 0.4, 0.4]

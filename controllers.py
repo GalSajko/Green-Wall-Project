@@ -203,7 +203,14 @@ class VelocityController:
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
-    def walk(self, globalStartPose, globalGoalPose):
+    def movePlatformWrapper(self, globalStartPose, globalGoalPose, duration):
+
+        traj, vel = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, globalGoalPose, duration)
+        result = self.movePlatform(traj, vel, globalStartPose)
+
+        return result
+
+    def walk(self, globalStartPose, globalGoalPose, doLift = True):
         """Walking procedure for spider to walk from start to goal point on the wall.
 
         :param globalStartPose: Spider's starting pose on the wall.
@@ -211,19 +218,20 @@ class VelocityController:
         :return: True if walking procedure was successfull, false otherwise.
         """
         platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose, 0.05)
+        
+        if doLift:
+            # Move legs on starting positions, based on calculations for starting spider's position.     
+            if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 3.5):
+                print("Platform movement error!")
+                return False
 
-        # Move legs on starting positions, based on calculations for starting spider's position.     
-        if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 3.5):
-            print("Platform movement error!")
-            return False   
+            # First lift platform on walking height.
+            startWalkingPose = np.copy(globalStartPose)
+            startWalkingPose[2] = platformPoses[-1][2]
+            platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 4)
+            result = self.movePlatform(platformTrajectory, platformVelocity, globalStartPose)
 
-        # First lift platform on walking height.
-        startWalkingPose = np.copy(globalStartPose)
-        startWalkingPose[2] = platformPoses[-1][2]
-        platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 4)
-        result = self.movePlatform(platformTrajectory, platformVelocity, globalStartPose)
-
-        platformPoses[0] = startWalkingPose
+            platformPoses[0] = startWalkingPose
 
         # Move through calculated poses.
         for poseIdx, pose in enumerate(platformPoses):
