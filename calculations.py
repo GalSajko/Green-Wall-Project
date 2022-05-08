@@ -220,7 +220,7 @@ class GeometryTools:
         return math.sqrt((firstPoint[0] - secondPoint[0])**2 + (firstPoint[1] - secondPoint[1])**2 + (firstPoint[2] - secondPoint[2])**2)
     
     def calculateSignedAngleBetweenTwoVectors(cls, firstVector, secondVector):
-        """Calculate signed angle between two vectors in 2d.
+        """Calculate signed angle between two vectors.
 
         :param firstVector: First vector.
         :param secondVector: Second vector.
@@ -233,19 +233,32 @@ class GeometryTools:
         # 2d vector.
         if len(firstVector) <= 2 and crossProduct < 0:
             angle = -angle
-            return angle
         # 3d vector.
-        if (crossProduct < 0).any() < 0:
+        elif (crossProduct < 0).any() < 0:
             angle = -angle
+        return angle
+    
+    def wrapToPi(cls, angle):
+        """Wrap angle to Pi.
+        :param angle: Angle
+        :return: Angle wrapped to Pi.
+        """
+        if angle < -math.pi:
+            angle += math.pi * 2
+        elif angle > math.pi:
+            angle -= math.pi * 2
         return angle
 
 class MatrixCalculator:
     """ Class for calculating matrices."""
-    def xyzRpyToMatrix(cls, xyzrpy):
+    def xyzRpyToMatrix(cls, xyzrpy, xyzy = False):
         """Calculate global transformation matrix for transforming between global origin and spider base.
 
-        :param globalPose: Desired global pose of a spiders platform, 1x6 array with positions and rpy orientation.
+        :param xyzrpy: Desired global pose of a spiders platform, 1x6 array with positions and rpy orientation.
+        :param xyzy: Wheter or not the pose is given only as a x, y, z and yaw.
         """
+        if xyzy:
+            xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
         position = xyzrpy[0:3]
         rpy = xyzrpy[3:]
 

@@ -204,7 +204,13 @@ class VelocityController:
         return True
 
     def movePlatformWrapper(self, globalStartPose, globalGoalPose, duration):
+        """Wrapper function for moving a platform. Includes trajectory calculations.
 
+        :param globalStartPose: Starting pose in global origin.
+        :param globalGoalPose: Goal pose in global origin.
+        :param duration: Desired duration of movement.
+        :return: True if movement was successfull, false otherwise.
+        """
         traj, vel = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, globalGoalPose, duration)
         result = self.movePlatform(traj, vel, globalStartPose)
 

@@ -5,29 +5,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import environment
+import calculations
 
 class Plotter:
     """Class for ploting a 2d representation of a wall and spiders movement.
     """
-    def __init__(self):
-        self.wall = environment.Wall()
+    def __init__(self, gridPattern):
+        self.wall = environment.Wall(gridPattern)
         self.spider = environment.Spider()
+        self.matrixCalculator = calculations.MatrixCalculator()
         # Figure for plotting.
         self.figure = plt.figure()
         self.board = plt.axes(xlim = (0, self.wall.WALL_SIZE[0]), ylim = (0, self.wall.WALL_SIZE[1]))
     
-    def plotWallGrid(self, pattern = 'square', plotPins = False):
+    def plotWallGrid(self, plotPins = False):
         """Plot wall with pins.
 
         :param pattern: Wall grid pattern, defaults to 'square'.
         :param plotPins: Show figure if True, defaults to False
         """
-        if pattern == 'rhombus':
-            pins = np.transpose(self.wall.createRhombusGrid())
-        elif pattern == 'square':
-            pins = np.transpose(self.wall.createSquaredGrid())
-        else:
-            raise ValueError("Invalid value of pattern parameter.")
+        pins = np.transpose(self.wall.createGrid())
         self.board.plot(pins[0], pins[1], 'g.')
         if plotPins:
             plt.show()
@@ -55,21 +52,29 @@ class Plotter:
         self.plotSpidersPath(path)
 
         # Loop through each step on path.
-        for idx, (x, y) in enumerate(path):
+        for idx, pose in enumerate(path):
             # Plot spiders body on each step.
-            spiderBody = plt.Circle((x, y), self.spider.BODY_RADIUS, color = "blue")
+            spiderBody = plt.Circle((pose[0], pose[1]), self.spider.BODY_RADIUS, color = "blue")
             self.board.add_patch(spiderBody)    
             # Plot all legs and their tips on each step.
             legs = []
             legTips = []    
             for i in range(len(legPositions[idx])):
-                xVals = [x + self.spider.LEG_ANCHORS[i][0], legPositions[idx][i][0]]
-                yVals = [y + self.spider.LEG_ANCHORS[i][1], legPositions[idx][i][1]]
+                if len(pose) > 2:
+                    T_GA = self.matrixCalculator.xyzRpyToMatrix(pose, True)
+                    anchorPosition = np.dot(T_GA, self.spider.T_ANCHORS[i])[:,3][:3]
+                    xVals = [anchorPosition[0], legPositions[idx][i][0]]
+                    yVals = [anchorPosition[1], legPositions[idx][i][1]]
+                else:
+                    xVals = [pose[0] + self.spider.LEG_ANCHORS[i][0], legPositions[idx][i][0]]
+                    yVals = [pose[1] + self.spider.LEG_ANCHORS[i][1], legPositions[idx][i][1]]  
                 legs.append(self.board.plot(xVals, yVals, 'g')[0])
                 # Mark 1st leg with red tip and 2nd leg with yellow (to check legs orientation)
                 color = "blue"
                 if i == 0:
                     color = "red"
+                    firstAnchor = plt.Circle((anchorPosition[0], anchorPosition[1]), 0.03, color = "red")
+                    self.board.add_patch(firstAnchor)
                 elif i == 1:
                     color = "yellow"
                 legTip = plt.Circle((legPositions[idx][i]), 0.02, color = color)
@@ -77,11 +82,12 @@ class Plotter:
                 legTips.append(legTip)
 
             plt.draw()
-            plt.pause(2)
+            plt.pause(0.5)
 
             # Remove all drawn components from board, unless spider is at the end of the path.
-            if (x != path[-1][0] or y != path[-1][1]):
+            if (pose - path[-1]).any():
                 spiderBody.remove()
+                firstAnchor.remove()
                 for i in range(len(legs)):
                     legTips[i].remove()
                     legs[i].remove()

@@ -3,6 +3,7 @@ Green wall environment module. Contains all objects, which are present in enviro
 Spider and Wall.
 """
 
+from multiprocessing.sharedctypes import Value
 import numpy as np
 import math
 
@@ -32,9 +33,13 @@ class Spider:
         # Unit vectors pointing in radial directions (looking from center of body).
         self.IDEAL_LEG_VECTORS = self.getIdealLegVectors()
         # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
-        self.CONSTRAINS = [0.2, 0.45, np.radians(25)]
+        self.CONSTRAINS = [0.2, 0.45, np.radians(45)]
         # Array of transformation matrices for transformations from spider base to anchors in base origin.
         self.T_ANCHORS = self.getTransformMatricesToAnchors()
+        # Spider's walking height.
+        self.WALKING_HEIGHT = 0.2
+        # Spider's height when laying on pins.
+        self.LYING_HEIGHT = 0.061
     
     def __new__(cls, *args, **kwargs):
         if not isinstance(cls.instance, cls):
@@ -110,19 +115,22 @@ class Wall:
     # Singleton class instance tracker.
     instance = None
 
-    def __init__(self):
+    def __init__(self, gridPattern):
         # Wall size given in meters - (x, y).
         self.WALL_SIZE = [0.85, 1.4]
         # Pin raster - distances between pins in (x, y).
         self.WALL_RASTER = [0.19875, 0.22600]
         self.PIN_HEIGHT = 0.03
+        if (gridPattern != 'squared' and gridPattern != 'rhombus'):
+            raise ValueError("Invalid value of gridPatter parameter!")
+        self.gridPattern = gridPattern
     
     def __new__(cls, *args, **kwargs):
             if not isinstance(cls.instance, cls):
                 cls.instance = object.__new__(cls)
             return cls.instance
 
-    def createRhombusGrid(self):
+    def createRhombusGrid(self, threeDim):
         """ Calculate pins positions. Pins are placed in rhombus pattern. 
 
         :return: Numpy array of pins positions in wall origin - (0, 0) is in the bottom-left corner of the wall.
@@ -144,16 +152,22 @@ class Wall:
         for x in xFirstGrid:
             for y in yFirstGrid:
                 if (edgeOffset <= x < self.WALL_SIZE[0]) and (edgeOffset <= y < self.WALL_SIZE[1]):
-                    pins.append([x ,y])  
+                    if not threeDim:  
+                        pins.append([x ,y])  
+                    else:
+                        pins.append([x, y, self.PIN_HEIGHT])
 
         for x in xSecondGrid:
             for y in ySecondGrid:
                 if (edgeOffset <= x < self.WALL_SIZE[0]) and (edgeOffset <= y < self.WALL_SIZE[1]):
-                    pins.append([x ,y])
+                    if not threeDim:  
+                        pins.append([x ,y])  
+                    else:
+                        pins.append([x, y, self.PIN_HEIGHT])
 
         return np.array(pins)
     
-    def createSquaredGrid(self):
+    def createSquaredGrid(self, threeDim):
         """Calculate pins positions. Pins are placed in square pattern.
 
         :return: Numpy array of pins positions in wall origin - (0, 0) is in the left-bottom corner of the wall.
@@ -167,6 +181,22 @@ class Wall:
         pins = []
         for x in xGrid:
             for y in yGrid:
-                pins.append([x, y])
+                if not threeDim:  
+                    pins.append([x ,y])  
+                else:
+                    pins.append([x, y, self.PIN_HEIGHT])
             
         return np.array(pins)
+    
+    def createGrid(self, threeDim = False):
+        """Create grid of pins.
+
+        :param gridPattern: Grid pattern.
+        :param threeDim: Wheter or not pins positions are given in 3d space (including z value), defaults to False
+        :raises ValueError: If gridPattern parameter value is not 'squared' or 'rhombus'.
+        :return: Array of pins.
+        """
+        if self.gridPattern == 'squared':
+            return self.createSquaredGrid(threeDim)
+        elif self.gridPattern == 'rhombus':
+            return self.createRhombusGrid(threeDim)
