@@ -17,7 +17,7 @@ class VelocityController:
         self.geometryTools = calculations.GeometryTools()
         self.spider = env.Spider()
         self.trajectoryPlanner = planning.TrajectoryPlanner()
-        self.pathPlanner = planning.PathPlanner('squared')
+        self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
     
@@ -216,39 +216,35 @@ class VelocityController:
 
         return result
 
-    def walk(self, globalStartPose, globalGoalPose, doLift = True):
+    def walk(self, globalStartPose, globalGoalPose):
         """Walking procedure for spider to walk from start to goal point on the wall.
 
         :param globalStartPose: Spider's starting pose on the wall.
         :param globalGoalPose: Spider's goal pose on the wall.
         :return: True if walking procedure was successfull, false otherwise.
         """
-        platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose, 0.05)
-        
-        if doLift:
-            # Move legs on starting positions, based on calculations for starting spider's position.     
-            if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 3.5):
-                print("Platform movement error!")
-                return False
+        platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose)
 
-            # First lift platform on walking height.
-            startWalkingPose = np.copy(globalStartPose)
-            startWalkingPose[2] = platformPoses[-1][2]
-            platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, startWalkingPose, 4)
-            result = self.movePlatform(platformTrajectory, platformVelocity, globalStartPose)
-
-            platformPoses[0] = startWalkingPose
+        # Move legs on starting positions, based on calculations for starting spider's position.     
+        if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 3.5):
+            print("Platform movement error!")
+            return False
 
         # Move through calculated poses.
         for poseIdx, pose in enumerate(platformPoses):
             if poseIdx == 0:
                 continue
+
             # Move platform.
-            dist = np.linalg.norm(platformPoses[poseIdx - 1][:3] - pose[:3])
-            parallelMovementDuration = 2.5 * dist / 0.05
-            
-            platformTrajectory, platformVelocity = self.trajectoryPlanner.minJerkTrajectory(platformPoses[poseIdx - 1], pose, parallelMovementDuration)
-            result = self.movePlatform(platformTrajectory, platformVelocity, platformPoses[poseIdx - 1])
+            linDist = np.linalg.norm(platformPoses[poseIdx - 1][:3] - pose[:3])
+            if linDist != 0:
+                parallelMovementDuration = 2.5 * linDist / 0.05
+            else:
+                rotDist = abs(platformPoses[poseIdx - 1][3] - pose[3])
+                parallelMovementDuration = 2 * rotDist / 0.1
+ 
+            result = self.movePlatformWrapper(platformPoses[poseIdx - 1], pose, parallelMovementDuration)
+
             if not result:
                 print("Platform movement error!")
                 return False

@@ -61,7 +61,7 @@ class Plotter:
             legTips = []    
             for i in range(len(legPositions[idx])):
                 if len(pose) > 2:
-                    T_GA = self.matrixCalculator.xyzRpyToMatrix(pose, True)
+                    T_GA = self.matrixCalculator.xyzRpyToMatrix(pose)
                     anchorPosition = np.dot(T_GA, self.spider.T_ANCHORS[i])[:,3][:3]
                     xVals = [anchorPosition[0], legPositions[idx][i][0]]
                     yVals = [anchorPosition[1], legPositions[idx][i][1]]

@@ -180,6 +180,7 @@ class Kinematics:
         :param spiderVelocity: Current spider's velocity.
         :return: Reference legs velocities.
         """
+        
         linearSpiderVelocity = spiderVelocity[:3]
         anguarSpiderVelocity = spiderVelocity[3:]
 
@@ -251,13 +252,13 @@ class GeometryTools:
 
 class MatrixCalculator:
     """ Class for calculating matrices."""
-    def xyzRpyToMatrix(cls, xyzrpy, xyzy = False):
+    def xyzRpyToMatrix(cls, xyzrpy):
         """Calculate global transformation matrix for transforming between global origin and spider base.
 
         :param xyzrpy: Desired global pose of a spiders platform, 1x6 array with positions and rpy orientation.
         :param xyzy: Wheter or not the pose is given only as a x, y, z and yaw.
         """
-        if xyzy:
+        if len(xyzrpy) == 4:
             xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
         position = xyzrpy[0:3]
         rpy = xyzrpy[3:]
@@ -286,7 +287,7 @@ class MatrixCalculator:
         return transformMatrix
     
     def getLegsInGlobal(cls, localLegsPositions, globalPose):
-        """ Calculate global positions of legs.
+        """ Calculate global positions of legs from given local positions.
 
         :param localLegsPositions: Legs positions in leg-based origins.
         :param globalPose: Spider's position in global origin.

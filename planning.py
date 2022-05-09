@@ -20,19 +20,19 @@ class PathPlanner:
         self.maxLinStep = maxLinStep
         self.maxRotStep = maxRotStep
     
-    def calculateSpiderBodyPath(self, startPose, goalPose, rotateInGoalOrientation = False):
+    def calculateSpiderBodyPath(self, startPose, goalPose):
         """Calculate descrete path of spider's body including rotation around z axis. First rotate toward goal point,
         than move towards this point and lastly, if rotateInGoalOrientation is True, rotate into goal orientation.
 
         :param startPose: Starting pose as (x, y, z, rotZ) where rotZ is rotation around global z axis.
         :param goalPose: Goal pose as (x, y, z, rotZ).
-        :param rotateInGoalOrientation: Wheter or not rotate into goal orientation, when already on the goal position.
         :return: Array of (x, y, z, rotZ) poses, representing the descrete path.
         """
         # Path segments: first rotate towards goal position, than move from start to goal position
         # and finally rotate into goal orientation.
 
         path = [startPose]
+
         # If spider is lying on the pins first lift it up on the walking height.
         if startPose[2] == self.spider.LYING_HEIGHT:
             startWalkingPose = np.copy(startPose)
@@ -65,13 +65,12 @@ class PathPlanner:
                 path.append(pose)
 
         # Rotate in goal orientation.
-        if rotateInGoalOrientation:
-            angleError = self.geometryTools.wrapToPi(path[-1][3] - goalPose[3])
-            if angleError != 0.0:
-                numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
-                rotatePath = np.linspace(path[-1], goalPose, numberOfSteps )
-                for pose in rotatePath:
-                    path.append(pose)
+        angleError = self.geometryTools.wrapToPi(path[-1][3] - goalPose[3])
+        if angleError != 0.0:
+            numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
+            rotatePath = np.linspace(path[-1], goalPose, numberOfSteps )
+            for pose in rotatePath:
+                path.append(pose)
 
         return np.array(path)
 
@@ -84,7 +83,7 @@ class PathPlanner:
         pins = self.wall.createGrid(True)
         selectedPins = []
         for step, pose in enumerate(path):
-            T_GS = self.matrixCalculator.xyzRpyToMatrix(pose, xyzy = True)
+            T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
             anchors = [np.dot(T_GS, t) for t in self.spider.T_ANCHORS]
             selectedPinsOnEachStep = []
             for idx, anchor in enumerate(anchors):
@@ -92,13 +91,24 @@ class PathPlanner:
                 anchorPosition = anchor[:,3][:3]
                 for pin in pins:
                     distanceToPin = np.linalg.norm(anchorPosition - pin)
+
                     if self.spider.CONSTRAINS[0] < distanceToPin < self.spider.CONSTRAINS[1]:
                         rotatedIdealLegVector = np.dot(T_GS[:3,:3], np.append(self.spider.IDEAL_LEG_VECTORS[idx], 0))
                         angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(
                             rotatedIdealLegVector[:2], 
                             np.array(np.array(pin) - np.array(anchorPosition))[:2])
+
                         if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
-                            potentialPinsForSingleLeg.append([pin, abs(angleBetweenIdealVectorAndPin)])
+                            if step not in (0, len(path) - 1):
+                                previousPin = selectedPins[step - 1][idx]
+                                distanceBetweenSelectedAndPreviousPin = np.linalg.norm(previousPin - pin)
+                                isLegMoving = 0 if distanceBetweenSelectedAndPreviousPin == 0 else 1
+                                criterionFunction = 0.4 * abs(angleBetweenIdealVectorAndPin) + 0.4 * isLegMoving + 0.2 * abs(distanceToPin - self.spider.CONSTRAINS[1])
+                            else:
+                                criterionFunction = abs(distanceToPin - self.spider.CONSTRAINS[1]) + abs(angleBetweenIdealVectorAndPin)
+
+                            potentialPinsForSingleLeg.append([pin, criterionFunction])
+
                 potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg)
                 potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:, 1].argsort()]
                 selectedPinsOnEachStep.append(potentialPinsForSingleLeg[0][0])
@@ -106,8 +116,6 @@ class PathPlanner:
             selectedPins.append(selectedPinsOnEachStep)
 
         return selectedPins                   
-                
-
 
     def calculateSpiderLegsPositionsFF(self, path, params = [1/3, 1/3, 1/3]):
         """Calculate legs positions for each step on the path.
@@ -157,7 +165,7 @@ class PathPlanner:
 
         return selectedPins
     
-    def calculateWalkingMovesFF(self, globalStartPose, globalGoalPose, maxStep):
+    def calculateWalkingMovesFF(self, globalStartPose, globalGoalPose):
         """Feed forward calculations of platform and legs positions during walking procedure. 
         Platform is moving until one (or more) of the legs has to move on new pin.
 
@@ -166,19 +174,25 @@ class PathPlanner:
         :param maxStep: Platform step.
         :return: Arrays of calculated platform poses and selected pins.
         """
-        path2d = self.calculateSpiderBodyPath(globalStartPose[:2], globalGoalPose[:2], maxStep)
-        selectedPins = self.calculateSpiderLegsPositionsFF(path2d, [0.2, 0.4, 0.4])
+        path = self.calculateSpiderBodyPath(globalStartPose, globalGoalPose)
+        selectedPins = self.calculateSpiderLegsPositionsXyzRpyFF(path)
         platformPoses = [np.array(globalStartPose)]
-        startingPins = np.append(selectedPins[0], [[self.wall.PIN_HEIGHT]] * self.spider.NUMBER_OF_LEGS, axis = 1)
+        startingPins = selectedPins[0]
         selectedDiffPins = [np.array(startingPins)]
 
         for idx, pins in enumerate(selectedPins):
             if idx == 0:
                 continue
             if (np.array(pins) - np.array(selectedPins[idx - 1])).any():
-                pins = np.append(pins, [[self.wall.PIN_HEIGHT]] * self.spider.NUMBER_OF_LEGS, axis = 1)
                 selectedDiffPins.append(np.array(pins))
-                platformPoses.append([path2d[idx][0], path2d[idx][1], 0.2, 0, 0, 0])
+                platformPoses.append(path[idx])
+
+        # Add poses and pins for lift up.
+        if globalStartPose[2] == self.spider.LYING_HEIGHT:
+            liftUpPose = np.copy(globalStartPose)
+            liftUpPose[2] = self.spider.WALKING_HEIGHT
+            platformPoses.insert(1, liftUpPose)
+            selectedDiffPins.insert(1, np.array(startingPins))
 
         return np.array(platformPoses), np.array(selectedDiffPins)
 
@@ -197,7 +211,11 @@ class TrajectoryPlanner:
         :return: Trajectory with pose and time stamp for each step and velocities in each pose.
         """
 
-        if (len(startPose) != len(goalPose) and len(startPose) != len(startVelocity) and len(startPose) != len(goalVelocity)):
+        if len(startPose) == 4 and len(goalPose) == 4:
+            startPose = [startPose[0], startPose[1], startPose[2], 0.0, 0.0, startPose[3]]
+            goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, goalPose[3]]
+
+        if (len(startPose) != len(goalPose) or len(startPose) != len(startVelocity) or len(startPose) != len(goalVelocity)):
             print("Invalid parameters.")
             return
         if duration <= 0:
