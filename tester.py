@@ -25,7 +25,7 @@ if __name__ == "__main__":
     # motorDriver.disableLegs(5)
 
     spiderStartPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
-    spiderGoalPose = [0.4, 0.8, spider.WALKING_HEIGHT, -1.57]
+    spiderGoalPose = [0.4, 1, spider.WALKING_HEIGHT, 0]
 
     # path = pathPlanner.calculateSpiderBodyPath(spiderStartPose, spiderGoalPose)
     # pins = pathPlanner.calculateSpiderLegsPositionsXyzRpyFF(path)

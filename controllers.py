@@ -120,13 +120,16 @@ class VelocityController:
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
-    def moveLegsWrapper(self, legsIds, globalGoalPositions, spiderPose, durations):
+    def moveLegsWrapper(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None):
         """Wrapper function for moving any number of legs (within number of spiders legs) to desired pins on the wall. 
         Includes transformation from global to legs-local pins positions and computing trajectories.
 
         :param legsIds: Array of legs ids, if value is 5 than all legs are selected.
         :param globalGoalPositions: Array of global goal positions (represents desired pins positions).
         :param spiderPose: Array of xyzrpy global position of spider's body.
+        :param durations: Array of durations for legs movements in seconds.
+        :param readLegs: If true, read local leg position on the beginning of each leg movement. Otherwise take FF calculations of global legs positions.
+        :param globalStartPositions: Array of FF calculations of starting global legs positions.
         :raises ValueError: Exception is thrown if legsIds, globalGoalPositions and durations parameters dont have same length.
         :return: True if movements were successfull, false otherwise.
         """
@@ -134,6 +137,11 @@ class VelocityController:
             legsIds = [0, 1, 2, 3, 4]
         if len(legsIds) != len(globalGoalPositions) or len(legsIds) != len(durations):
             raise ValueError("Invalid values of legsIds, goalGlobalPositions or durations parameters.")
+        if not readLegs and globalStartPositions == None:
+            raise ValueError("Legs starting positions are not given!")
+        if not readLegs and (len(globalGoalPositions) != len(globalStartPositions)):
+            raise ValueError("Invalid values of globalStartPositions parameter.")
+
 
         # Transformation matrix of global spider's pose.
         T_GS = self.matrixCalculator.xyzRpyToMatrix(spiderPose)
@@ -142,11 +150,14 @@ class VelocityController:
         bezierVelocities = []
         for legIdx, leg in enumerate(legsIds):
             # Read starting legs positions and transform global goal positions into local.
-            startPosition = self.motorDriver.readLegPosition(leg)
             T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
+            if readLegs:
+                startPosition = self.motorDriver.readLegPosition(leg)
+            else:
+                legGlobalStartPosition = np.append(globalStartPositions[legIdx], 1)
+                startPosition = np.dot(np.linalg.inv(T_GA), legGlobalStartPosition)[:3]
             legGlobalGoalPosition = np.append(globalGoalPositions[legIdx], 1)
             localGoalPosition = np.dot(np.linalg.inv(T_GA), legGlobalGoalPosition)[:3]
-            # TODO: How to calculate movement duration for each pin-to-pin movement?
             traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, durations[legIdx])
             bezierTrajectories.append(traj)
             bezierVelocities.append(vel)
@@ -252,7 +263,7 @@ class VelocityController:
             legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
             # Move legs.
             for legIdx in legsToMoveIdxs:
-                result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 4)
+                result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 4, False, [pins[poseIdx - 1][legIdx]])
                 if not result:
                     print("Leg movement error!")
                     return False
