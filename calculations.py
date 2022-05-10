@@ -1,6 +1,7 @@
 """Module for all calculations, includes classes for kinematics, geometry and matrix calculations.
 """
 
+from socket import TIPC_SUB_CANCEL
 import numpy as np
 import math
 
@@ -109,6 +110,18 @@ class Kinematics:
             joints.append(np.array([q1, q2, q3]))
 
         return np.array(joints)
+    
+    def platformDirectKinematics(self, legIds, legsGlobalPositions, jointsValues):
+
+        if len(legIds) < 2:
+            raise ValueError("Need at least two legs for computing platform's direct kinematics!")
+        if len(legIds) != len(legsGlobalPositions) and len(legIds) != len(jointsValues):
+            raise ValueError("Lengths of parameters values do not match.")
+        
+        for idx, leg in enumerate(legIds):
+            T_LS = self.legToSpiderBaseDirectKinematic(leg, jointsValues[idx])
+            print(np.linalg.norm(T_LS[:,3][:3]))
+            
 
     def legJacobi(self, legIdx, jointValues):
         """ Calculate Jacobian matrix for single leg.
@@ -129,15 +142,15 @@ class Kinematics:
             [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)] 
             ])
 
-    def legToSpiderBaseDirectKinematic(self, legIdx, jointValues):
+    def legToSpiderBaseDirectKinematic(self, legIdx, jointsValues):
         """Calculate direct kinematics from leg-tip to spider base.
         
         :param legIdx: Leg id.
-        :param jointValues: Joint values in radians.
+        :param jointsValues: Joints values in radians.
         :return: Transformation matrix from leg-tip to spider base.
         """
         qb = legIdx * self.spider.ANGLE_BETWEEN_LEGS + math.pi / 2
-        q1, q2, q3 = jointValues
+        q1, q2, q3 = jointsValues
         r = self.spider.BODY_RADIUS
         L1 = self.spider.LEGS[legIdx][0]
         L2 = self.spider.LEGS[legIdx][1][0]
