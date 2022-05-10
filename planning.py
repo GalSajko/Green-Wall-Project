@@ -109,7 +109,7 @@ class PathPlanner:
 
                             potentialPinsForSingleLeg.append([pin, criterionFunction])
 
-                potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg)
+                potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg, dtype = object)
                 potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:, 1].argsort()]
                 selectedPinsOnEachStep.append(potentialPinsForSingleLeg[0][0])
 
@@ -223,7 +223,7 @@ class TrajectoryPlanner:
             return
 
         timeStep = 0.05
-        timeVector = np.linspace(0, duration, duration / timeStep)
+        timeVector = np.linspace(0, duration, int(duration / timeStep))
 
         trajectory = []
         velocities = []
