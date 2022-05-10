@@ -164,8 +164,7 @@ class VelocityController:
         
         result = self.moveLegs(legsIds, bezierTrajectories, bezierVelocities)
 
-        return result
-        
+        return result   
 
     def movePlatform(self, trajectory, velocity, globalStartPose):
         """Move spider body as a parallel platform along a given trajectory.

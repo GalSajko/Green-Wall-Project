@@ -116,9 +116,15 @@ class MotorDriver:
         return np.array(mappedPositions)
 
     
-    def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd, add = True):
-        
-        for idx, leg in enumerate(legIdx):
+    def syncWriteMotorsVelocitiesInLegs(self, legIds, qCd, add = True):
+        """Write goal velocities to motors with sync writer.
+
+        :param legIdx: Legs ids.
+        :param qCd: Goal velocities.
+        :param add: If true, add parameters in parameters storage, otherwise change them, defaults to True
+        :return: True, if writing was successfull, false otherwise.
+        """
+        for idx, leg in enumerate(legIds):
             motorsInLeg = self.motorsIds[leg]
             encoderVelocoties = mappers.mapJointVelocitiesToEncoderValues(qCd[idx]).astype(int)
             for i, motor in enumerate(motorsInLeg):

@@ -22,7 +22,7 @@ if __name__ == "__main__":
     # LEGS MOVEMENT
     # motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
     # motorDriver = dynamixel.MotorDriver(motors)
-    # motorDriver.disableLegs(5)
+    # motorDriver.disableLegs(0)
 
     spiderStartPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
     spiderGoalPose = [0.4, 1, spider.WALKING_HEIGHT, 0]
@@ -32,6 +32,8 @@ if __name__ == "__main__":
     # plotter.plotSpiderMovement(path, pins)
 
     velocityController.walk(spiderStartPose, spiderGoalPose)
+    # while True:
+    #     print(motorDriver.readLegPosition(1))
 
     # velocityController.walk(spiderGoalPose, spiderStartPose, False)
 
