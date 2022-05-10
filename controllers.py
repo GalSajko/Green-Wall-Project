@@ -252,12 +252,11 @@ class VelocityController:
             else:
                 rotDist = abs(platformPoses[poseIdx - 1][3] - pose[3])
                 parallelMovementDuration = 2 * rotDist / 0.1
- 
             result = self.movePlatformWrapper(platformPoses[poseIdx - 1], pose, parallelMovementDuration)
-
             if not result:
                 print("Platform movement error!")
                 return False
+                
             # Select indexes of legs which have to move.
             legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
             # Move legs.

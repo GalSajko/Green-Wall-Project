@@ -12,6 +12,10 @@ def openGripper(ser):
 def closeGripper(ser):
     ser.write(b"c\n")
 
+def readFeedback(ser):
+    line = ser.readline().decode("utf-8").rstrip()
+    return line
+
 if __name__ == '__main__':
     ser = initSerial()
 
@@ -20,9 +24,19 @@ if __name__ == '__main__':
         if command == 'o':
             print("Open gripper")
             openGripper(ser)
+            line = readFeedback(ser)
+            while not line:
+                line = readFeedback(ser)
+            print(line)
+
         elif command == 'c':
             print("Close gripper")
             closeGripper(ser)
+            line = readFeedback(ser)
+            while not line:
+                line = readFeedback(ser)
+            print(line)
+            
         time.sleep(1)
         
         
