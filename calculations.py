@@ -1,18 +1,18 @@
 """Module for all calculations, includes classes for kinematics, geometry and matrix calculations.
 """
 
+from socket import TIPC_SUB_CANCEL
 import numpy as np
 import math
 
-import environment
-import mappers
+import environment as env
 
 
 class Kinematics:
     """Class for calculating kinematics of spider robot. Includes direct and reverse kinematics for spiders legs.
     """
     def __init__(self):
-        self.spider = environment.Spider()
+        self.spider = env.Spider()
         # leg DH parameters - note: DH model is slightly different than real spiders leg, because of the shape of second link.
         # Here, DH model takes a second link as a straight line.
         # Missing thetas are variables and will come as a joints values.
@@ -22,27 +22,24 @@ class Kinematics:
             "d" : 0
         }
 
-    def legDirectKinematics(self, legIdx, motorValues):
-        """ Calculate direct kinematics for spiders leg, using DH parameters.  
+    def legDirectKinematics(self, legIdx, jointValues):
+        """ Calculate direct kinematics for spiders leg, using transformation matrices.  
 
-        :param joints: Motors values in degrees.
+        :param jointValues: Joint values in radians.
         :return: Transformation matrix from base to end effector.
         """
-
-        motorValues[1] = motorValues[1] + self.spider.SECOND_JOINTS_OFFSETS[legIdx]
-        motorValues[2] = motorValues[2] - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
-        jointValues = mappers.mapMotorRadiansToJointRadians(np.radians(motorValues))
         q1, q2, q3 = jointValues
-        
-        q2 = q2 - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
-        q3 = q3 + self.spider.SECOND_JOINTS_OFFSETS[legIdx]       
+        L1 = self.spider.LEGS[legIdx][0]
+        L2 = self.spider.LEGS[legIdx][1][0]
+        L3 = self.spider.LEGS[legIdx][1][1]
+        L4 = self.spider.LEGS[legIdx][2]
 
-        H01 = MatrixCalculator().calculateHMatrix(q1, self.DH_MODEL["alpha"][0], self.DH_MODEL["r"][0], self.DH_MODEL["d"])
-        H12 = MatrixCalculator().calculateHMatrix(q2, self.DH_MODEL["alpha"][1], self.DH_MODEL["r"][1], self.DH_MODEL["d"])
-        H23 = MatrixCalculator().calculateHMatrix(q3, self.DH_MODEL["alpha"][2], self.DH_MODEL["r"][2], self.DH_MODEL["d"])
-
-        H03 = np.dot(H01, np.dot(H12, H23))
-        return H03
+        return np.array([
+            [math.cos(q1)*math.cos(q2+q3), -math.cos(q1)*math.sin(q2+q3), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
+            [math.cos(q2+q3)*math.sin(q1), -math.sin(q1)+math.sin(q2+q3), -math.cos(q1), math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
+            [math.sin(q2+q3), math.cos(q2+q3), 0, -L3*math.cos(q2) + L2*math.sin(q2) + L4*math.sin(q2+q3)],
+            [0, 0, 0, 1]
+        ])
     
     def legInverseKinematics(self, legIdx, endEffectorPosition):
         """ Calculate inverse kinematics for leg, using geometry - considering L shape of second link.
@@ -55,7 +52,6 @@ class Kinematics:
         endEffectorPosition[2] = -endEffectorPosition[2]
 
         firstLink = self.spider.LEGS[legIdx][0]
-        # REV: move this calculation to Spider().
         virtualSecondLink = np.hypot(self.spider.LEGS[legIdx][1][0], self.spider.LEGS[legIdx][1][1])
         thirdLink = self.spider.LEGS[legIdx][2]
 
@@ -85,15 +81,15 @@ class Kinematics:
 
         return q1, q2, q3
 
-    def platformInverseKinematics(self, goalPose, pins):
+    def platformInverseKinematics(self, goalPose, legs):
         """Calculate inverse kinematics for spiders platform.
 
-        :param goalPose: Goal pose in global, given as a 1x6 array with positions and rpy orientation.
-        :param pins: Global positions of used pins.
-        :return joints: 3x5 matrix with joints values for all legs.
+        :param goalPose: Goal pose in global, given as a 1x6 array with positions and xyz orientation.
+        :param legs: Global positions of used legs.
+        :return: 3x5 matrix with joints values for all legs.
         """
-        # Get transformation matrix from origin to spider base, from desired goalPose.
-        globalTransformMatrix = MatrixCalculator().transformMatrixFromGlobalPose(goalPose)
+        # Get transformation matrix from spiders xyzrpy.
+        globalTransformMatrix = MatrixCalculator().xyzRpyToMatrix(goalPose)
 
         # Array to store calculated joints values for all legs.
         joints = []
@@ -103,8 +99,8 @@ class Kinematics:
             # Position of leg anchor in global.
             anchorInGlobalPosition = anchorInGlobal[:,3][0:3]
 
-            # Vector from anchor to pin in global.
-            anchorToPinGlobal = np.array(pins[idx] - anchorInGlobalPosition)
+            # Vector from anchor to end of leg in global.
+            anchorToPinGlobal = np.array(legs[idx] - anchorInGlobalPosition)
             # Transform this vector in legs local origin - only rotate.
             rotationMatrix = anchorInGlobal[:3, :3]
             anchorToPinLocal = np.dot(np.linalg.inv(rotationMatrix), anchorToPinGlobal)
@@ -114,6 +110,107 @@ class Kinematics:
             joints.append(np.array([q1, q2, q3]))
 
         return np.array(joints)
+    
+    def platformDirectKinematics(self, legIds, legsGlobalPositions, jointsValues):
+
+        if len(legIds) < 2:
+            raise ValueError("Need at least two legs for computing platform's direct kinematics!")
+        if len(legIds) != len(legsGlobalPositions) and len(legIds) != len(jointsValues):
+            raise ValueError("Lengths of parameters values do not match.")
+        
+        for idx, leg in enumerate(legIds):
+            T_LS = self.legToSpiderBaseDirectKinematic(leg, jointsValues[idx])
+            print(np.linalg.norm(T_LS[:,3][:3]))
+            
+
+    def legJacobi(self, legIdx, jointValues):
+        """ Calculate Jacobian matrix for single leg.
+
+        :param legId: Leg id.
+        :jointValues: Joint values in radians.   
+        :return: 3x3 Jacobian matrix.
+        """
+        q1, q2, q3 = jointValues
+        L1 = self.spider.LEGS[legIdx][0]
+        L2 = self.spider.LEGS[legIdx][1][0]
+        L3 = self.spider.LEGS[legIdx][1][1]
+        L4 = self.spider.LEGS[legIdx][2]
+
+        return np.array([
+            [-math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.cos(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1)*math.sin(q2+q3)],
+            [math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.sin(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.sin(q1)*math.sin(q2+q3)],
+            [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)] 
+            ])
+
+    def legToSpiderBaseDirectKinematic(self, legIdx, jointsValues):
+        """Calculate direct kinematics from leg-tip to spider base.
+        
+        :param legIdx: Leg id.
+        :param jointsValues: Joints values in radians.
+        :return: Transformation matrix from leg-tip to spider base.
+        """
+        qb = legIdx * self.spider.ANGLE_BETWEEN_LEGS + math.pi / 2
+        q1, q2, q3 = jointsValues
+        r = self.spider.BODY_RADIUS
+        L1 = self.spider.LEGS[legIdx][0]
+        L2 = self.spider.LEGS[legIdx][1][0]
+        L3 = self.spider.LEGS[legIdx][1][1]
+        L4 = self.spider.LEGS[legIdx][2]
+
+        Hb3 = np.array([
+            [math.cos(q2+q3) * math.cos(q1+qb), -math.cos(q1+qb) * math.sin(q2+q3), math.sin(q1+qb), r*math.cos(qb) + math.cos(q1+qb) * (L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
+            [math.cos(q2+q3) * math.sin(q1+qb), -math.sin(q2+q3) * math.sin(q1+qb), -math.cos(q1+qb), L1*math.cos(q1)*math.sin(q1) + (r + L1*math.cos(q1)) * math.sin(qb) + (L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)],
+            [math.sin(q2+q3), math.cos(q2+q3), 0, -L3*math.cos(q2) + L2*math.sin(q2) + L4*math.sin(q2+q3)],
+            [0, 0, 0, 1]
+        ])
+
+        H3b = np.linalg.inv(Hb3)
+        return H3b
+
+    def legTipToSpiderBaseJacobi(self, legIdx, jointValues):
+        """Calculate Jacobian matrix for spiders origin - leg-tip relation.
+
+        :param legIdx: Leg id.
+        :param jointValues: Joint values in radians.
+        :return: 3x3 Jacobian matrix.
+        """
+        q1, q2, q3 = jointValues
+        r = self.spider.BODY_RADIUS
+        L1 = self.spider.LEGS[legIdx][0]
+        L2 = self.spider.LEGS[legIdx][1][0]
+        L3 = self.spider.LEGS[legIdx][1][1]
+        L4 = self.spider.LEGS[legIdx][2]
+
+        return np.array([
+            [r*math.cos(q2+q3)*math.sin(q1), (L1 + r*math.cos(q1))*math.sin(q2+q3), math.cos(q3)*(L3 + (L1 + r*math.cos(q1))*math.sin(q2)) + (L2 + (L1 + r*math.cos(q1))*math.cos(q2))*math.sin(q3)],
+            [-r*math.sin(q1)*math.sin(q2+q3), (L1 + r*math.cos(q1))*math.cos(q2+q3), (L2 + (L1 + r*math.cos(q1))*math.cos(q2))*math.cos(q3) - (L3 + (L1 + r*math.cos(q1))*math.sin(q2))*math.sin(q3)],
+            [-r*math.cos(q1), 0, 0]
+        ])
+
+    def getSpiderToLegReferenceVelocities(self, spiderVelocity):
+        """Calculate current reference leg velocities from current spider velocity.
+
+        :param spiderVelocity: Current spider's velocity.
+        :return: Reference legs velocities.
+        """
+        
+        linearSpiderVelocity = spiderVelocity[:3]
+        anguarSpiderVelocity = spiderVelocity[3:]
+
+        # Rotate spiders reference velocity into anchors velocities which represent reference velocities for single leg.
+        anchorsVelocities = [np.dot(np.linalg.inv(tAnchor[:3,:3]), linearSpiderVelocity) for tAnchor in self.spider.T_ANCHORS]
+        # Add angular velocities.
+        for i, anchorVelocity in enumerate(anchorsVelocities):
+            anchorPosition = self.spider.LEG_ANCHORS[i]
+            wx, wy, wz = anguarSpiderVelocity
+            anchorsVelocities[i] = np.array([
+                anchorVelocity[0],
+                anchorVelocity[1] + self.spider.BODY_RADIUS * wz,
+                anchorVelocity[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
+            ])
+        refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
+
+        return np.array(refereneceLegVelocities)
 
 class GeometryTools:
     """Helper class for geometry calculations.
@@ -137,7 +234,7 @@ class GeometryTools:
         return math.sqrt((firstPoint[0] - secondPoint[0])**2 + (firstPoint[1] - secondPoint[1])**2 + (firstPoint[2] - secondPoint[2])**2)
     
     def calculateSignedAngleBetweenTwoVectors(cls, firstVector, secondVector):
-        """Calculate signed angle between two vectors in 2d.
+        """Calculate signed angle between two vectors.
 
         :param firstVector: First vector.
         :param secondVector: Second vector.
@@ -150,15 +247,13 @@ class GeometryTools:
         # 2d vector.
         if len(firstVector) <= 2 and crossProduct < 0:
             angle = -angle
-            return angle
         # 3d vector.
-        if (crossProduct < 0).any() < 0:
+        elif (crossProduct < 0).any() < 0:
             angle = -angle
         return angle
-
+    
     def wrapToPi(cls, angle):
         """Wrap angle to Pi.
-
         :param angle: Angle
         :return: Angle wrapped to Pi.
         """
@@ -170,24 +265,26 @@ class GeometryTools:
 
 class MatrixCalculator:
     """ Class for calculating matrices."""
-
-    def transformMatrixFromGlobalPose(cls, globalPose):
+    def xyzRpyToMatrix(cls, xyzrpy):
         """Calculate global transformation matrix for transforming between global origin and spider base.
 
-        :param globalPose: Desired global pose of a spiders platform, 1x6 array with positions and rpy orientation.
+        :param xyzrpy: Desired global pose of a spiders platform, 1x6 array with positions and rpy orientation.
+        :param xyzy: Wheter or not the pose is given only as a x, y, z and yaw.
         """
-        position = globalPose[0:3]
-        rpy = globalPose[3:]
+        if len(xyzrpy) == 4:
+            xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
+        position = xyzrpy[0:3]
+        rpy = xyzrpy[3:]
 
         roll = np.array([
-            [1, 0, 0],
-            [0, math.cos(rpy[0]), -math.sin(rpy[0])],
-            [0, math.sin(rpy[0]), math.cos(rpy[0])]
-        ])
-        pitch = np.array([
             [math.cos(rpy[1]), 0, math.sin(rpy[1])],
             [0, 1, 0],
             [-math.sin(rpy[1]), 0, math.cos(rpy[1])]
+        ])
+        pitch = np.array([
+            [1, 0, 0],
+            [0, math.cos(rpy[0]), -math.sin(rpy[0])],
+            [0, math.sin(rpy[0]), math.cos(rpy[0])] 
         ])
         yaw = np.array([
             [math.cos(rpy[2]), -math.sin(rpy[2]), 0],
@@ -195,38 +292,23 @@ class MatrixCalculator:
             [0, 0, 1]
         ])
 
-        rotationMatrix = np.dot(roll, np.dot(pitch, yaw))
+        rotationMatrix = np.dot(pitch, np.dot(roll, yaw))
 
         transformMatrix = np.c_[rotationMatrix, position]
         transformMatrix = np.r_[transformMatrix, [[0, 0, 0, 1]]]
         
         return transformMatrix
-
-    def calculateHMatrix(cls, theta, alpha, r, d):
-        """ Helper function for calculating transformation matrix between two origins, using DH model.
-
-        :param theta: DH parameter theta.
-        :param alpha: DH parameter alpha.
-        :param r: DH parameter r.
-        :param d: DH parameter d.
-        :return: Transformation matrix between two origins.
-        """
-        return np.array([
-            [math.cos(theta), -math.sin(theta) * math.cos(alpha), math.sin(theta) * math.sin(alpha), r * math.cos(theta)],
-            [math.sin(theta), math.cos(theta) * math.cos(alpha), -math.cos(theta) * math.sin(alpha), r * math.sin(theta)],
-            [0, math.sin(alpha), math.cos(alpha), d],
-            [0, 0, 0, 1]
-        ])
     
-    def getPinsInGlobal(cls, spiderAnchors, T_GS, localLegsPositions, globalPose):
-        """ Calculate global positions of used pins.
+    def getLegsInGlobal(cls, localLegsPositions, globalPose):
+        """ Calculate global positions of legs from given local positions.
 
         :param localLegsPositions: Legs positions in leg-based origins.
         :param globalPose: Spider's position in global origin.
-        :return: 5x3 array of pins positions in global origin.
+        :return: 5x3 array of legs positions in global origin.
         """
-        pins = []
-        for idx, t in enumerate(spiderAnchors):
+        legs = []
+        for idx, t in enumerate(env.Spider().T_ANCHORS):
+            T_GS = cls.xyzRpyToMatrix(globalPose)
             anchorInGlobal = np.dot(T_GS, t)
             pinMatrix = np.array([
                 [1, 0, 0, localLegsPositions[idx][0]],
@@ -234,7 +316,7 @@ class MatrixCalculator:
                 [0, 0, 1, localLegsPositions[idx][2]],
                 [0, 0, 0, 1]])
             pinInGlobal = np.dot(anchorInGlobal, pinMatrix)
-            pins.append(pinInGlobal[:,3][0:3])
+            legs.append(pinInGlobal[:,3][0:3])
 
-        return pins
-        
+        return np.array(legs)
+       
