@@ -111,29 +111,40 @@ class Kinematics:
 
         return np.array(joints)
     
-    def platformDirectKinematics(self, legsGlobalPositions, legsLocalPositions):
+    def platformDirectKinematics(self, legsIds, legsGlobalPositions, legsLocalPositions):
 
-        r1, r2, r3 = np.linalg.norm(legsLocalPositions, axis = 1)
         p1, p2, p3 = legsGlobalPositions
 
-        phi = math.atan(p2[1] - p1[1], p2[0] - p1[0])
+        r = []
+        for idx, leg in enumerate(legsIds):
+            spiderToLegVector = np.dot(self.spider.T_ANCHORS[leg], np.append(legsLocalPositions[idx], 1))
+            r.append(np.linalg.norm(spiderToLegVector[:3]))
+
+        r1, r2, r3 = r
+        phi = math.atan2(p2[1] - p1[1], p2[0] - p1[0])
+
         firstPinMatrix = np.array([
             [math.cos(phi), -math.sin(phi), 0, p1[0]],
             [math.sin(phi), math.cos(phi), 0, p1[1]],
             [0, 0, 1, p1[2]],
             [0, 0, 0, 1]
         ])
-        u = np.dot(np.linalg.inv(firstPinMatrix), np.append(p2, 1))[0]
-        vx, vy = np.dot(np.linalg.inv(firstPinMatrix), np.append(p3, 1))[:2]
+        p1p2 = np.dot(np.linalg.inv(firstPinMatrix), np.append(p2, 1))
+        u = p1p2[0]
+        p1p3 = np.dot(np.linalg.inv(firstPinMatrix), np.append(p3, 1))
+        vx, vy = p1p3[:2]
 
         x = (math.pow(r1, 2) - math.pow(r2, 2) + math.pow(u, 2)) / (2 * u)
         y = (math.pow(r1, 2) - math.pow(r3, 2) + math.pow(vx, 2) + math.pow(vy, 2) - 2 * vx * x)
         try:
             z = math.sqrt(math.pow(r1, 2) - math.pow(x, 2) - math.pow(y, 2))
-            return x, y, z
         except:
             print("INVALID VALUES!")
             return False
+
+        poseInGlobal = np.dot(firstPinMatrix, np.array([x, y, z, 1]))
+        return poseInGlobal[:3]
+
 
 
 
