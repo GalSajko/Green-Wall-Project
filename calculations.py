@@ -81,7 +81,7 @@ class Kinematics:
 
         return q1, q2, q3
 
-    def platformInverseKinematics(self, goalPose, legs):
+    def platformInverseKinematics(self, goalPose, legsGlobalPositions):
         """Calculate inverse kinematics for spiders platform.
 
         :param goalPose: Goal pose in global, given as a 1x6 array with positions and xyz orientation.
@@ -100,7 +100,7 @@ class Kinematics:
             anchorInGlobalPosition = anchorInGlobal[:,3][0:3]
 
             # Vector from anchor to end of leg in global.
-            anchorToPinGlobal = np.array(legs[idx] - anchorInGlobalPosition)
+            anchorToPinGlobal = np.array(legsGlobalPositions[idx] - anchorInGlobalPosition)
             # Transform this vector in legs local origin - only rotate.
             rotationMatrix = anchorInGlobal[:3, :3]
             anchorToPinLocal = np.dot(np.linalg.inv(rotationMatrix), anchorToPinGlobal)
@@ -111,17 +111,35 @@ class Kinematics:
 
         return np.array(joints)
     
-    def platformDirectKinematics(self, legIds, legsGlobalPositions, jointsValues):
+    def platformDirectKinematics(self, legsGlobalPositions, legsLocalPositions):
 
-        if len(legIds) < 2:
-            raise ValueError("Need at least two legs for computing platform's direct kinematics!")
-        if len(legIds) != len(legsGlobalPositions) and len(legIds) != len(jointsValues):
-            raise ValueError("Lengths of parameters values do not match.")
+        r1, r2, r3 = np.linalg.norm(legsLocalPositions, axis = 1)
+        p1, p2, p3 = legsGlobalPositions
+
+        phi = math.atan(p2[1] - p1[1], p2[0] - p1[0])
+        firstPinMatrix = np.array([
+            [math.cos(phi), -math.sin(phi), 0, p1[0]],
+            [math.sin(phi), math.cos(phi), 0, p1[1]],
+            [0, 0, 1, p1[2]],
+            [0, 0, 0, 1]
+        ])
+        u = np.dot(np.linalg.inv(firstPinMatrix), np.append(p2, 1))[0]
+        vx, vy = np.dot(np.linalg.inv(firstPinMatrix), np.append(p3, 1))[:2]
+
+        x = (math.pow(r1, 2) - math.pow(r2, 2) + math.pow(u, 2)) / (2 * u)
+        y = (math.pow(r1, 2) - math.pow(r3, 2) + math.pow(vx, 2) + math.pow(vy, 2) - 2 * vx * x)
+        try:
+            z = math.sqrt(math.pow(r1, 2) - math.pow(x, 2) - math.pow(y, 2))
+            return x, y, z
+        except:
+            print("INVALID VALUES!")
+            return False
+
+
+
         
-        for idx, leg in enumerate(legIds):
-            T_LS = self.legToSpiderBaseDirectKinematic(leg, jointsValues[idx])
-            print(np.linalg.norm(T_LS[:,3][:3]))
             
+        
 
     def legJacobi(self, legIdx, jointValues):
         """ Calculate Jacobian matrix for single leg.
@@ -142,8 +160,8 @@ class Kinematics:
             [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)] 
             ])
 
-    def legToSpiderBaseDirectKinematic(self, legIdx, jointsValues):
-        """Calculate direct kinematics from leg-tip to spider base.
+    def spiderBaseToLegTipDirectKinematics(self, legIdx, jointsValues):
+        """Calculate direct kinematics from spider base to leg-tip.
         
         :param legIdx: Leg id.
         :param jointsValues: Joints values in radians.
@@ -164,8 +182,8 @@ class Kinematics:
             [0, 0, 0, 1]
         ])
 
-        H3b = np.linalg.inv(Hb3)
-        return H3b
+        return Hb3
+        
 
     def legTipToSpiderBaseJacobi(self, legIdx, jointValues):
         """Calculate Jacobian matrix for spiders origin - leg-tip relation.

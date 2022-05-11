@@ -110,7 +110,10 @@ class Spider:
     #endregion
 
 class Wall:
-    """ Wall class. Class is a singleton class, meaning it can only be instantiated once."""
+    """ Wall class. Class is a singleton class, meaning it can only be instantiated once.
+    
+    :param: gridPattern: Squared or rhombus pattern of pins grid.
+    """
     
     # Singleton class instance tracker.
     instance = None
