@@ -1,0 +1,5 @@
+{
+    "board": "arduino:avr:uno",
+    "sketch": "Arduino/test_rpi_comm.ino",
+    "port": "/dev/ttyACM0"
+}
