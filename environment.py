@@ -123,7 +123,7 @@ class Wall:
         self.WALL_SIZE = [0.85, 1.4]
         # Pin raster - distances between pins in (x, y).
         self.WALL_RASTER = [0.19875, 0.22600]
-        self.PIN_HEIGHT = 0.023
+        self.PIN_HEIGHT = 0.022
         if (gridPattern != 'squared' and gridPattern != 'rhombus'):
             raise ValueError("Invalid value of gridPatter parameter!")
         self.gridPattern = gridPattern
@@ -190,6 +190,43 @@ class Wall:
                     pins.append([x, y, self.PIN_HEIGHT])
             
         return np.array(pins)
+        # return np.array([
+        #     [0.0, 0.0, self.PIN_HEIGHT],
+        #     [0.0, 0.226, self.PIN_HEIGHT],
+        #     [0.0, 0.456, self.PIN_HEIGHT],
+        #     [0.0, 0.6755, self.PIN_HEIGHT],
+        #     [0.0, 0.901, self.PIN_HEIGHT],
+        #     [0.0, 1.126, self.PIN_HEIGHT],
+        #     [0.0, 1.356, self.PIN_HEIGHT],
+        #     [0.197, 0.0, self.PIN_HEIGHT],
+        #     [0.199, 0.226, self.PIN_HEIGHT],
+        #     [0.199, 0.451, self.PIN_HEIGHT],
+        #     [0.199, 0.678, self.PIN_HEIGHT],
+        #     [0.2, 0.903, self.PIN_HEIGHT],
+        #     [0.21, 1.128, self.PIN_HEIGHT],
+        #     [0.22, 0.1355, self.PIN_HEIGHT],
+        #     [0.399, 0.0, self.PIN_HEIGHT],
+        #     [0.396, 0.2265, self.PIN_HEIGHT],
+        #     [0.397, 0.457, self.PIN_HEIGHT],
+        #     [0.397, 0.6775, self.PIN_HEIGHT],
+        #     [0.399, 0.902, self.PIN_HEIGHT],
+        #     [0.399, 1.123, self.PIN_HEIGHT],
+        #     [0.404, 1.354, self.PIN_HEIGHT],
+        #     [0.596, 0.0, self.PIN_HEIGHT],
+        #     [0.596, 0.225, self.PIN_HEIGHT],
+        #     [0.596, 0.45, self.PIN_HEIGHT],
+        #     [0.597, 0.677, self.PIN_HEIGHT],
+        #     [0.61, 0.901, self.PIN_HEIGHT],
+        #     [0.60, 1.126, self.PIN_HEIGHT],
+        #     [0.603, 1.353, self.PIN_HEIGHT],
+        #     [0.795, 0.0, self.PIN_HEIGHT],
+        #     [0.795, 0.225, self.PIN_HEIGHT],
+        #     [0.795, 0.452, self.PIN_HEIGHT],
+        #     [0.794, 0.676, self.PIN_HEIGHT],
+        #     [0.792, 0.901, self.PIN_HEIGHT],
+        #     [0.794, 1.127, self.PIN_HEIGHT],
+        #     [0.797, 1.354, self.PIN_HEIGHT]
+        # ])
     
     def createGrid(self, threeDim = False):
         """Create grid of pins.

@@ -1,6 +1,7 @@
 """Module for all calculations, includes classes for kinematics, geometry and matrix calculations.
 """
 
+from glob import glob
 from socket import TIPC_SUB_CANCEL
 import numpy as np
 import math
@@ -97,7 +98,7 @@ class Kinematics:
             # Pose of leg anchor in global
             anchorInGlobal = np.dot(globalTransformMatrix, t)
             # Position of leg anchor in global.
-            anchorInGlobalPosition = anchorInGlobal[:,3][0:3]
+            anchorInGlobalPosition = anchorInGlobal[:,3][:3]
 
             # Vector from anchor to end of leg in global.
             anchorToPinGlobal = np.array(legsGlobalPositions[idx] - anchorInGlobalPosition)
@@ -112,6 +113,13 @@ class Kinematics:
         return np.array(joints)
     
     def platformDirectKinematics(self, legsIds, legsGlobalPositions, legsLocalPositions):
+        """Calculate forward kinematics of platform.
+
+        :param legsIds: Legs used in calculations.
+        :param legsGlobalPositions: Global positions of used legs.
+        :param legsLocalPositions: Local positions of used legs.
+        :return: x, y, z position of platform in global origin.
+        """
 
         p1, p2, p3 = legsGlobalPositions
 
@@ -144,13 +152,6 @@ class Kinematics:
 
         poseInGlobal = np.dot(firstPinMatrix, np.array([x, y, z, 1]))
         return poseInGlobal[:3]
-
-
-
-
-        
-            
-        
 
     def legJacobi(self, legIdx, jointValues):
         """ Calculate Jacobian matrix for single leg.
@@ -335,6 +336,10 @@ class MatrixCalculator:
         :param globalPose: Spider's position in global origin.
         :return: 5x3 array of legs positions in global origin.
         """
+
+        if len(globalPose) == 4:
+            globalPose = [globalPose[0], globalPose[1], globalPose[2], 0.0, 0.0, globalPose[3]]
+            
         legs = []
         for idx, t in enumerate(env.Spider().T_ANCHORS):
             T_GS = cls.xyzRpyToMatrix(globalPose)

@@ -19,6 +19,7 @@ class PathPlanner:
 
         self.maxLinStep = maxLinStep
         self.maxRotStep = maxRotStep
+        self.maxLiftStep = 0.3
     
     def calculateSpiderBodyPath(self, startPose, goalPose):
         """Calculate descrete path of spider's body including rotation around z axis. First rotate toward goal point,
@@ -37,10 +38,7 @@ class PathPlanner:
         if startPose[2] == self.spider.LYING_HEIGHT:
             startWalkingPose = np.copy(startPose)
             startWalkingPose[2] = self.spider.WALKING_HEIGHT
-            numberOfSteps = math.ceil((startWalkingPose[2] - startPose[2]) / self.maxLinStep) + 1
-            liftUpPath = np.linspace(startPose, startWalkingPose, numberOfSteps)
-            for pose in liftUpPath:
-                path.append(pose)
+            path.append(startWalkingPose)
 
         # Rotate towards goal point.
         refAngle = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1]) * (-1)
@@ -187,13 +185,6 @@ class PathPlanner:
                 selectedDiffPins.append(np.array(pins))
                 platformPoses.append(path[idx])
 
-        # Add poses and pins for lift up.
-        if globalStartPose[2] == self.spider.LYING_HEIGHT:
-            liftUpPose = np.copy(globalStartPose)
-            liftUpPose[2] = self.spider.WALKING_HEIGHT
-            platformPoses.insert(1, liftUpPose)
-            selectedDiffPins.insert(1, np.array(startingPins))
-
         return np.array(platformPoses), np.array(selectedDiffPins)
 
 
@@ -210,6 +201,9 @@ class TrajectoryPlanner:
         :param goalVelocity: Goal velocity, defaults to 0
         :return: Trajectory with pose and time stamp for each step and velocities in each pose.
         """
+        if len(startPose) == 3 and len(goalPose) == 3:
+            startPose = [startPose[0], startPose[1], startPose[2], 0.0 , 0.0, 0.0]
+            goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, 0.0]
 
         if len(startPose) == 4 and len(goalPose) == 4:
             startPose = [startPose[0], startPose[1], startPose[2], 0.0, 0.0, startPose[3]]
@@ -222,7 +216,7 @@ class TrajectoryPlanner:
             print("Invalid duration parameter.")
             return
 
-        timeStep = 0.05
+        timeStep = 0.02
         timeVector = np.linspace(0, duration, int(duration / timeStep))
 
         trajectory = []
@@ -257,9 +251,11 @@ class TrajectoryPlanner:
         timeStep = 0.02
         numberOfSteps = math.floor(duration / timeStep)
 
+        heightPercent = 0.3
+
         startPoint, goalPoint = np.array(startPoint), np.array(goalPoint)
-        firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + 0.7 * np.linalg.norm(goalPoint - startPoint)])
-        secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + 0.7 * np.linalg.norm(goalPoint - startPoint)])
+        firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + heightPercent * np.linalg.norm(goalPoint - startPoint)])
+        secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + heightPercent * np.linalg.norm(goalPoint - startPoint)])
         controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint])
 
         trajectory = []
