@@ -114,7 +114,6 @@ class MotorDriver:
         
         return np.array(mappedPositions)
 
-    
     def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd, add = True):
         """Write motors velocities to given motors in legs with sync writer.
 
