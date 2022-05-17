@@ -1,8 +1,6 @@
 """Module for all calculations, includes classes for kinematics, geometry and matrix calculations.
 """
 
-from glob import glob
-from socket import TIPC_SUB_CANCEL
 import numpy as np
 import math
 
@@ -14,14 +12,6 @@ class Kinematics:
     """
     def __init__(self):
         self.spider = env.Spider()
-        # leg DH parameters - note: DH model is slightly different than real spiders leg, because of the shape of second link.
-        # Here, DH model takes a second link as a straight line.
-        # Missing thetas are variables and will come as a joints values.
-        self.DH_MODEL = {
-            "alpha" : [math.pi / 2, 0, 0],
-            "r" : [0.064, 0.301, 0.275],
-            "d" : 0
-        }
 
     def legDirectKinematics(self, legIdx, jointValues):
         """ Calculate direct kinematics for spiders leg, using transformation matrices.  
@@ -39,6 +29,19 @@ class Kinematics:
             [math.cos(q1)*math.cos(q2+q3), -math.cos(q1)*math.sin(q2+q3), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
             [math.cos(q2+q3)*math.sin(q1), -math.sin(q1)+math.sin(q2+q3), -math.cos(q1), math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
             [math.sin(q2+q3), math.cos(q2+q3), 0, -L3*math.cos(q2) + L2*math.sin(q2) + L4*math.sin(q2+q3)],
+            [0, 0, 0, 1]
+        ])
+    
+    def legBaseToThirdJointDirectKinematics(self, legIdx, jointValues):
+        q1, q2, _ = jointValues
+        L1 = self.spider.LEGS[legIdx][0]
+        L2 = self.spider.LEGS[legIdx][1][0]
+        L3 = self.spider.LEGS[legIdx][1][1]
+
+        return np.array([
+            [math.cos(q1)*math.cos(q2), -math.cos(q1)*math.cos(q2), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L3 * math.cos(q2))],
+            [math.cos(q2)*math.sin(q1), -math.sin(q1)*math.sin(q2), -math.cos(q1), math.sin(q1)*(L1 + L2*math.cos(q2) + L3*math.sin(q2))],
+            [math.sin(q2), math.cos(q2), 0, -L3*math.cos(q2) + L2*math.sin(q2)],
             [0, 0, 0, 1]
         ])
     
@@ -328,6 +331,20 @@ class MatrixCalculator:
         transformMatrix = np.r_[transformMatrix, [[0, 0, 0, 1]]]
         
         return transformMatrix
+
+    def getLegInLocal(cls, legId, globalLegPosition, spiderPose):
+        """Calculate local position of leg from given global position.
+
+        :param legId: Leg id.
+        :param globalLegPosition: Global position of leg.
+        :param spiderPose: Spider's global pose.
+        :return: 1x3 array of local leg's position.
+        """
+        T_GS = cls.xyzRpyToMatrix(spiderPose)
+        T_GA = np.dot(T_GS, env.Spider().T_ANCHORS[legId])
+        globalLegPosition = np.append(globalLegPosition, 1)
+        return np.dot(np.linalg.inv(T_GA), globalLegPosition)[:3]
+
     
     def getLegsInGlobal(cls, localLegsPositions, globalPose):
         """ Calculate global positions of legs from given local positions.
@@ -353,4 +370,22 @@ class MatrixCalculator:
             legs.append(pinInGlobal[:,3][0:3])
 
         return np.array(legs)
-       
+    
+    def getLegApproachPositionInGlobal(cls, legId, spiderPose, pinPosition):
+
+        approachOffset = 0.02
+
+        if len(spiderPose) == 4:
+            spiderPose = [spiderPose[0], spiderPose[1], spiderPose[2], 0.0, 0.0, spiderPose[3]]
+        
+        jointsValues = Kinematics().legInverseKinematics(legId, cls.getLegInLocal(legId, pinPosition, spiderPose))
+        T_GA = np.dot(cls.xyzRpyToMatrix(spiderPose), env.Spider().T_ANCHORS[legId])
+        thirdJointLocalPosition = Kinematics().legBaseToThirdJointDirectKinematics(legId, jointsValues)[:,3][:3]
+        thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
+        print(thirdJointGlobalPosition)
+        
+        pinToThirdJoint = thirdJointGlobalPosition - pinPosition
+        pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * approachOffset
+        approachPointInGlobal = pinPosition + pinToThirdJoint
+
+        return approachPointInGlobal

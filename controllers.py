@@ -180,9 +180,9 @@ class VelocityController:
         :param globalGoalPositions: Global goal positions of legs (pins).
         :param spiderPose: Global pose of spider during legs movements.
         :param durations: Array of durations for each leg movement.
-        :param readLegs: If true, read legs positions before movements, otherwise use FF calculations, defaults to True
+        :param readLegs: If true, read starting legs positions before movements, otherwise use FF calculations, defaults to True
         :param globalStartPositions: Global start positions of legs, defaults to None.
-        :param trajectoryType: Trajectory type for first movement (above the pin). Second movement is always minJerk.
+        :param trajectoryType: Trajectory type for first movement (above the pin). Second movement is always along minJerk trajectory.
         :return: True if movements were successfull, false otherwise.
         """
 
@@ -195,6 +195,7 @@ class VelocityController:
         if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * 2, True, goalAbovePinsPositions, 'minJerk'):
             print("Legs movement error!")
             return False
+        return True
 
     def movePlatform(self, trajectory, velocity, globalStartPose, globalLegsPositions):
         """Move spider body as a parallel platform along a given trajectory.
