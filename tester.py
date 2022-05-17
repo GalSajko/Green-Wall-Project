@@ -15,7 +15,7 @@ import simulaton as sim
 if __name__ == "__main__":
     matrixCalculator = calculations.MatrixCalculator()
 
-    appPoint = matrixCalculator.getLegApproachPositionInGlobal(0, [1, 1, 0.2, 0, 0, 0], [1, 1.5, 0])
+    appPoint = matrixCalculator.getLegsApproachPositionsInGlobal(0, [1, 1, 0.2, 0, 0, 0], [1, 1.5, 0])
 
     print(np.round(appPoint, 3))
 

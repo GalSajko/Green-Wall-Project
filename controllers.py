@@ -171,7 +171,7 @@ class VelocityController:
         
         result = self.moveLegs(legsIds, bezierTrajectories, bezierVelocities)
 
-        return result 
+        return result
     
     def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, trajectoryType = 'bezier'):
         """First move legs above selected pins and then lower them on pins.
@@ -185,17 +185,22 @@ class VelocityController:
         :param trajectoryType: Trajectory type for first movement (above the pin). Second movement is always along minJerk trajectory.
         :return: True if movements were successfull, false otherwise.
         """
-
-        approachPoints = [self.matrixCalculator.getLegApproachPositionInGlobal(leg, spiderPose, globalGoalPositions[i]) for i, leg in enumerate(legsIds)]
+        if legsIds == 5:
+            legsIds = [0, 1, 2, 3, 4]
+        approachTime = 2
+        durations = np.array(durations) - approachTime
+        approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
+        # TODO: send command on Arduino to open the gripper here.
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
             print("Legs movement error!")
             return False
-        if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * 2, True, approachPoints, 'minJerk'):
+        if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * approachTime, True, approachPoints, 'minJerk'):
             print("Legs movement error!")
             return False
+        # TODO: send command on Arduino to close the gripper here.
         return True
 
-    def movePlatform(self, trajectory, velocity, globalStartPose, globalLegsPositions):
+    def movePlatform(self, trajectory, velocity, globalLegsPositions):
         """Move spider body as a parallel platform along a given trajectory.
 
         :param trajectory: Spider's body trajectory.
@@ -204,8 +209,6 @@ class VelocityController:
         :param globalLegsPositions: Global positions of legs during platform movement.
         :return: True if movement was successfull, false otherwise.
         """
-        # localLegsPositions = [self.motorDriver.readLegPosition(leg) for leg in range(self.spider.NUMBER_OF_LEGS)]
-        # globalLegsPositions = self.matrixCalculator.getLegsInGlobal(localLegsPositions, globalStartPose)
 
         legsIds = [leg for leg in range(self.spider.NUMBER_OF_LEGS)]
         qDs, qDds = self.getQdQddPlatformFF(trajectory, velocity, globalLegsPositions)
@@ -267,54 +270,39 @@ class VelocityController:
         platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose)
 
         # Move legs on starting positions, based on calculations for starting spider's position. 
-        # Move legs above pins.
-        zOffset = 0.02
-        goalPositions = np.copy(pins[0])
-        goalPositions[:, 2] = goalPositions[:, 2] + zOffset 
-
-        if not self.moveLegsWrapper(5, goalPositions, platformPoses[0], np.ones(5) * 3.5):
+        result = self.moveLegsAndGrabPins(5, pins[0], globalStartPose, np.ones(5) * 6)
+        if not result:
             print("Legs movement error!")
             return False
-        # if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 2, False, goalPositions, trajectoryType = 'minJerk'):
-        #     print("Legs movement error!")
-        #     return False
 
         # Move through calculated poses.
-        # for poseIdx, pose in enumerate(platformPoses):
-        #     if poseIdx == 0:
-        #         continue
+        for poseIdx, pose in enumerate(platformPoses):
+            if poseIdx == 0:
+                continue
 
-        #     # Move platform.
-        #     linDist = np.linalg.norm(platformPoses[poseIdx - 1][:3] - pose[:3])
-        #     if linDist != 0:
-        #         parallelMovementDuration = 2.5 * linDist / 0.05
-        #     else:
-        #         rotDist = abs(platformPoses[poseIdx - 1][3] - pose[3])
-        #         parallelMovementDuration = 2 * rotDist / 0.1
+            # Move platform.
+            linDist = np.linalg.norm(platformPoses[poseIdx - 1][:3] - pose[:3])
+            if linDist != 0:
+                parallelMovementDuration = 2.5 * linDist / 0.05
+            else:
+                rotDist = abs(platformPoses[poseIdx - 1][3] - pose[3])
+                parallelMovementDuration = 2 * rotDist / 0.1
  
-        #     result = self.movePlatformWrapper(platformPoses[poseIdx - 1], pose, pins[poseIdx - 1], parallelMovementDuration)
+            result = self.movePlatformWrapper(platformPoses[poseIdx - 1], pose, pins[poseIdx - 1], parallelMovementDuration)
 
-        #     if not result:
-        #         print("Platform movement error!")
-        #         return False
-        #     # Select indexes of legs which have to move.
-        #     legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
-        #     # Move legs.
-        #     for legIdx in legsToMoveIdxs:
-        #         # Move above the pin.
-        #         goalPosition = np.copy(pins[poseIdx][legIdx])
-        #         goalPosition[2] += zOffset
-        #         result = self.moveLegsWrapper([legIdx], [goalPosition], pose, np.ones(1) * 4, False, [pins[poseIdx - 1][legIdx]])
-        #         if not result:
-        #             print("Leg movement error!")
-        #             return False
-        #         # Grab the pin.
-        #         result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 2, False, [goalPosition], 'minJerk')
-        #         if not result:
-        #             print("Leg movement error!")
-        #             return False
+            if not result:
+                print("Platform movement error!")
+                return False
+            # Select indexes of legs which have to move.
+            legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
+            # Move legs and grab pins.
+            for legIdx in legsToMoveIdxs:
+                result = self.moveLegsAndGrabPins([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 4, False, [pins[poseIdx - 1][legIdx]])
+                if not result:
+                    print("Legs movement error!")
+                    return False
 
-        # return True
+        return True
 
 
 

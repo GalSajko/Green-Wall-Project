@@ -371,25 +371,30 @@ class MatrixCalculator:
 
         return np.array(legs)
     
-    def getLegApproachPositionInGlobal(cls, legId, spiderPose, pinPosition, offset = 0.02):
+    def getLegsApproachPositionsInGlobal(cls, legsIds, spiderPose, pinsPositions, offset = 0.02):
         """ Calculate approach point for leg-to-pin movement, so that gripper would fit on pin.
 
         :param legId: Leg id.
         :param spiderPose: Spider's pose in global.
         :param pinPosition: Pin position in global.
         :param offset: Distance from pin, defaults to 0.02.
+        :raises ValueError: If length of legsIds and pinsPositions parameters are not the same.
         :return: Position of approach point in global.
         """
+        if len(legsIds) != len(pinsPositions):
+            raise ValueError("Invalid values of legsIds or pinsPositions parameters.")
         if len(spiderPose) == 4:
             spiderPose = [spiderPose[0], spiderPose[1], spiderPose[2], 0.0, 0.0, spiderPose[3]]
         
-        jointsValues = Kinematics().legInverseKinematics(legId, cls.getLegInLocal(legId, pinPosition, spiderPose))
-        T_GA = np.dot(cls.xyzRpyToMatrix(spiderPose), env.Spider().T_ANCHORS[legId])
-        thirdJointLocalPosition = Kinematics().legBaseToThirdJointDirectKinematics(legId, jointsValues)[:,3][:3]
-        thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
+        approachPointsInGlobal = []
+        for idx, leg in enumerate(legsIds):
+            jointsValues = Kinematics().legInverseKinematics(leg, cls.getLegInLocal(leg, pinsPositions[idx], spiderPose))
+            T_GA = np.dot(cls.xyzRpyToMatrix(spiderPose), env.Spider().T_ANCHORS[leg])
+            thirdJointLocalPosition = Kinematics().legBaseToThirdJointDirectKinematics(leg, jointsValues)[:,3][:3]
+            thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
 
-        pinToThirdJoint = thirdJointGlobalPosition - pinPosition
-        pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
-        approachPointInGlobal = pinPosition + pinToThirdJoint
+            pinToThirdJoint = thirdJointGlobalPosition - pinsPositions[idx]
+            pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
+            approachPointsInGlobal.append(pinsPositions[idx] + pinToThirdJoint)
 
-        return approachPointInGlobal
+        return np.array(approachPointsInGlobal)
