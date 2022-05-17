@@ -371,10 +371,15 @@ class MatrixCalculator:
 
         return np.array(legs)
     
-    def getLegApproachPositionInGlobal(cls, legId, spiderPose, pinPosition):
+    def getLegApproachPositionInGlobal(cls, legId, spiderPose, pinPosition, offset = 0.02):
+        """ Calculate approach point for leg-to-pin movement, so that gripper would fit on pin.
 
-        approachOffset = 0.02
-
+        :param legId: Leg id.
+        :param spiderPose: Spider's pose in global.
+        :param pinPosition: Pin position in global.
+        :param offset: Distance from pin, defaults to 0.02.
+        :return: Position of approach point in global.
+        """
         if len(spiderPose) == 4:
             spiderPose = [spiderPose[0], spiderPose[1], spiderPose[2], 0.0, 0.0, spiderPose[3]]
         
@@ -382,10 +387,9 @@ class MatrixCalculator:
         T_GA = np.dot(cls.xyzRpyToMatrix(spiderPose), env.Spider().T_ANCHORS[legId])
         thirdJointLocalPosition = Kinematics().legBaseToThirdJointDirectKinematics(legId, jointsValues)[:,3][:3]
         thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
-        print(thirdJointGlobalPosition)
-        
+
         pinToThirdJoint = thirdJointGlobalPosition - pinPosition
-        pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * approachOffset
+        pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
         approachPointInGlobal = pinPosition + pinToThirdJoint
 
         return approachPointInGlobal

@@ -116,6 +116,13 @@ class MotorDriver:
 
     
     def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd, add = True):
+        """Write motors velocities to given motors in legs with sync writer.
+
+        :param legIdx: Legs ids.
+        :param qCd: Reference velocities.
+        :param add: If true add parameters to storage, otherwise only change them, defaults to True
+        :return: True if writing was successfull, false otherwise.
+        """
         
         for idx, leg in enumerate(legIdx):
             motorsInLeg = self.motorsIds[leg]

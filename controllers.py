@@ -186,13 +186,11 @@ class VelocityController:
         :return: True if movements were successfull, false otherwise.
         """
 
-        zOffset = 0.03
-        goalAbovePinsPositions = np.copy(globalGoalPositions)
-        goalAbovePinsPositions[:, 2] += zOffset
-        if not self.moveLegsWrapper(legsIds, goalAbovePinsPositions, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
+        approachPoints = [self.matrixCalculator.getLegApproachPositionInGlobal(leg, spiderPose, globalGoalPositions[i]) for i, leg in enumerate(legsIds)]
+        if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
             print("Legs movement error!")
             return False
-        if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * 2, True, goalAbovePinsPositions, 'minJerk'):
+        if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * 2, True, approachPoints, 'minJerk'):
             print("Legs movement error!")
             return False
         return True
