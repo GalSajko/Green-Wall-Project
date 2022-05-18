@@ -16,12 +16,14 @@ if __name__ == "__main__":
     velocityController = controllers.VelocityController()
     wall = env.Wall('squared')
     spider = env.Spider()
+    gripperController = controllers.GripperController()
 
     pins = wall.createGrid(True)
 
     spiderPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
 
-    velocityController.moveLegsAndGrabPins([2], [pins[1]], spiderPose, [6])
+    velocityController.moveLegsAndGrabPins([0], [pins[18]], spiderPose, [6])
+
 
 
 

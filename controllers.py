@@ -20,7 +20,7 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
-        # self.gripperController = GripperController()
+        self.gripperController = GripperController()
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -191,14 +191,24 @@ class VelocityController:
         approachTime = 1.5
         durations = np.array(durations) - approachTime
         approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
-        # TODO: send command on Arduino to open the gripper here.
+
+        success = self.gripperController.openGripper()
+        print(success)
+        # while not bool(success):
+        #     success = self.gripperController.openGripper()
+
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
             print("Legs movement error!")
             return False
         if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * approachTime, True, approachPoints, 'minJerk'):
             print("Legs movement error!")
             return False
-        # TODO: send command on Arduino to close the gripper here.
+        
+        success = self.gripperController.closeGripper()
+        print(success)
+        # while not bool(success):
+        #     success = self.gripperController.closeGripper()
+            
         return True
 
     def movePlatform(self, trajectory, velocity, globalLegsPositions):
@@ -321,28 +331,22 @@ class GripperController:
         """Send command to open a gripper.
         """
         self.comm.write(self.OPEN_COMMAND)
-        message = self.readFeedback()
+        message = self.comm.readline().decode("utf-8").rstrip()
         while not message:
-            message = self.readFeedback()
+            message = self.comm.readline().decode("utf-8").rstrip()
         
         return message
         
-
     def closeGripper(self):
         """Send command to close a gripper.
         """
         self.comm.write(self.CLOSE_COMMAND)
-        message = self.readFeedback()
+        message = self.comm.readline().decode("utf-8").rstrip()
         while not message:
-            message = self.readFeedback()
+            message = self.comm.readline().decode("utf-8").rstrip()
+        
+        return message
 
-    def readFeedback(self):
-        """Read feedback from Arduino
-
-        :return: Message from Arduino.
-        """
-        line = self.readline().decode("utf-8").rstrip()
-        return line
 
 
 
