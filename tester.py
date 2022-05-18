@@ -16,7 +16,6 @@ if __name__ == "__main__":
     velocityController = controllers.VelocityController()
     wall = env.Wall('squared')
     spider = env.Spider()
-    gripperController = controllers.GripperController()
 
     pins = wall.createGrid(True)
 

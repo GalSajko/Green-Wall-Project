@@ -323,6 +323,10 @@ class GripperController:
         self.CLOSE_COMMAND = b"c\n"
 
         self.comm = serial.Serial('/dev/ttyACM0', 9600, timeout = 1)
+        # self.comm = serial.Serial()
+        # self.comm.baudrate = 9600
+        # self.comm.port = '/dev/ttyACM0'
+        # self.comm.open()
         self.comm.reset_input_buffer()
 
     def openGripper(self):
