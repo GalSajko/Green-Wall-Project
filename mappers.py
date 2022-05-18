@@ -1,4 +1,4 @@
-""" Module for mapping angles between DH model and motor values. """
+""" Module for mapping angles between leg model and motor values. """
 
 from json import encoder
 import math

@@ -3,8 +3,7 @@
 
 import numpy as np
 from dynamixel_sdk import *
-import struct
-
+import time
 
 import calculations
 import mappers
@@ -25,7 +24,7 @@ class MotorDriver:
         self.TORQUE_ENABLE_ADDR = 64
         self.GOAL_VELOCITY_ADDR = 104
         self.PRESENT_POSITION_ADDR = 132
-        self.BAUDRATE = 4000000
+        self.BAUDRATE = 2000000
         self.PROTOCOL_VERSION = 2.0      
         self.USB_DEVICE_NAME = "/dev/ttyUSB0"
         self.PRESENT_POSITION_DATA_LENGTH = 4
@@ -112,11 +111,17 @@ class MotorDriver:
         for leg in legsIds:
             positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
             mappedPositions.append(mappers.mapEncoderToJointRadians(positions))
-            
+        
         return np.array(mappedPositions)
 
-    
     def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd, add = True):
+        """Write motors velocities to given motors in legs with sync writer.
+
+        :param legIdx: Legs ids.
+        :param qCd: Reference velocities.
+        :param add: If true add parameters to storage, otherwise only change them, defaults to True
+        :return: True if writing was successfull, false otherwise.
+        """
         
         for idx, leg in enumerate(legIdx):
             motorsInLeg = self.motorsIds[leg]

@@ -1,7 +1,6 @@
 """Module for all calculations, includes classes for kinematics, geometry and matrix calculations.
 """
 
-from socket import TIPC_SUB_CANCEL
 import numpy as np
 import math
 
@@ -13,14 +12,6 @@ class Kinematics:
     """
     def __init__(self):
         self.spider = env.Spider()
-        # leg DH parameters - note: DH model is slightly different than real spiders leg, because of the shape of second link.
-        # Here, DH model takes a second link as a straight line.
-        # Missing thetas are variables and will come as a joints values.
-        self.DH_MODEL = {
-            "alpha" : [math.pi / 2, 0, 0],
-            "r" : [0.064, 0.301, 0.275],
-            "d" : 0
-        }
 
     def legDirectKinematics(self, legIdx, jointValues):
         """ Calculate direct kinematics for spiders leg, using transformation matrices.  
@@ -38,6 +29,19 @@ class Kinematics:
             [math.cos(q1)*math.cos(q2+q3), -math.cos(q1)*math.sin(q2+q3), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
             [math.cos(q2+q3)*math.sin(q1), -math.sin(q1)+math.sin(q2+q3), -math.cos(q1), math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
             [math.sin(q2+q3), math.cos(q2+q3), 0, -L3*math.cos(q2) + L2*math.sin(q2) + L4*math.sin(q2+q3)],
+            [0, 0, 0, 1]
+        ])
+    
+    def legBaseToThirdJointDirectKinematics(self, legIdx, jointValues):
+        q1, q2, _ = jointValues
+        L1 = self.spider.LEGS[legIdx][0]
+        L2 = self.spider.LEGS[legIdx][1][0]
+        L3 = self.spider.LEGS[legIdx][1][1]
+
+        return np.array([
+            [math.cos(q1)*math.cos(q2), -math.cos(q1)*math.cos(q2), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L3 * math.cos(q2))],
+            [math.cos(q2)*math.sin(q1), -math.sin(q1)*math.sin(q2), -math.cos(q1), math.sin(q1)*(L1 + L2*math.cos(q2) + L3*math.sin(q2))],
+            [math.sin(q2), math.cos(q2), 0, -L3*math.cos(q2) + L2*math.sin(q2)],
             [0, 0, 0, 1]
         ])
     
@@ -97,7 +101,7 @@ class Kinematics:
             # Pose of leg anchor in global
             anchorInGlobal = np.dot(globalTransformMatrix, t)
             # Position of leg anchor in global.
-            anchorInGlobalPosition = anchorInGlobal[:,3][0:3]
+            anchorInGlobalPosition = anchorInGlobal[:,3][:3]
 
             # Vector from anchor to end of leg in global.
             anchorToPinGlobal = np.array(legsGlobalPositions[idx] - anchorInGlobalPosition)
@@ -112,6 +116,13 @@ class Kinematics:
         return np.array(joints)
     
     def platformDirectKinematics(self, legsIds, legsGlobalPositions, legsLocalPositions):
+        """Calculate forward kinematics of platform.
+
+        :param legsIds: Legs used in calculations.
+        :param legsGlobalPositions: Global positions of used legs.
+        :param legsLocalPositions: Local positions of used legs.
+        :return: x, y, z position of platform in global origin.
+        """
 
         p1, p2, p3 = legsGlobalPositions
 
@@ -144,13 +155,6 @@ class Kinematics:
 
         poseInGlobal = np.dot(firstPinMatrix, np.array([x, y, z, 1]))
         return poseInGlobal[:3]
-
-
-
-
-        
-            
-        
 
     def legJacobi(self, legIdx, jointValues):
         """ Calculate Jacobian matrix for single leg.
@@ -327,6 +331,20 @@ class MatrixCalculator:
         transformMatrix = np.r_[transformMatrix, [[0, 0, 0, 1]]]
         
         return transformMatrix
+
+    def getLegInLocal(cls, legId, globalLegPosition, spiderPose):
+        """Calculate local position of leg from given global position.
+
+        :param legId: Leg id.
+        :param globalLegPosition: Global position of leg.
+        :param spiderPose: Spider's global pose.
+        :return: 1x3 array of local leg's position.
+        """
+        T_GS = cls.xyzRpyToMatrix(spiderPose)
+        T_GA = np.dot(T_GS, env.Spider().T_ANCHORS[legId])
+        globalLegPosition = np.append(globalLegPosition, 1)
+        return np.dot(np.linalg.inv(T_GA), globalLegPosition)[:3]
+
     
     def getLegsInGlobal(cls, localLegsPositions, globalPose):
         """ Calculate global positions of legs from given local positions.
@@ -335,6 +353,10 @@ class MatrixCalculator:
         :param globalPose: Spider's position in global origin.
         :return: 5x3 array of legs positions in global origin.
         """
+
+        if len(globalPose) == 4:
+            globalPose = [globalPose[0], globalPose[1], globalPose[2], 0.0, 0.0, globalPose[3]]
+            
         legs = []
         for idx, t in enumerate(env.Spider().T_ANCHORS):
             T_GS = cls.xyzRpyToMatrix(globalPose)
@@ -348,4 +370,31 @@ class MatrixCalculator:
             legs.append(pinInGlobal[:,3][0:3])
 
         return np.array(legs)
-       
+    
+    def getLegsApproachPositionsInGlobal(cls, legsIds, spiderPose, pinsPositions, offset = 0.03):
+        """ Calculate approach point for leg-to-pin movement, so that gripper would fit on pin.
+
+        :param legId: Leg id.
+        :param spiderPose: Spider's pose in global.
+        :param pinPosition: Pin position in global.
+        :param offset: Distance from pin, defaults to 0.02.
+        :raises ValueError: If length of legsIds and pinsPositions parameters are not the same.
+        :return: Position of approach point in global.
+        """
+        if len(legsIds) != len(pinsPositions):
+            raise ValueError("Invalid values of legsIds or pinsPositions parameters.")
+        if len(spiderPose) == 4:
+            spiderPose = [spiderPose[0], spiderPose[1], spiderPose[2], 0.0, 0.0, spiderPose[3]]
+        
+        approachPointsInGlobal = []
+        for idx, leg in enumerate(legsIds):
+            jointsValues = Kinematics().legInverseKinematics(leg, cls.getLegInLocal(leg, pinsPositions[idx], spiderPose))
+            T_GA = np.dot(cls.xyzRpyToMatrix(spiderPose), env.Spider().T_ANCHORS[leg])
+            thirdJointLocalPosition = Kinematics().legBaseToThirdJointDirectKinematics(leg, jointsValues)[:,3][:3]
+            thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
+
+            pinToThirdJoint = thirdJointGlobalPosition - pinsPositions[idx]
+            pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
+            approachPointsInGlobal.append(pinsPositions[idx] + pinToThirdJoint)
+
+        return np.array(approachPointsInGlobal)
