@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     spiderPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
 
-    velocityController.moveLegsAndGrabPins([0], [pins[18]], spiderPose, [4])
+    velocityController.moveLegsAndGrabPins([2], [pins[1]], spiderPose, [6])
 
 
 

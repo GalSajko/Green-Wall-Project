@@ -20,7 +20,7 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
-        self.gripperController = GripperController()
+        # self.gripperController = GripperController()
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -188,7 +188,7 @@ class VelocityController:
         """
         if legsIds == 5:
             legsIds = [0, 1, 2, 3, 4]
-        approachTime = 2
+        approachTime = 1.5
         durations = np.array(durations) - approachTime
         approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
         # TODO: send command on Arduino to open the gripper here.
@@ -343,28 +343,6 @@ class GripperController:
         """
         line = self.readline().decode("utf-8").rstrip()
         return line
-
-    if __name__ == '__main__':
-
-        while True:
-            command = input("Enter command (o or c): ")
-            if command == 'o':
-                print("Open gripper")
-                openGripper(ser)
-                line = readFeedback(ser)
-                while not line:
-                    line = readFeedback(ser)
-                print(line)
-
-            elif command == 'c':
-                print("Close gripper")
-                closeGripper(ser)
-                line = readFeedback(ser)
-                while not line:
-                    line = readFeedback(ser)
-                print(line)
-                
-            time.sleep(1)
 
 
 

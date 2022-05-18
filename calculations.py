@@ -371,7 +371,7 @@ class MatrixCalculator:
 
         return np.array(legs)
     
-    def getLegsApproachPositionsInGlobal(cls, legsIds, spiderPose, pinsPositions, offset = 0.02):
+    def getLegsApproachPositionsInGlobal(cls, legsIds, spiderPose, pinsPositions, offset = 0.03):
         """ Calculate approach point for leg-to-pin movement, so that gripper would fit on pin.
 
         :param legId: Leg id.
