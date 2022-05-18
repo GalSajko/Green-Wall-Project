@@ -6,8 +6,13 @@ Servo myServo;
 const String openCommand = "o";
 const String closeCommand = "c";
 
+// Values when servo is in closed or open position.
+const int closeThreshold = 260;
+const int openThreshold = 400;
+
 // Constants for pin connections etc.
 const int servo1Pin = 8;
+const int servo1FeedbackPin = A0;
 const int switchPin = 9;
 const float maxStroke = 30;
 const float minStroke = 0;
@@ -16,6 +21,7 @@ const float closedStroke = 20;
 
 float desiredLength;
 int switchValue;
+int servoValue;
 
 float limitStroke(float strokeDesired){
   if (strokeDesired > maxStroke){
@@ -39,27 +45,38 @@ void setup() {
   myServo.writeMicroseconds(1500);
   myServo.attach(servo1Pin);
 
-  pinMode(switchPin, INPUT);
+  pinMode(switchPin, INPUT_PULLUP);
 }
 
 void loop() {
-  switchValue = digitalRead()
-  // put your main code here, to run repeatedly:
+  
+//  switchValue = digitalRead(switchPin);
+//  Serial.println(switchValue);
+
   if (Serial.available() > 0){
     String data = Serial.readStringUntil('\n');
-    desiredLength = data.toFloat();
-
-    setStrokeMm(desiredLength);
-
+    
     if (data == openCommand){
       setStrokeMm(openStroke);
       delay(2000);
-      Serial.println("Gripper opened.");
+      servoValue = analogRead(servo1FeedbackPin);
+      if (servoValue > openThreshold){
+        Serial.println("1");
+      }
+      else{
+        Serial.println("0");
+      }
     }
     else if (data == closeCommand){
       setStrokeMm(closedStroke);
       delay(2000);
-      Serial.println("Gripper closed.");
+      servoValue = analogRead(servo1FeedbackPin);
+      if (servoValue < closeThreshold){
+        Serial.println("1");
+      }
+      else{
+        Serial.println("0");
+      }
     }
     
   }
