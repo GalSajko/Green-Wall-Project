@@ -1,6 +1,6 @@
 import numpy as np
 import time
-import math
+import serial
 
 import calculations 
 import environment as env
@@ -20,6 +20,7 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
+        self.gripperController = GripperController()
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -303,6 +304,68 @@ class VelocityController:
                     return False
 
         return True
+
+class GripperController:
+    """Class for controlling a gripper via serial communication with Arduino.
+    """
+    def __init__(self):
+        """Init serial communication with Arduino.
+        """
+        self.OPEN_COMMAND = b"o\n"
+        self.CLOSE_COMMAND = b"c\n"
+
+        self.comm = serial.Serial('/dev/ttyACM0', 9600, timeout = 1)
+        self.comm.reset_input_buffer()
+
+    def openGripper(self):
+        """Send command to open a gripper.
+        """
+        self.comm.write(self.OPEN_COMMAND)
+        message = self.readFeedback()
+        while not message:
+            message = self.readFeedback()
+        
+        return message
+        
+
+    def closeGripper(self):
+        """Send command to close a gripper.
+        """
+        self.comm.write(self.CLOSE_COMMAND)
+        message = self.readFeedback()
+        while not message:
+            message = self.readFeedback()
+
+    def readFeedback(self):
+        """Read feedback from Arduino
+
+        :return: Message from Arduino.
+        """
+        line = self.readline().decode("utf-8").rstrip()
+        return line
+
+    if __name__ == '__main__':
+
+        while True:
+            command = input("Enter command (o or c): ")
+            if command == 'o':
+                print("Open gripper")
+                openGripper(ser)
+                line = readFeedback(ser)
+                while not line:
+                    line = readFeedback(ser)
+                print(line)
+
+            elif command == 'c':
+                print("Close gripper")
+                closeGripper(ser)
+                line = readFeedback(ser)
+                while not line:
+                    line = readFeedback(ser)
+                print(line)
+                
+            time.sleep(1)
+
 
 
 

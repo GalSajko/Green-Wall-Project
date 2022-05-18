@@ -13,11 +13,15 @@ import environment as env
 import simulaton as sim
 
 if __name__ == "__main__":
-    matrixCalculator = calculations.MatrixCalculator()
+    velocityController = controllers.VelocityController()
+    wall = env.Wall('squared')
+    spider = env.Spider()
 
-    appPoint = matrixCalculator.getLegsApproachPositionsInGlobal(0, [1, 1, 0.2, 0, 0, 0], [1, 1.5, 0])
+    pins = wall.createGrid(True)
 
-    print(np.round(appPoint, 3))
+    spiderPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
+
+    velocityController.moveLegsAndGrabPins([0], [pins[18]], spiderPose, [4])
 
 
 
