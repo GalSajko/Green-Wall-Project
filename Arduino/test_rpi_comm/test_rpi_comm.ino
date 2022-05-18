@@ -42,7 +42,7 @@ void setStrokeMm(float strokeDesired){
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  myServo.writeMicroseconds(1500);
+  myServo.writeMicroseconds(1000);
   myServo.attach(servo1Pin);
 
   pinMode(switchPin, INPUT_PULLUP);
@@ -55,7 +55,7 @@ void loop() {
 
   if (Serial.available() > 0){
     String data = Serial.readStringUntil('\n');
-    
+
     if (data == openCommand){
       setStrokeMm(openStroke);
       delay(2000);

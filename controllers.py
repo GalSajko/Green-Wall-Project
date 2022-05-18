@@ -193,9 +193,8 @@ class VelocityController:
         approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
 
         success = self.gripperController.openGripper()
-        print(success)
-        # while not bool(success):
-        #     success = self.gripperController.openGripper()
+        while not bool(int(success)):
+            success = self.gripperController.openGripper()
 
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
             print("Legs movement error!")
@@ -205,9 +204,8 @@ class VelocityController:
             return False
         
         success = self.gripperController.closeGripper()
-        print(success)
-        # while not bool(success):
-        #     success = self.gripperController.closeGripper()
+        while not bool(int(success)):
+            success = self.gripperController.closeGripper()
             
         return True
 
