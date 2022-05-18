@@ -1,6 +1,6 @@
 import numpy as np
 import time
-import math
+import serial
 
 import calculations 
 import environment as env
@@ -20,6 +20,7 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
+        # self.gripperController = GripperController()
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -90,6 +91,7 @@ class VelocityController:
         lastErrors = np.zeros([len(legsIds), 3])
         Kp = 10
         Kd = 1
+
         # Use indexes of longest trajectory.
         for i, _ in enumerate(trajectories[longerIdx]):
             startTime = time.time()
@@ -120,7 +122,7 @@ class VelocityController:
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
-    def moveLegsWrapper(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None):
+    def moveLegsWrapper(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, trajectoryType = "bezier"):
         """Wrapper function for moving any number of legs (within number of spiders legs) to desired pins on the wall. 
         Includes transformation from global to legs-local pins positions and computing trajectories.
 
@@ -130,6 +132,7 @@ class VelocityController:
         :param durations: Array of durations for legs movements in seconds.
         :param readLegs: If true, read local leg position on the beginning of each leg movement. Otherwise take FF calculations of global legs positions.
         :param globalStartPositions: Array of FF calculations of starting global legs positions.
+        :param trajectoryType: 'bezier' for bezier curve or 'minJerk' for minimal jerk trajectory.
         :raises ValueError: Exception is thrown if legsIds, globalGoalPositions and durations parameters dont have same length.
         :return: True if movements were successfull, false otherwise.
         """
@@ -137,11 +140,10 @@ class VelocityController:
             legsIds = [0, 1, 2, 3, 4]
         if len(legsIds) != len(globalGoalPositions) or len(legsIds) != len(durations):
             raise ValueError("Invalid values of legsIds, goalGlobalPositions or durations parameters.")
-        if not readLegs and globalStartPositions == None:
+        if not readLegs and not np.array(globalStartPositions).any():
             raise ValueError("Legs starting positions are not given!")
         if not readLegs and (len(globalGoalPositions) != len(globalStartPositions)):
             raise ValueError("Invalid values of globalStartPositions parameter.")
-
 
         # Transformation matrix of global spider's pose.
         T_GS = self.matrixCalculator.xyzRpyToMatrix(spiderPose)
@@ -158,25 +160,56 @@ class VelocityController:
                 startPosition = np.dot(np.linalg.inv(T_GA), legGlobalStartPosition)[:3]
             legGlobalGoalPosition = np.append(globalGoalPositions[legIdx], 1)
             localGoalPosition = np.dot(np.linalg.inv(T_GA), legGlobalGoalPosition)[:3]
-            traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, durations[legIdx])
+            if trajectoryType == 'bezier':
+                traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, durations[legIdx])
+            elif trajectoryType == 'minJerk':
+                traj, vel = self.trajectoryPlanner.minJerkTrajectory(startPosition, localGoalPosition, durations[legIdx])
+            else:
+                print("Invalid trajectory type.")
+                return False
             bezierTrajectories.append(traj)
             bezierVelocities.append(vel)
         
         result = self.moveLegs(legsIds, bezierTrajectories, bezierVelocities)
 
         return result
-        
+    
+    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, trajectoryType = 'bezier'):
+        """First move legs above selected pins and then lower them on pins.
 
-    def movePlatform(self, trajectory, velocity, globalStartPose):
+        :param legsIds: Legs ids.
+        :param globalGoalPositions: Global goal positions of legs (pins).
+        :param spiderPose: Global pose of spider during legs movements.
+        :param durations: Array of durations for each leg movement.
+        :param readLegs: If true, read starting legs positions before movements, otherwise use FF calculations, defaults to True
+        :param globalStartPositions: Global start positions of legs, defaults to None.
+        :param trajectoryType: Trajectory type for first movement (above the pin). Second movement is always along minJerk trajectory.
+        :return: True if movements were successfull, false otherwise.
+        """
+        if legsIds == 5:
+            legsIds = [0, 1, 2, 3, 4]
+        approachTime = 1.5
+        durations = np.array(durations) - approachTime
+        approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
+        # TODO: send command on Arduino to open the gripper here.
+        if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
+            print("Legs movement error!")
+            return False
+        if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * approachTime, True, approachPoints, 'minJerk'):
+            print("Legs movement error!")
+            return False
+        # TODO: send command on Arduino to close the gripper here.
+        return True
+
+    def movePlatform(self, trajectory, velocity, globalLegsPositions):
         """Move spider body as a parallel platform along a given trajectory.
 
         :param trajectory: Spider's body trajectory.
         :param velocity: Spider's body velocity.
         :param globalStartPose: Global pose of spider at the beginning of the platform movement.
+        :param globalLegsPositions: Global positions of legs during platform movement.
         :return: True if movement was successfull, false otherwise.
         """
-        localLegsPositions = [self.motorDriver.readLegPosition(leg) for leg in range(self.spider.NUMBER_OF_LEGS)]
-        globalLegsPositions = self.matrixCalculator.getLegsInGlobal(localLegsPositions, globalStartPose)
 
         legsIds = [leg for leg in range(self.spider.NUMBER_OF_LEGS)]
         qDs, qDds = self.getQdQddPlatformFF(trajectory, velocity, globalLegsPositions)
@@ -194,7 +227,7 @@ class VelocityController:
         for idx, qD in enumerate(qDs):
             startTime = time.time()
             qA = self.motorDriver.syncReadMotorsPositionsInLegs(legsIds)
-            errors = qD - qA
+            errors = np.array(qD - qA, dtype = object)
             dE = (errors - lastErrors) / timeStep
             qCds = Kp * errors + Kd * dE + qDds[idx]
             lastErrors = errors
@@ -214,16 +247,17 @@ class VelocityController:
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
-    def movePlatformWrapper(self, globalStartPose, globalGoalPose, duration):
+    def movePlatformWrapper(self, globalStartPose, globalGoalPose, globalLegsPositions, duration):
         """Wrapper function for moving a platform. Includes trajectory calculations.
 
         :param globalStartPose: Starting pose in global origin.
         :param globalGoalPose: Goal pose in global origin.
+        :param globalLegsPositions: Global positions of legs during platform movement.
         :param duration: Desired duration of movement.
         :return: True if movement was successfull, false otherwise.
         """
         traj, vel = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, globalGoalPose, duration)
-        result = self.movePlatform(traj, vel, globalStartPose)
+        result = self.movePlatform(traj, vel, globalStartPose, globalLegsPositions)
 
         return result
 
@@ -236,9 +270,10 @@ class VelocityController:
         """
         platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose)
 
-        # Move legs on starting positions, based on calculations for starting spider's position.     
-        if not self.moveLegsWrapper(5, pins[0], platformPoses[0], np.ones(5) * 3.5):
-            print("Platform movement error!")
+        # Move legs on starting positions, based on calculations for starting spider's position. 
+        result = self.moveLegsAndGrabPins(5, pins[0], globalStartPose, np.ones(5) * 6)
+        if not result:
+            print("Legs movement error!")
             return False
 
         # Move through calculated poses.
@@ -254,21 +289,61 @@ class VelocityController:
                 rotDist = abs(platformPoses[poseIdx - 1][3] - pose[3])
                 parallelMovementDuration = 2 * rotDist / 0.1
  
-            result = self.movePlatformWrapper(platformPoses[poseIdx - 1], pose, parallelMovementDuration)
-
+            result = self.movePlatformWrapper(platformPoses[poseIdx - 1], pose, pins[poseIdx - 1], parallelMovementDuration)
             if not result:
                 print("Platform movement error!")
                 return False
+                
             # Select indexes of legs which have to move.
             legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
-            # Move legs.
+            # Move legs and grab pins.
             for legIdx in legsToMoveIdxs:
-                result = self.moveLegsWrapper([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 4, False, [pins[poseIdx - 1][legIdx]])
+                result = self.moveLegsAndGrabPins([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 4, False, [pins[poseIdx - 1][legIdx]])
                 if not result:
-                    print("Leg movement error!")
+                    print("Legs movement error!")
                     return False
 
         return True
+
+class GripperController:
+    """Class for controlling a gripper via serial communication with Arduino.
+    """
+    def __init__(self):
+        """Init serial communication with Arduino.
+        """
+        self.OPEN_COMMAND = b"o\n"
+        self.CLOSE_COMMAND = b"c\n"
+
+        self.comm = serial.Serial('/dev/ttyACM0', 9600, timeout = 1)
+        self.comm.reset_input_buffer()
+
+    def openGripper(self):
+        """Send command to open a gripper.
+        """
+        self.comm.write(self.OPEN_COMMAND)
+        message = self.readFeedback()
+        while not message:
+            message = self.readFeedback()
+        
+        return message
+        
+
+    def closeGripper(self):
+        """Send command to close a gripper.
+        """
+        self.comm.write(self.CLOSE_COMMAND)
+        message = self.readFeedback()
+        while not message:
+            message = self.readFeedback()
+
+    def readFeedback(self):
+        """Read feedback from Arduino
+
+        :return: Message from Arduino.
+        """
+        line = self.readline().decode("utf-8").rstrip()
+        return line
+
 
 
 

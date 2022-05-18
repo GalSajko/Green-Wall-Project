@@ -20,11 +20,11 @@ class Spider:
         self.BODY_RADIUS = 0.125
         # Spiders legs, given as lengths of all three links in one leg. Note that second link is in L shape -
         # first value is a length in vertical direction, second value is a horizontal offset.
-        self.LEGS = [[0.064, (0.3, 0.025), 0.275],
-                     [0.064, (0.3, 0.025), 0.275],
-                     [0.064, (0.3, 0.025), 0.275],
-                     [0.064, (0.3, 0.025), 0.277],
-                     [0.064, (0.3, 0.025), 0.275]]
+        self.LEGS = [[0.065, (0.3, 0.025), 0.278],
+                     [0.065, (0.3, 0.025), 0.278],
+                     [0.065, (0.3, 0.025), 0.277],
+                     [0.065, (0.3, 0.025), 0.2785],
+                     [0.065, (0.3, 0.025), 0.276]]
         self.SECOND_JOINTS_OFFSETS = [math.tan(leg[1][1] / leg[1][0]) for leg in self.LEGS]
         # Angles between legs, looking from spiders origin.
         self.ANGLE_BETWEEN_LEGS = np.radians(360 / self.NUMBER_OF_LEGS)
@@ -110,7 +110,10 @@ class Spider:
     #endregion
 
 class Wall:
-    """ Wall class. Class is a singleton class, meaning it can only be instantiated once."""
+    """ Wall class. Class is a singleton class, meaning it can only be instantiated once.
+    
+    :param: gridPattern: Squared or rhombus pattern of pins grid.
+    """
     
     # Singleton class instance tracker.
     instance = None
@@ -120,7 +123,7 @@ class Wall:
         self.WALL_SIZE = [0.85, 1.4]
         # Pin raster - distances between pins in (x, y).
         self.WALL_RASTER = [0.19875, 0.22600]
-        self.PIN_HEIGHT = 0.03
+        self.PIN_HEIGHT = 0.022
         if (gridPattern != 'squared' and gridPattern != 'rhombus'):
             raise ValueError("Invalid value of gridPatter parameter!")
         self.gridPattern = gridPattern
@@ -187,6 +190,43 @@ class Wall:
                     pins.append([x, y, self.PIN_HEIGHT])
             
         return np.array(pins)
+        # return np.array([
+        #     [0.0, 0.0, self.PIN_HEIGHT],
+        #     [0.0, 0.226, self.PIN_HEIGHT],
+        #     [0.0, 0.456, self.PIN_HEIGHT],
+        #     [0.0, 0.6755, self.PIN_HEIGHT],
+        #     [0.0, 0.901, self.PIN_HEIGHT],
+        #     [0.0, 1.126, self.PIN_HEIGHT],
+        #     [0.0, 1.356, self.PIN_HEIGHT],
+        #     [0.197, 0.0, self.PIN_HEIGHT],
+        #     [0.199, 0.226, self.PIN_HEIGHT],
+        #     [0.199, 0.451, self.PIN_HEIGHT],
+        #     [0.199, 0.678, self.PIN_HEIGHT],
+        #     [0.2, 0.903, self.PIN_HEIGHT],
+        #     [0.21, 1.128, self.PIN_HEIGHT],
+        #     [0.22, 0.1355, self.PIN_HEIGHT],
+        #     [0.399, 0.0, self.PIN_HEIGHT],
+        #     [0.396, 0.2265, self.PIN_HEIGHT],
+        #     [0.397, 0.457, self.PIN_HEIGHT],
+        #     [0.397, 0.6775, self.PIN_HEIGHT],
+        #     [0.399, 0.902, self.PIN_HEIGHT],
+        #     [0.399, 1.123, self.PIN_HEIGHT],
+        #     [0.404, 1.354, self.PIN_HEIGHT],
+        #     [0.596, 0.0, self.PIN_HEIGHT],
+        #     [0.596, 0.225, self.PIN_HEIGHT],
+        #     [0.596, 0.45, self.PIN_HEIGHT],
+        #     [0.597, 0.677, self.PIN_HEIGHT],
+        #     [0.61, 0.901, self.PIN_HEIGHT],
+        #     [0.60, 1.126, self.PIN_HEIGHT],
+        #     [0.603, 1.353, self.PIN_HEIGHT],
+        #     [0.795, 0.0, self.PIN_HEIGHT],
+        #     [0.795, 0.225, self.PIN_HEIGHT],
+        #     [0.795, 0.452, self.PIN_HEIGHT],
+        #     [0.794, 0.676, self.PIN_HEIGHT],
+        #     [0.792, 0.901, self.PIN_HEIGHT],
+        #     [0.794, 1.127, self.PIN_HEIGHT],
+        #     [0.797, 1.354, self.PIN_HEIGHT]
+        # ])
     
     def createGrid(self, threeDim = False):
         """Create grid of pins.

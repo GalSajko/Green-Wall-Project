@@ -13,19 +13,17 @@ import environment as env
 import simulaton as sim
 
 if __name__ == "__main__":
-    spider = env.Spider()
-    plotter = sim.Plotter('squared')
     velocityController = controllers.VelocityController()
-    pathPlanner = planning.PathPlanner(0.05, 0.2, 'squared')
-    trajPlanner = planning.TrajectoryPlanner()
-    kinematics = calculations.Kinematics()
+    wall = env.Wall('squared')
+    spider = env.Spider()
 
-    spiderStartPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
-    spiderGoalPose = [0.4, 1, spider.WALKING_HEIGHT, 0]
+    pins = wall.createGrid(True)
 
-    path, pins = pathPlanner.calculateWalkingMovesFF(spiderStartPose, spiderGoalPose)
+    spiderPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
 
-    velocityController.walk(spiderStartPose, spiderGoalPose)
+    velocityController.moveLegsAndGrabPins([2], [pins[1]], spiderPose, [6])
+
+
 
 
 
