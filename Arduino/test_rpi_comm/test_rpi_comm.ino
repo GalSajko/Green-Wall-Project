@@ -5,6 +5,7 @@ Servo myServo;
 // Commands for controlling a gripper.
 const String openCommand = "o";
 const String closeCommand = "c";
+const String initMessage = "init";
 
 // Values when servo is in closed or open position.
 const int closeThreshold = 260;
@@ -54,6 +55,10 @@ void loop() {
   //  Serial.println(switchValue);
    if (Serial.available() > 0){
      String data = Serial.readStringUntil('\n');
+
+     if (data == initMessage){
+      Serial.println("1");
+     }
 
      if (data == openCommand){
        setStrokeMm(openStroke);
