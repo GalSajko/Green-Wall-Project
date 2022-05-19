@@ -192,10 +192,8 @@ class VelocityController:
         durations = np.array(durations) - approachTime
         approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
 
-        success = self.gripperController.openGripper()
-        while not bool(int(success)):
-            success = self.gripperController.openGripper()
-
+        success = self.gripperController.sendAndReceive(self.gripperController.OPEN_COMMAND)
+        print(success)
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
             print("Legs movement error!")
             return False
@@ -203,10 +201,8 @@ class VelocityController:
             print("Legs movement error!")
             return False
         
-        success = self.gripperController.closeGripper()
-        while not bool(int(success)):
-            success = self.gripperController.closeGripper()
-            
+        success = self.gripperController.sendAndReceive(self.gripperController.CLOSE_COMMAND)
+        print(success)
         return True
 
     def movePlatform(self, trajectory, velocity, globalLegsPositions):
@@ -323,36 +319,27 @@ class GripperController:
         self.CLOSE_COMMAND = b"c\n"
 
         self.comm = serial.Serial('/dev/ttyACM0', 9600, timeout = 1)
-        # self.comm = serial.Serial()
-        # self.comm.baudrate = 9600
-        # self.comm.port = '/dev/ttyACM0'
-        # self.comm.open()
         self.comm.reset_input_buffer()
 
-    def openGripper(self):
-        """Send command to open a gripper.
-        """
-        self.comm.write(self.OPEN_COMMAND)
-        message = self.comm.readline().decode("utf-8").rstrip()
-        while not message:
-            message = self.comm.readline().decode("utf-8").rstrip()
-        
-        return message
-        
-    def closeGripper(self):
-        """Send command to close a gripper.
-        """
-        self.comm.write(self.CLOSE_COMMAND)
-        message = self.comm.readline().decode("utf-8").rstrip()
-        while not message:
-            message = self.comm.readline().decode("utf-8").rstrip()
-        
-        return message
-    
-    def readMessage(self):
-        msg = self.comm.readline().decode("utf-8").rstrip()
-        return msg
+        self.sendAndReceive(b"init")
 
+    def sendAndReceive(self, msg):
+        """Send and receive response.
+
+        :param msg: Message to send.
+        """ 
+        while True:
+            self.comm.write(msg)
+            time.sleep(0.01)
+            response = self.comm.readline().decode("utf-8").rstrip()
+            if response:
+                break
+        return response
+    
+    def closePort(self):
+        """Close serial port.
+        """
+        self.comm.close()
 
 
 
