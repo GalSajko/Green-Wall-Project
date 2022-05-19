@@ -52,32 +52,37 @@ void loop() {
   
 //  switchValue = digitalRead(switchPin);
 //  Serial.println(switchValue);
-
-  if (Serial.available() > 0){
-    String data = Serial.readStringUntil('\n');
-
-    if (data == openCommand){
-      setStrokeMm(openStroke);
-      delay(2000);
-      servoValue = analogRead(servo1FeedbackPin);
-      if (servoValue > openThreshold){
-        Serial.println("1");
-      }
-      else{
-        Serial.println("0");
-      }
+    if (Serial.available() > 0){
+      String data = Serial.readStringUntil('\n');
+      Serial.print("Received: ");
+      Serial.println(data);
     }
-    else if (data == closeCommand){
-      setStrokeMm(closedStroke);
-      delay(2000);
-      servoValue = analogRead(servo1FeedbackPin);
-      if (servoValue < closeThreshold){
-        Serial.println("1");
-      }
-      else{
-        Serial.println("0");
-      }
-    }
+
+  // if (Serial.available() > 0){
+  //   String data = Serial.readStringUntil('\n');
+
+  //   if (data == openCommand){
+  //     setStrokeMm(openStroke);
+  //     delay(2000);
+  //     servoValue = analogRead(servo1FeedbackPin);
+  //     if (servoValue > openThreshold){
+  //       Serial.println("1");
+  //     }
+  //     else{
+  //       Serial.println("0");
+  //     }
+  //   }
+  //   else if (data == closeCommand){
+  //     setStrokeMm(closedStroke);
+  //     delay(2000);
+  //     servoValue = analogRead(servo1FeedbackPin);
+  //     if (servoValue < closeThreshold){
+  //       Serial.println("1");
+  //     }
+  //     else{
+  //       Serial.println("0");
+  //     }
+  //   }
     
-  }
+  // }
 }
