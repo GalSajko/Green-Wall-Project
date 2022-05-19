@@ -322,6 +322,7 @@ class GripperController:
         self.comm.reset_input_buffer()
 
         self.sendAndReceive(b"init")
+        print("Communication established.")
 
     def sendAndReceive(self, msg):
         """Send and receive response.
