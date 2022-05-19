@@ -42,20 +42,26 @@ void setStrokeMm(float strokeDesired){
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  myServo.writeMicroseconds(1000);
-  myServo.attach(servo1Pin);
-
-  pinMode(switchPin, INPUT_PULLUP);
+//  myServo.writeMicroseconds(1000);
+//  myServo.attach(servo1Pin);
+//
+//  pinMode(switchPin, INPUT_PULLUP);
 }
 
 void loop() {
   
-//  switchValue = digitalRead(switchPin);
-//  Serial.println(switchValue);
     if (Serial.available() > 0){
       String data = Serial.readStringUntil('\n');
+      Serial.print("Received: ");
       Serial.println(data);
     }
+
+
+
+
+
+  //  switchValue = digitalRead(switchPin);
+  //  Serial.println(switchValue);
   // if (Serial.available() > 0){
   //   String data = Serial.readStringUntil('\n');
 
