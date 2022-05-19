@@ -328,7 +328,6 @@ class GripperController:
         # self.comm.port = '/dev/ttyACM0'
         # self.comm.open()
         self.comm.reset_input_buffer()
-        print(self.comm)
 
     def openGripper(self):
         """Send command to open a gripper.
@@ -349,6 +348,10 @@ class GripperController:
             message = self.comm.readline().decode("utf-8").rstrip()
         
         return message
+    
+    def readMessage(self):
+        msg = self.comm.readline().decode("utf-8").rstrip()
+        return msg
 
 
 

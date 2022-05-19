@@ -4,6 +4,7 @@ This module is meant as a testing sandbox for other modules, during implementati
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+import serial
 
 import calculations
 import dynamixel
@@ -16,7 +17,6 @@ if __name__ == "__main__":
     # velocityController = controllers.VelocityController()
     wall = env.Wall('squared')
     spider = env.Spider()
-    gripperController = controllers.GripperController()
 
     pins = wall.createGrid(True)
 
@@ -24,8 +24,15 @@ if __name__ == "__main__":
 
     # velocityController.moveLegsAndGrabPins([0], [pins[24]], spiderPose, [4])
 
-    msg = gripperController.openGripper()
-    print(msg)
+    ser = serial.Serial('/dev/ttyACM0', 9600, timeout = 1)
+
+    while True:
+        msg = input("Enter the message: ")
+        ser.write(msg)
+        time.sleep(0.2)
+        rec = ser.readline()
+        print(rec)
+    
 
 
 

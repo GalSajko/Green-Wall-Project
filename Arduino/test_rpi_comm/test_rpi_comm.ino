@@ -54,10 +54,8 @@ void loop() {
 //  Serial.println(switchValue);
     if (Serial.available() > 0){
       String data = Serial.readStringUntil('\n');
-      Serial.print("Received: ");
       Serial.println(data);
     }
-
   // if (Serial.available() > 0){
   //   String data = Serial.readStringUntil('\n');
 
