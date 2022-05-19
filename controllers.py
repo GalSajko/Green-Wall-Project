@@ -193,16 +193,16 @@ class VelocityController:
         approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
 
         success = self.gripperController.sendAndReceive(self.gripperController.OPEN_COMMAND)
-        print(success)
+        time.sleep(1)
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
             print("Legs movement error!")
             return False
         if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * approachTime, True, approachPoints, 'minJerk'):
             print("Legs movement error!")
             return False
-        
+
         success = self.gripperController.sendAndReceive(self.gripperController.CLOSE_COMMAND)
-        print(success)
+        time.sleep(1)
         return True
 
     def movePlatform(self, trajectory, velocity, globalLegsPositions):
@@ -336,11 +336,6 @@ class GripperController:
             if response:
                 break
         return response
-    
-    def closePort(self):
-        """Close serial port.
-        """
-        self.comm.close()
 
 
 
