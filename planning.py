@@ -251,7 +251,7 @@ class TrajectoryPlanner:
         timeStep = 0.02
         numberOfSteps = math.floor(duration / timeStep)
 
-        heightPercent = 0.3
+        heightPercent = 0.4
 
         startPoint, goalPoint = np.array(startPoint), np.array(goalPoint)
         firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + heightPercent * np.linalg.norm(goalPoint - startPoint)])

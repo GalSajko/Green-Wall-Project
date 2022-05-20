@@ -63,7 +63,7 @@ class VelocityController:
         
         return np.array(qD), np.array(qDd)
 
-    def moveLegs(self, legsIds, trajectories, velocities):
+    def moveLegs(self, legsIds, trajectories, velocities, gripperCommand = None):
         """Move any number of legs (within number of spiders legs) along given trajectories.
 
         :param ledIds: Array of legs ids.
@@ -91,7 +91,6 @@ class VelocityController:
         lastErrors = np.zeros([len(legsIds), 3])
         Kp = 10
         Kd = 1
-
         # Use indexes of longest trajectory.
         for i, _ in enumerate(trajectories[longerIdx]):
             startTime = time.time()
@@ -114,10 +113,12 @@ class VelocityController:
                 qCds.append(qCd)
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legsIds, qCds, i == 0):
                 return False
-            try:
-                time.sleep(timeStep - (time.time() - startTime))
-            except:
-                time.sleep(0)
+            
+            timeLeft = timeStep - (time.time() - startTime)
+            sleepTime = timeLeft if timeLeft > 0 else 0
+            time.sleep(sleepTime)
+   
+
         self.motorDriver.clearGroupSyncReadParams()
         self.motorDriver.clearGroupSyncWriteParams()
         return True
@@ -148,10 +149,10 @@ class VelocityController:
         # Transformation matrix of global spider's pose.
         T_GS = self.matrixCalculator.xyzRpyToMatrix(spiderPose)
         # Calculate trajectories for each leg movement from local positions.
-        bezierTrajectories = []
-        bezierVelocities = []
+        trajectories = []
+        velocities = []
         for legIdx, leg in enumerate(legsIds):
-            # Read starting legs positions and transform global goal positions into local.
+            # Transform global positions into local.
             T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
             if readLegs:
                 startPosition = self.motorDriver.readLegPosition(leg)
@@ -160,6 +161,7 @@ class VelocityController:
                 startPosition = np.dot(np.linalg.inv(T_GA), legGlobalStartPosition)[:3]
             legGlobalGoalPosition = np.append(globalGoalPositions[legIdx], 1)
             localGoalPosition = np.dot(np.linalg.inv(T_GA), legGlobalGoalPosition)[:3]
+            # Calculate trajectory and velocity.
             if trajectoryType == 'bezier':
                 traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, durations[legIdx])
             elif trajectoryType == 'minJerk':
@@ -167,15 +169,15 @@ class VelocityController:
             else:
                 print("Invalid trajectory type.")
                 return False
-            bezierTrajectories.append(traj)
-            bezierVelocities.append(vel)
+            trajectories.append(traj)
+            velocities.append(vel)
         
-        result = self.moveLegs(legsIds, bezierTrajectories, bezierVelocities)
+        result = self.moveLegs(legsIds, trajectories, velocities)
 
         return result
     
     def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, trajectoryType = 'bezier'):
-        """First move legs above selected pins and then lower them on pins.
+        """First move legs above selected pins and then lower them on pins. Also send commands on arduino to open and close gripper.
 
         :param legsIds: Legs ids.
         :param globalGoalPositions: Global goal positions of legs (pins).
@@ -192,7 +194,8 @@ class VelocityController:
         durations = np.array(durations) - approachTime
         approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
 
-        success = self.gripperController.sendAndReceive(self.gripperController.OPEN_COMMAND)
+        for leg in legsIds:
+            self.gripperController.openGripper(leg)
         time.sleep(1)
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
             print("Legs movement error!")
@@ -201,7 +204,8 @@ class VelocityController:
             print("Legs movement error!")
             return False
 
-        success = self.gripperController.sendAndReceive(self.gripperController.CLOSE_COMMAND)
+        for leg in legsIds:
+            self.gripperController.closeGripper(leg)
         time.sleep(1)
         return True
 
@@ -315,20 +319,27 @@ class GripperController:
     def __init__(self):
         """Init serial communication with Arduino.
         """
-        self.OPEN_COMMAND = b"o\n"
-        self.CLOSE_COMMAND = b"c\n"
+        self.OPEN_COMMAND = "o"
+        self.CLOSE_COMMAND = "c"
+
+        self.receivedMessage = ""
 
         self.comm = serial.Serial('/dev/ttyACM0', 9600, timeout = 1)
         self.comm.reset_input_buffer()
 
-        self.sendAndReceive(b"init")
+        self.sendAndReceive("init")
         print("Communication established.")
+    
+    def readData(self):
+        while True:
+            self.receivedMessage = self.comm.readline().decode("utf-8").rstrip()
 
     def sendAndReceive(self, msg):
         """Send and receive response.
 
         :param msg: Message to send.
         """ 
+        msg = msg.encode("utf-8")
         while True:
             self.comm.write(msg)
             time.sleep(0.01)
@@ -336,7 +347,26 @@ class GripperController:
             if response:
                 break
         return response
+    
+    def openGripper(self, legId):
+        """Open grippers on given legs.
 
+        :param legsIds: Legs ids.
+        :return: Response from Arduino.
+        """
+        msg = "o" + str(legId) + "\n"
+        response = self.sendAndReceive(msg)
+        return response
+    
+    def closeGripper(self, legId):
+        """Close gripper on given leg.
+
+        :param legId: Leg id.
+        :reutrn: Response from Arduino.
+        """
+        msg = "c" + str(legId) + "\n"
+        response = self.sendAndReceive(msg)
+        return response
 
 
 

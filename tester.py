@@ -5,6 +5,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 import serial
+import threading
 
 import calculations
 import dynamixel
@@ -14,7 +15,7 @@ import environment as env
 import simulaton as sim
 
 if __name__ == "__main__":
-    velocityController = controllers.VelocityController()
+    # velocityController = controllers.VelocityController()
     wall = env.Wall('squared')
     spider = env.Spider()
 
@@ -22,16 +23,17 @@ if __name__ == "__main__":
 
     spiderPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
 
-    velocityController.moveLegsAndGrabPins([0], [pins[10]], spiderPose, [6])
-    velocityController.moveLegsAndGrabPins([0], [pins[24]], spiderPose, [6])
-    velocityController.moveLegsAndGrabPins([0], [pins[17]], spiderPose, [6])
+    # velocityController.moveLegsAndGrabPins([0, 1], [pins[10], pins[0]], spiderPose, [5, 5])
+    gripperController = controllers.GripperController()
 
-    # gripperController = controllers.GripperController()
-    # rec = gripperController.sendAndReceive(gripperController.OPEN_COMMAND)
-    # print(rec)
-    # rec = gripperController.sendAndReceive(gripperController.CLOSE_COMMAND)
-    # print(rec)
-    # gripperController.closePort()
+    readingThread = threading.Thread(target = gripperController.readData)
+    readingThread.start()
+
+    while True:
+        print(gripperController.receivedMessage)
+        time.sleep(0.01)
+
+    
     
 
 

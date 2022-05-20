@@ -1,86 +1,103 @@
 #include <Servo.h>
 
-Servo myServo;
+int NUMBER_OF_LEGS = 5;
+
+int GRIPPERS_CONTROL_PINS[5] = {8, 9, 10, 11, 12};
+int GRIPPERS_FEEDBACK_PINS[5] = {A0, A1, A2, A3, A4};
+int SWITCH_PINS[5] = {2, 3, 4, 5, 6};
 
 // Commands for controlling a gripper.
-const String openCommand = "o";
-const String closeCommand = "c";
-const String initMessage = "init";
+char OPEN_COMMAND = 'o';
+char CLOSE_COMMAND = 'c';
+String INIT_MESSAGE = "init";
 
 // Values when servo is in closed or open position.
-const int closeThreshold = 260;
-const int openThreshold = 400;
+int CLOSE_THRESHOLD = 260;
+int OPEN_THRESHOLD = 400;
 
-// Constants for pin connections etc.
-const int servo1Pin = 8;
-const int servo1FeedbackPin = A0;
-const int switchPin = 9;
-const float maxStroke = 30;
-const float minStroke = 0;
-const float openStroke = 10;
-const float closedStroke = 20;
+float OPEN_STROKE_MM = 10;
+float CLOSED_STROKE_MM = 20;
+float MAX_STROKE_MM = 30;
 
-float desiredLength;
 int switchValue;
 int servoValue;
+Servo grippers[5];
 
-float limitStroke(float strokeDesired){
-  if (strokeDesired > maxStroke){
-    strokeDesired = maxStroke;
+struct CommandGrippersIds {
+  char command;
+  int gripperId;
+};
+
+struct CommandGrippersIds parseData(String data){
+  struct CommandGrippersIds cmdGrip;
+  if (data[0] == OPEN_COMMAND || data[0] == CLOSE_COMMAND){
+    cmdGrip.command = data[0];
   }
-  else if (strokeDesired < minStroke){
-    strokeDesired = minStroke;
-  }
-  return strokeDesired;
+  cmdGrip.gripperId = data[1] - '0';
+  
+  return cmdGrip;
 }
 
-void setStrokeMm(float strokeDesired){
-  strokeDesired = limitStroke(strokeDesired);
-  int usec = 1000 + strokeDesired * (2000 - 1000) / maxStroke;
-  myServo.writeMicroseconds(usec);
+String getGrippersOnPositionsString(int gripperId, char command){
+  String str;
+  int gripperValue = analogRead(GRIPPERS_FEEDBACK_PINS[gripperId]);
+  if (gripperValue > OPEN_THRESHOLD && command == OPEN_COMMAND){
+    str = "1";
+  }
+  else if (gripperValue < CLOSE_THRESHOLD && command == CLOSE_COMMAND){
+    str = "1";
+  }
+  else {
+    str = "0";
+  }
+  return str;
 }
+
+void setStrokeMm(int gripperId, float strokeDesired){
+  int usec = 1000 + strokeDesired * (2000 - 1000) / MAX_STROKE_MM;
+  Servo gripper = grippers[gripperId];
+  gripper.writeMicroseconds(usec);
+}
+
+
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(9600);
-  myServo.writeMicroseconds(1000);
-  myServo.attach(servo1Pin);
 
-  pinMode(switchPin, INPUT_PULLUP);
+  for (int i = 0; i < NUMBER_OF_LEGS; i++){
+    grippers[i].attach(GRIPPERS_CONTROL_PINS[i]);
+    pinMode(SWITCH_PINS[i], INPUT_PULLUP);
+  }
+
+  switchValue = 0;
 }
 
 void loop() {
-  
-  //  switchValue = digitalRead(switchPin);
-  //  Serial.println(switchValue);
-   if (Serial.available() > 0){
-     String data = Serial.readStringUntil('\n');
 
-     if (data == initMessage){
-      Serial.println("1");
-     }
+  switchValue = digitalRead(SWITCH_PINS[0]);
+  Serial.println(switchValue);
 
-     if (data == openCommand){
-       setStrokeMm(openStroke);
-       delay(2000);
-       servoValue = analogRead(servo1FeedbackPin);
-       if (servoValue > openThreshold){
-         Serial.println("1");
-       }
-       else{
-         Serial.println("0");
-       }
-     }
-     else if (data == closeCommand){
-       setStrokeMm(closedStroke);
-       delay(2000);
-       servoValue = analogRead(servo1FeedbackPin);
-       if (servoValue < closeThreshold){
-         Serial.println("1");
-       }
-       else{
-         Serial.println("0");
-       }
-     }
-   }
+
+
+  // if (Serial.available() > 0){
+  //   String data = Serial.readStringUntil('\n');
+    
+  //   if (data == INIT_MESSAGE){
+  //     Serial.println("1");
+  //   }
+  //   else {
+  //     struct CommandGrippersIds cmdGrip = parseData(data);
+
+  //     if (cmdGrip.command == OPEN_COMMAND){
+  //       setStrokeMm(cmdGrip.gripperId, OPEN_STROKE_MM);
+  //       delay(2000);
+  //     }
+  //     else if (cmdGrip.command == CLOSE_COMMAND){
+  //       setStrokeMm(cmdGrip.gripperId, CLOSED_STROKE_MM);
+  //       delay(2000);
+  //     }
+  //     String grippersFeedback = getGrippersOnPositionsString(cmdGrip.gripperId, cmdGrip.command);
+  //     Serial.println(grippersFeedback);
+  //   }
+  // }
 }
