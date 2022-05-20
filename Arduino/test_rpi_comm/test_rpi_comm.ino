@@ -91,6 +91,7 @@ void loop()
     if (data == INIT_MESSAGE)
     {
       Serial.println("1");
+      return;
     }
     else 
     {
