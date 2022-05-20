@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import serial
+import threading
 
 import calculations 
 import environment as env
@@ -63,7 +64,7 @@ class VelocityController:
         
         return np.array(qD), np.array(qDd)
 
-    def moveLegs(self, legsIds, trajectories, velocities, gripperCommand = None):
+    def moveLegs(self, legsIds, trajectories, velocities, grippersCommands = None):
         """Move any number of legs (within number of spiders legs) along given trajectories.
 
         :param ledIds: Array of legs ids.
@@ -86,11 +87,13 @@ class VelocityController:
             qD, qDd = self.getQdQddLegFF(leg, trajectories[idx], velocities[idx])
             qDs.append(qD)
             qDds.append(qDd)
+
         # Index of longer trajectory:
         longerIdx = trajectories.index(max(trajectories, key = len))
         lastErrors = np.zeros([len(legsIds), 3])
         Kp = 10
         Kd = 1
+
         # Use indexes of longest trajectory.
         for i, _ in enumerate(trajectories[longerIdx]):
             startTime = time.time()
@@ -324,49 +327,60 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyACM0', 9600, timeout = 1)
+        self.comm = serial.Serial('/dev/ttyACM0', 115200, timeout = 1)
         self.comm.reset_input_buffer()
 
-        self.sendAndReceive("init")
+        self.lock = threading.Lock()
+
+        self.sendData("init")
         print("Communication established.")
+
+        readingThread = threading.Thread(target = self.readData)
+        readingThread.start()
     
     def readData(self):
+        """Constantly receiving data from Arduino.
+        """
         while True:
-            self.receivedMessage = self.comm.readline().decode("utf-8").rstrip()
+            try:
+                self.receivedMessage = self.comm.readline().decode("utf-8", errors = "ignore").rstrip()
+                print(self.receivedMessage)
+            except serial.SerialException:
+                print("Serial error")
 
-    def sendAndReceive(self, msg):
-        """Send and receive response.
+
+    def sendData(self, msg):
+        """Send data to Arduino.
 
         :param msg: Message to send.
         """ 
         msg = msg.encode("utf-8")
-        while True:
-            self.comm.write(msg)
-            time.sleep(0.01)
-            response = self.comm.readline().decode("utf-8").rstrip()
-            if response:
-                break
-        return response
+        self.lock.acquire()
+        self.comm.write(msg)
+        self.lock.release()
+    
+    def moveGripper(self, legId, command):
+        if command == self.OPEN_COMMAND:
+            msg = self.OPEN_COMMAND + str(legId) + "\n"
+        elif command == self.CLOSE_COMMAND:
+            msg = self.CLOSE_COMMAND + str(legId) + "\n"
+        self.sendData(msg)
     
     def openGripper(self, legId):
         """Open grippers on given legs.
 
         :param legsIds: Legs ids.
-        :return: Response from Arduino.
         """
         msg = "o" + str(legId) + "\n"
-        response = self.sendAndReceive(msg)
-        return response
+        self.sendData(msg)
     
     def closeGripper(self, legId):
         """Close gripper on given leg.
 
         :param legId: Leg id.
-        :reutrn: Response from Arduino.
         """
         msg = "c" + str(legId) + "\n"
-        response = self.sendAndReceive(msg)
-        return response
+        self.sendData(msg)
 
 
 

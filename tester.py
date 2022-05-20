@@ -26,12 +26,24 @@ if __name__ == "__main__":
     # velocityController.moveLegsAndGrabPins([0, 1], [pins[10], pins[0]], spiderPose, [5, 5])
     gripperController = controllers.GripperController()
 
-    readingThread = threading.Thread(target = gripperController.readData)
-    readingThread.start()
-
+    gripperController.closeGripper(0)
+    gripperController.closeGripper(1)
+    gripperController.closeGripper(2)
+    time.sleep(5)
     while True:
-        print(gripperController.receivedMessage)
-        time.sleep(0.01)
+        gripperController.moveGripper(0, 'o')
+        time.sleep(5)
+        gripperController.moveGripper(1, 'o')
+        time.sleep(5)
+        gripperController.moveGripper(2, 'o')
+        time.sleep(5)
+        gripperController.moveGripper(0, 'c')
+        time.sleep(5)
+        gripperController.moveGripper(1, 'c')
+        time.sleep(5)
+        gripperController.moveGripper(2, 'c')
+        time.sleep(5)
+
 
     
     
