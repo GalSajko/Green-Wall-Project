@@ -28,14 +28,6 @@ if __name__ == "__main__":
     velocityController.moveLegsAndGrabPins([4], [pins[31]], spiderPose, [5], False, [pins[24]])
     time.sleep(3)
     velocityController.moveLegsAndGrabPins([4], [pins[30]], spiderPose, [5], False, [pins[31]])
-    # grippers = controllers.GripperController()
-    # while True:
-    #     result = grippers.openGrippersAndWait([0, 1])
-    #     time.sleep(2)
-    #     grippers.moveGripper(0, 'c')
-    #     time.sleep(1)
-    #     grippers.moveGripper(1, 'c')
-    #     time.sleep(1)
 
 
     

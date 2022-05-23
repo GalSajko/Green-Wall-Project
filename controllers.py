@@ -342,7 +342,6 @@ class GripperController:
         self.GRIPPER_OPENED_RESPONSE = "1"
         self.GRIPPER_CLOSED_RESPONSE = "0"
         self.INIT_RESPONSE = "OK"
-        self.ERROR_CODE = "33333"
 
         self.receivedMessage = ""
 
@@ -369,7 +368,6 @@ class GripperController:
                     msg += self.comm.readline()
 
             self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
-            # print(self.receivedMessage)
 
     def sendData(self, msg):
         """Send data to Arduino.
