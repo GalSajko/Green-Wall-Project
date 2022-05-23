@@ -95,16 +95,9 @@ class VelocityController:
         Kp = 10
         Kd = 1
 
-        if grippersCommands is not None:
-            for id, leg in enumerate(legsIds):
-                if grippersCommands[id] == self.gripperController.OPEN_COMMAND:
-                    self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
-            # checkArray = np.zeros(len(legsIds) - 1)
-            while True:
-                print(self.gripperController.receivedMessage)
-                if self.gripperController.receivedMessage == '11222':
-                    break
-                
+        # Open grippers (if needed) and wait for them to open before moving legs.
+        if grippersCommands == ['o'] * len(legsIds):
+            self.gripperController.openGrippersAndWait(legsIds)
 
         # Use indexes of longest trajectory.
         for i, _ in enumerate(trajectories[longerIdx]):
@@ -125,6 +118,8 @@ class VelocityController:
                 # If not, stop the leg.
                 elif i >= len(trajectories[l]) - 1:
                     qCd = [0, 0, 0]
+                    if grippersCommands[l] == self.gripperController.CLOSE_COMMAND: 
+                        self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
                 qCds.append(qCd)
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legsIds, qCds, i == 0):
                 return False
@@ -191,8 +186,8 @@ class VelocityController:
 
         return result
     
-    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, gripperCommands = None, readLegs = True, globalStartPositions = None, trajectoryType = 'bezier'):
-        """First move legs above selected pins and then lower them on pins. Also send commands on arduino to open and close gripper.
+    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, trajectoryType = 'bezier'):
+        """Open grippers, detach legs from pin, move them on approach positions above goal pins and than lower them on pins. Finally, close the grippers.
 
         :param legsIds: Legs ids.
         :param globalGoalPositions: Global goal positions of legs (pins).
@@ -206,13 +201,26 @@ class VelocityController:
         if legsIds == 5:
             legsIds = [0, 1, 2, 3, 4]
         approachTime = 1.5
-        durations = np.array(durations) - approachTime
+        detachTime = 1
+        durations = np.array(durations) - approachTime - detachTime
         approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
+        if globalStartPositions:
+            detachPoints = np.copy(globalStartPositions)
+            detachPoints[:, 2] += 0.02
+        else:
+            detachPoints = []
+            for leg in legsIds:
+                detachPoints.append(self.motorDriver.readLegPosition(leg))
+            detachPoints = np.array(detachPoints)
+            detachPoints[:, 2] += 0.02
 
-        if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs, globalStartPositions, trajectoryType):
+        if not self.moveLegsWrapper(legsIds, detachPoints, spiderPose, np.ones(len(legsIds)) * detachTime, [self.gripperController.OPEN_COMMAND] * len(legsIds), readLegs, globalStartPositions, 'minJerk'):
             print("Legs movement error!")
             return False
-        if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * approachTime, True, approachPoints, 'minJerk'):
+        if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, [self.gripperController.OPEN_COMMAND] * len(legsIds), True):
+            print("Legs movement error!")
+            return False
+        if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * approachTime, [self.gripperController.CLOSE_COMMAND] * len(legsIds), True, approachPoints, 'minJerk'):
             print("Legs movement error!")
             return False
 
@@ -331,32 +339,37 @@ class GripperController:
         self.OPEN_COMMAND = "o"
         self.CLOSE_COMMAND = "c"
         self.INIT_MESSAGE = "init"
-        self.POSITIVE_RESPONSE = "1"
+        self.GRIPPER_OPENED_RESPONSE = "1"
+        self.GRIPPER_CLOSED_RESPONSE = "0"
+        self.INIT_RESPONSE = "OK"
+        self.ERROR_CODE = "33333"
+
         self.receivedMessage = ""
 
-
-        self.comm = serial.Serial('/dev/ttyACM0', 115200, timeout = 1)
+        self.comm = serial.Serial('/dev/ttyACM0', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.lock = threading.Lock()
 
-        readingThread = threading.Thread(target = self.readData)
+        readingThread = threading.Thread(target = self.readData, name = "serial_reading_thread", daemon = True)
         readingThread.start()
 
-        self.sendData(self.INIT_MESSAGE)
-        while not self.receivedMessage == self.POSITIVE_RESPONSE:
-            self.sendData(self.INIT_MESSAGE)
-        
-        print("Connection with Arduino OK.")
+        self.handshake()
     
     def readData(self):
         """Constantly receiving data from Arduino.
         """
         while True:
-            try:
-                self.receivedMessage = self.comm.readline().decode("utf-8", errors = "ignore").rstrip()
-            except serial.SerialException:
-                print("Serial error")
+            time.sleep(0.001)
+            with self.lock:
+                msg = self.comm.readline()
+            while not '\\n' in str(msg):
+                time.sleep(0.001)
+                with self.lock:
+                    msg += self.comm.readline()
+
+            self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
+            # print(self.receivedMessage)
 
     def sendData(self, msg):
         """Send data to Arduino.
@@ -366,15 +379,46 @@ class GripperController:
         if msg[-1] != '\n':
             msg += '\n'
         msg = msg.encode("utf-8")
-        self.lock.acquire()
-        self.comm.write(msg)
-        self.lock.release()
+        with self.lock:
+            self.comm.write(msg)
     
     def moveGripper(self, legId, command):
+        """Send command to move gripper on selected leg.
+
+        :param legId: Leg id.
+        :param command: Command to execute on gripper.
+        """
         if (command == self.OPEN_COMMAND or command == self.CLOSE_COMMAND):
             msg = command + str(legId) + "\n"
-        self.sendData(msg)
+            self.sendData(msg)
     
+    def openGrippersAndWait(self, legsIds):
+        """Open grippers on given legs and wait for them to come in open state.
+
+        :param legsIds: Legs ids.
+        :return: True when all grippers are opened.
+        """
+        for leg in legsIds:
+            self.moveGripper(leg, self.OPEN_COMMAND)
+        checkArray = np.array([False] * len(legsIds))
+        while not checkArray.all():
+            with self.lock:
+                recMsg = self.receivedMessage
+            if len(recMsg) == 5:
+                for id, leg in enumerate(legsIds):
+                    if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
+                        checkArray[id] = True
+        return True
+
+    def handshake(self):
+        """Handshake procedure with Arduino.
+        """
+        self.sendData(self.INIT_MESSAGE)
+        time.sleep(0.01)
+        while not self.receivedMessage == self.INIT_RESPONSE:
+            time.sleep(0.01)
+            self.sendData(self.INIT_MESSAGE)
+        print("Handshake with Arduino successfull.")
 
 
 

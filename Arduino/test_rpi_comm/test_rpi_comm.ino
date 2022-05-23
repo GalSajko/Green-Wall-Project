@@ -11,9 +11,16 @@ char OPEN_COMMAND = 'o';
 char CLOSE_COMMAND = 'c';
 String INIT_MESSAGE = "init";
 
+String INIT_RESPONSE = "OK";
+char GRIPPER_OPENED_RESPONSE = '1';
+char GRIPPER_CLOSED_RESPONSE = '0';
+char GRIPPER_MOVING_RESPONE = '2';
+
+bool isInit = false;
+
 // Values when servo is in closed or open position.
-int CLOSE_THRESHOLD = 260;
-int OPEN_THRESHOLD = 400;
+int CLOSE_THRESHOLD = 280;
+int OPEN_THRESHOLD = 380;
 
 float OPEN_STROKE_MM = 10;
 float CLOSED_STROKE_MM = 20;
@@ -58,15 +65,15 @@ String getGrippersStatesMessage(int currentStates[])
   {
     if (currentStates[i] < CLOSE_THRESHOLD)
     {
-      message[i] = '0';
+      message[i] = GRIPPER_CLOSED_RESPONSE;
     }
     else if (currentStates[i] > OPEN_THRESHOLD)
     {
-      message[i] = '1';
+      message[i] = GRIPPER_OPENED_RESPONSE;
     }
     else if (currentStates[i] < OPEN_THRESHOLD && currentStates[i] > CLOSE_THRESHOLD)
     {
-      message[i] = '2';
+      message[i] = GRIPPER_MOVING_RESPONE;
     }
   }
   return message;
@@ -75,7 +82,6 @@ String getGrippersStatesMessage(int currentStates[])
 void setup() 
 {
   Serial.begin(115200);
-
   for (int i = 0; i < NUMBER_OF_LEGS; i++)
   {
     grippers[i].attach(GRIPPERS_CONTROL_PINS[i]);
@@ -87,10 +93,11 @@ void loop()
 {
   if (Serial.available() > 0)
   {
-    String data = Serial.readStringUntil('\n');   
+    String data = Serial.readStringUntil('\n');  
+
     if (data == INIT_MESSAGE)
     {
-      Serial.println("1");
+      Serial.println(INIT_RESPONSE + '\n');
       return;
     }
     else 
@@ -114,5 +121,6 @@ void loop()
   }
 
   String message = getGrippersStatesMessage(grippersStates);
-  Serial.println(message);
+  Serial.println(message + '\n');
+  delay(50);
 }
