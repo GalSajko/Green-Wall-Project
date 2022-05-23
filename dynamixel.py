@@ -100,7 +100,7 @@ class MotorDriver:
                 return False
         return True
     
-    def syncReadMotorsPositionsInLegs(self, legsIds):
+    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False):
         """Read motors positions in given legs with sync reader.
 
         :param legsIds: Legs ids.
@@ -110,8 +110,12 @@ class MotorDriver:
         mappedPositions = []
         for leg in legsIds:
             positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
-            mappedPositions.append(mappers.mapEncoderToJointRadians(positions))
-        
+            jointsValues = mappers.mapEncoderToJointRadians(positions)
+            if not calculateLegPositions:
+                mappedPositions.append(jointsValues)
+            else:
+                mappedPositions.append(self.kinematics.legDirectKinematics(leg, jointsValues)[:,3][:3])
+
         return np.array(mappedPositions)
 
     def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd, add = True):
@@ -169,14 +173,9 @@ class MotorDriver:
             presentPosition, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
             self.commResultAndErrorReader(result, error)
             presentPositions.append(presentPosition)
-        
-        motorDegrees = mappers.mapEncoderToMotorsDegrees(presentPositions)
-        # Motor degrees -> joint radians.
-        jointRadians = mappers.mapMotorRadiansToJointRadians(np.radians(motorDegrees))
-        pose = self.kinematics.legDirectKinematics(legIdx, jointRadians)
-        # Read position from matrix
-        position = pose[:,3]
-        position = position[0:3]
+
+        jointRadians = mappers.mapEncoderToJointRadians(presentPositions)
+        position = self.kinematics.legDirectKinematics(legIdx, jointRadians)[:,3][:3]
 
         return np.array(position)
 
