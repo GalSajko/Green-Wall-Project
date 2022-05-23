@@ -164,7 +164,7 @@ class VelocityController:
             # Transform global positions into local.
             T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
             if readLegs:
-                startPosition = self.motorDriver.readLegPosition(leg)
+                startPosition = self.motorDriver.syncReadMotorsPositionsInLegs([leg], True)
             else:
                 legGlobalStartPosition = np.append(globalStartPositions[legIdx], 1)
                 startPosition = np.dot(np.linalg.inv(T_GA), legGlobalStartPosition)[:3]
@@ -207,7 +207,7 @@ class VelocityController:
             detachPoints = np.copy(globalStartPositions)
         else:
             detachPoints = []
-            localLegsPositions = [self.motorDriver.readLegPosition(leg) for leg in legsIds]
+            localLegsPositions = self.motorDriver.syncReadMotorsPositionsInLegs([legsIds], True)
             detachPoints = self.matrixCalculator.getLegsInGlobal(legsIds, localLegsPositions, spiderPose)
         detachPoints[:, 2] += 0.02
  

@@ -26,12 +26,12 @@ if __name__ == "__main__":
     print(pins[2], pins[1])
 
     # controller.moveLegsWrapper([1], [pins[2]], spiderPose, [5])
-    motors.addGroupSyncReadParams([2])
+    motors.addGroupSyncReadParams([1, 2])
     while True:
-        localLegPosition = motors.syncReadMotorsPositionsInLegs([2], True)
+        localLegPositions = motors.syncReadMotorsPositionsInLegs([1, 2], True)
 
-        globalLegPosition = calculations.MatrixCalculator().getLegsInGlobal([2], localLegPosition, spiderPose)
-        print(globalLegPosition)
+        globalLegPositions = calculations.MatrixCalculator().getLegsInGlobal([1, 2], localLegPositions, spiderPose)
+        print(globalLegPositions)
 
 
     
