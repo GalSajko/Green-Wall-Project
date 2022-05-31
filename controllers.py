@@ -164,7 +164,8 @@ class VelocityController:
             # Transform global positions into local.
             T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
             if readLegs:
-                startPosition = self.motorDriver.syncReadMotorsPositionsInLegs([leg], True)
+                # startPosition = self.motorDriver.syncReadMotorsPositionsInLegs([leg], True)[0]
+                startPosition = self.motorDriver.readLegPosition(leg)
             else:
                 legGlobalStartPosition = np.append(globalStartPositions[legIdx], 1)
                 startPosition = np.dot(np.linalg.inv(T_GA), legGlobalStartPosition)[:3]
@@ -207,14 +208,15 @@ class VelocityController:
             detachPoints = np.copy(globalStartPositions)
         else:
             detachPoints = []
-            localLegsPositions = self.motorDriver.syncReadMotorsPositionsInLegs([legsIds], True)
+            # localLegsPositions = self.motorDriver.syncReadMotorsPositionsInLegs([legsIds], True)
+            localLegsPositions = [self.motorDriver.readLegPosition(leg) for leg in legsIds]
             detachPoints = self.matrixCalculator.getLegsInGlobal(legsIds, localLegsPositions, spiderPose)
         detachPoints[:, 2] += 0.02
  
         if not self.moveLegsWrapper(legsIds, detachPoints, spiderPose, np.ones(len(legsIds)) * detachTime, [self.gripperController.OPEN_COMMAND] * len(legsIds), readLegs, globalStartPositions, 'minJerk'):
             print("Legs movement error!")
             return False
-        if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, [self.gripperController.OPEN_COMMAND] * len(legsIds), True, detachPoints):
+        if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs = True, globalStartPositions = detachPoints):
             print("Legs movement error!")
             return False
         if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * approachTime, [self.gripperController.CLOSE_COMMAND] * len(legsIds), True, approachPoints, 'minJerk'):
@@ -279,7 +281,7 @@ class VelocityController:
         :return: True if movement was successfull, false otherwise.
         """
         traj, vel = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, globalGoalPose, duration)
-        result = self.movePlatform(traj, vel, globalStartPose, globalLegsPositions)
+        result = self.movePlatform(traj, vel, globalLegsPositions)
 
         return result
 
@@ -347,7 +349,7 @@ class GripperController:
 
         self.lock = threading.Lock()
 
-        readingThread = threading.Thread(target = self.readData, name = "serial_reading_thread", daemon = False)
+        readingThread = threading.Thread(target = self.readData, name = "serial_reading_thread", daemon = True)
         readingThread.start()
 
         self.handshake()
@@ -365,7 +367,6 @@ class GripperController:
                     msg += self.comm.readline()
 
             self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
-            print(self.receivedMessage)
 
     def sendData(self, msg):
         """Send data to Arduino.

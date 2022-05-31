@@ -105,6 +105,7 @@ class Kinematics:
 
             # Vector from anchor to end of leg in global.
             anchorToPinGlobal = np.array(legsGlobalPositions[idx] - anchorInGlobalPosition)
+
             # Transform this vector in legs local origin - only rotate.
             rotationMatrix = anchorInGlobal[:3, :3]
             anchorToPinLocal = np.dot(np.linalg.inv(rotationMatrix), anchorToPinGlobal)
