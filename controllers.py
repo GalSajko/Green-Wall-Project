@@ -22,7 +22,6 @@ class VelocityController:
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
         self.gripperController = GripperController()
-        # self.lock = threading.lock()
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -118,7 +117,7 @@ class VelocityController:
                 # If not, stop the leg.
                 elif i >= len(trajectories[l]) - 1:
                     qCd = [0, 0, 0]
-                    if grippersCommands[l] == self.gripperController.CLOSE_COMMAND: 
+                    if grippersCommands is not None and grippersCommands[l] == self.gripperController.CLOSE_COMMAND: 
                         self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
                 qCds.append(qCd)
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legsIds, qCds, i == 0):
@@ -165,7 +164,7 @@ class VelocityController:
             # Transform global positions into local.
             T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
             if readLegs:
-                startPosition = self.motorDriver.readLegPosition(leg)
+                startPosition = self.motorDriver.syncReadMotorsPositionsInLegs([leg], True)
             else:
                 legGlobalStartPosition = np.append(globalStartPositions[legIdx], 1)
                 startPosition = np.dot(np.linalg.inv(T_GA), legGlobalStartPosition)[:3]
@@ -186,7 +185,7 @@ class VelocityController:
 
         return result
     
-    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, trajectoryType = 'bezier'):
+    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None):
         """Open grippers, detach legs from pin, move them on approach positions above goal pins and than lower them on pins. Finally, close the grippers.
 
         :param legsIds: Legs ids.
@@ -206,18 +205,16 @@ class VelocityController:
         approachPoints = self.matrixCalculator.getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalGoalPositions)
         if globalStartPositions:
             detachPoints = np.copy(globalStartPositions)
-            detachPoints[:, 2] += 0.02
         else:
             detachPoints = []
-            for leg in legsIds:
-                detachPoints.append(self.motorDriver.readLegPosition(leg))
-            detachPoints = np.array(detachPoints)
-            detachPoints[:, 2] += 0.02
-
+            localLegsPositions = self.motorDriver.syncReadMotorsPositionsInLegs([legsIds], True)
+            detachPoints = self.matrixCalculator.getLegsInGlobal(legsIds, localLegsPositions, spiderPose)
+        detachPoints[:, 2] += 0.02
+ 
         if not self.moveLegsWrapper(legsIds, detachPoints, spiderPose, np.ones(len(legsIds)) * detachTime, [self.gripperController.OPEN_COMMAND] * len(legsIds), readLegs, globalStartPositions, 'minJerk'):
             print("Legs movement error!")
             return False
-        if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, [self.gripperController.OPEN_COMMAND] * len(legsIds), True):
+        if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, [self.gripperController.OPEN_COMMAND] * len(legsIds), True, detachPoints):
             print("Legs movement error!")
             return False
         if not self.moveLegsWrapper(legsIds, globalGoalPositions, spiderPose, np.ones(len(legsIds)) * approachTime, [self.gripperController.CLOSE_COMMAND] * len(legsIds), True, approachPoints, 'minJerk'):

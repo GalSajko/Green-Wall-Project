@@ -45,7 +45,7 @@ def mapMotorRadiansToEncoder(jointValues):
     encoderBits = 12
     # Convert joints values to encoder values.
     jointValues = np.array(jointValues)
-    encoderValues = np.array(jointValues * 2**encoderBits / 360.0)
+    encoderValues = np.array(jointValues * math.pow(2, encoderBits) / 360.0)
 
     return encoderValues
 
@@ -58,13 +58,8 @@ def mapEncoderToMotorsDegrees(encoderValues):
     encoderBits = 12
     # Convert encoders values in degrees.
     encoderValues = np.array(encoderValues)
-    jointValues = []
 
-    jointValues.append(encoderValues[0] * 360.0 / 2**encoderBits)
-    jointValues.append(encoderValues[1] * 360.0 / 2**encoderBits)
-    jointValues.append(encoderValues[2] * 360.0 / 2**encoderBits)
-
-    return np.array(jointValues)
+    return encoderValues * 360.0 / math.pow(2, encoderBits)
 
 def mapEncoderToJointRadians(encoderValues):
     """Map encoders values to joints radians.

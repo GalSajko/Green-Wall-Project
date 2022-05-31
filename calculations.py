@@ -346,29 +346,23 @@ class MatrixCalculator:
         return np.dot(np.linalg.inv(T_GA), globalLegPosition)[:3]
 
     
-    def getLegsInGlobal(cls, localLegsPositions, globalPose):
+    def getLegsInGlobal(cls, legsIds, localLegsPositions, spiderPose):
         """ Calculate global positions of legs from given local positions.
 
         :param localLegsPositions: Legs positions in leg-based origins.
         :param globalPose: Spider's position in global origin.
-        :return: 5x3 array of legs positions in global origin.
+        :return: Array of legs positions in global origin.
         """
 
-        if len(globalPose) == 4:
-            globalPose = [globalPose[0], globalPose[1], globalPose[2], 0.0, 0.0, globalPose[3]]
+        if len(spiderPose) == 4:
+            spiderPose = [spiderPose[0], spiderPose[1], spiderPose[2], 0.0, 0.0, spiderPose[3]]
             
         legs = []
-        for idx, t in enumerate(env.Spider().T_ANCHORS):
-            T_GS = cls.xyzRpyToMatrix(globalPose)
-            anchorInGlobal = np.dot(T_GS, t)
-            pinMatrix = np.array([
-                [1, 0, 0, localLegsPositions[idx][0]],
-                [0, 1, 0, localLegsPositions[idx][1]],
-                [0, 0, 1, localLegsPositions[idx][2]],
-                [0, 0, 0, 1]])
-            pinInGlobal = np.dot(anchorInGlobal, pinMatrix)
-            legs.append(pinInGlobal[:,3][0:3])
-
+        T_GS = cls.xyzRpyToMatrix(spiderPose)
+        for idx, leg in enumerate(legsIds):
+            anchorInGlobal = np.dot(T_GS, env.Spider().T_ANCHORS[leg])
+            legInGlobal = np.dot(anchorInGlobal, np.append(localLegsPositions[idx], 1))
+            legs.append(legInGlobal[:3])
         return np.array(legs)
     
     def getLegsApproachPositionsInGlobal(cls, legsIds, spiderPose, pinsPositions, offset = 0.03):

@@ -17,11 +17,11 @@ class Spider:
         # Number of spiders legs.
         self.NUMBER_OF_LEGS = 5
         # Radius of spiders platform, in meters.
-        self.BODY_RADIUS = 0.125
+        self.BODY_RADIUS = 0.1215
         # Spiders legs, given as lengths of all three links in one leg. Note that second link is in L shape -
         # first value is a length in vertical direction, second value is a horizontal offset.
         self.LEGS = [[0.065, (0.3, 0.025), 0.278],
-                     [0.065, (0.3, 0.025), 0.278],
+                     [0.065, (0.3, 0.025), 0.275],
                      [0.065, (0.3, 0.025), 0.277],
                      [0.065, (0.3, 0.025), 0.2785],
                      [0.065, (0.3, 0.020), 0.276]]
@@ -39,7 +39,7 @@ class Spider:
         # Spider's walking height.
         self.WALKING_HEIGHT = 0.2
         # Spider's height when laying on pins.
-        self.LYING_HEIGHT = 0.061
+        self.LYING_HEIGHT = 0.057
     
     def __new__(cls, *args, **kwargs):
         if not isinstance(cls.instance, cls):
