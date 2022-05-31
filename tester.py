@@ -15,12 +15,10 @@ import environment as env
 import simulaton as sim
 
 if __name__ == "__main__":
-    grippers = controllers.GripperController()
-
-    grippers.openGrippersAndWait([0, 1, 2, 3, 4])
-    for i in range(5):
-        grippers.moveGripper(i, 'c')
-        time.sleep(1)
+    wall = env.Wall('squared')
+    grid = wall.createGrid()
+    plotter = sim.Plotter('squared')
+    plotter.plotWallGrid()
 
     
 
