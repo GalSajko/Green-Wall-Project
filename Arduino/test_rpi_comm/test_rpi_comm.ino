@@ -64,7 +64,7 @@ void setStrokeMm(int gripperId, float strokeDesired)
 // Example: "11011" - all grippers except third are opened, third is closed.
 String getGrippersStatesMessage(int currentStates[])
 {
-  char message[5];
+  char message[NUMBER_OF_LEGS];
   for (int i = 0; i < NUMBER_OF_LEGS; i++)
   {
     if (currentStates[i] < CLOSE_THRESHOLD)
