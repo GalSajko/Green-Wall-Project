@@ -18,7 +18,7 @@ if __name__ == "__main__":
     wall = env.Wall('squared')
     grid = wall.createGrid()
     plotter = sim.Plotter('squared')
-    plotter.plotWallGrid()
+    plotter.plotWallGrid(True)
 
     
 

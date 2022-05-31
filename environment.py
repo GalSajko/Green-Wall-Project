@@ -120,9 +120,9 @@ class Wall:
 
     def __init__(self, gridPattern):
         # Wall size given in meters - (x, y).
-        self.WALL_SIZE = [1.2, 1.25]
+        self.WALL_SIZE = [1.25, 1.3]
         # Pin raster - distances between pins in (x, y).
-        self.WALL_RASTER = [2, 0.25]
+        self.WALL_RASTER = [0.2, 0.25]
         self.PIN_HEIGHT = 0.2
         if (gridPattern != 'squared' and gridPattern != 'rhombus'):
             raise ValueError("Invalid value of gridPatter parameter!")
