@@ -19,8 +19,8 @@ char GRIPPER_MOVING_RESPONE = '2';
 bool isInit = false;
 
 // Values when servo is in closed or open position.
-int CLOSE_THRESHOLD = 420;
-int OPEN_THRESHOLD = 615;
+int CLOSE_THRESHOLD = 440;
+int OPEN_THRESHOLD = 600;
 
 float OPEN_STROKE_MM = 0;
 float CLOSED_STROKE_MM = 14;
