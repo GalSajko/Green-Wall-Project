@@ -345,12 +345,12 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyACM0', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.lock = threading.Lock()
 
-        readingThread = threading.Thread(target = self.readData, name = "serial_reading_thread", daemon = True)
+        readingThread = threading.Thread(target = self.readData, name = "serial_reading_thread", daemon = False)
         readingThread.start()
 
         self.handshake()
@@ -368,6 +368,7 @@ class GripperController:
                     msg += self.comm.readline()
 
             self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
+            print(self.receivedMessage)
 
     def sendData(self, msg):
         """Send data to Arduino.

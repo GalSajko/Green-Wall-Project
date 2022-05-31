@@ -15,20 +15,14 @@ import environment as env
 import simulaton as sim
 
 if __name__ == "__main__":
-    velocityController = controllers.VelocityController()
-    wall = env.Wall('squared')
-    spider = env.Spider()
+    grippers = controllers.GripperController()
 
-    pins = wall.createGrid(True)
+    grippers.openGrippersAndWait([0, 1, 2, 3, 4])
+    for i in range(5):
+        grippers.moveGripper(i, 'c')
+        time.sleep(1)
 
-    spiderPose = [0.4, 0.33, spider.LYING_HEIGHT, 0]
-
-    velocityController.moveLegsAndGrabPins([4], [pins[24]], spiderPose, [5], False, [pins[30]])
-    time.sleep(3)   
-    velocityController.moveLegsAndGrabPins([4], [pins[31]], spiderPose, [5], False, [pins[24]])
-    time.sleep(3)
-    velocityController.moveLegsAndGrabPins([4], [pins[30]], spiderPose, [5], False, [pins[31]])
-
+    
 
     
     

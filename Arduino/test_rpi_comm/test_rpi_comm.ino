@@ -3,8 +3,8 @@
 const int NUMBER_OF_LEGS = 5;
 
 int GRIPPERS_CONTROL_PINS[NUMBER_OF_LEGS] = {3, 5, 6, 9, 10};
-int GRIPPERS_FEEDBACK_PINS[NUMBER_OF_LEGS] = {A0, A1, A2, A3, A4};
-int SWITCH_PINS[5] = {2, 4, 7, 8, 12};
+int GRIPPERS_FEEDBACK_PINS[NUMBER_OF_LEGS] = {A1, A3, A5, A6, A7};
+int SWITCH_PINS[5] = {A2, A4, 4, 7, 11};
 
 // Commands for controlling a gripper.
 char OPEN_COMMAND = 'o';
@@ -19,11 +19,11 @@ char GRIPPER_MOVING_RESPONE = '2';
 bool isInit = false;
 
 // Values when servo is in closed or open position.
-int CLOSE_THRESHOLD = 280;
-int OPEN_THRESHOLD = 380;
+int CLOSE_THRESHOLD = 420;
+int OPEN_THRESHOLD = 615;
 
-float OPEN_STROKE_MM = 10;
-float CLOSED_STROKE_MM = 20;
+float OPEN_STROKE_MM = 0;
+float CLOSED_STROKE_MM = 14;
 float MAX_STROKE_MM = 30;
 
 int switchValue;
@@ -50,7 +50,11 @@ struct CommandGrippersIds parseData(String data)
 
 void setStrokeMm(int gripperId, float strokeDesired)
 {
-  int usec = 1000 + strokeDesired * (2000 - 1000) / MAX_STROKE_MM;
+  // 0 mm -> 1000 usec
+  // 30 mm -> 2000 usec
+  int k = 1000 / MAX_STROKE_MM;
+  int n = 1000;
+  int usec = k * strokeDesired + n;
   Servo gripper = grippers[gripperId];
   gripper.writeMicroseconds(usec);
 }
