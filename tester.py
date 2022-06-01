@@ -15,26 +15,33 @@ import environment as env
 import simulaton as sim
 
 if __name__ == "__main__":
-    # controller = controllers.VelocityController()
+    controller = controllers.VelocityController()
+    trajPlanner = planning.TrajectoryPlanner()
     wall = env.Wall('squared')
     pins = wall.createGrid(True)
-    # print(pins[28])
-    motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
+    # motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
+    # motors.disableLegs()
+
     # grippers = controllers.GripperController()
     # legs = [0, 1, 2, 3, 4]
     # for leg in legs:
+    #     grippers.moveGripper(leg, 'o')
+    
+    # time.sleep(7)
+    # for leg in legs:
     #     grippers.moveGripper(leg, 'c')
 
-    planner = planning.PathPlanner(0.05, 0.2)
-    path = planner.calculateSpiderBodyPath([0.6, 0.5, 0.2, 0.0], [0.6, 0.6, 0.2, 0.0])
-    gridPlan = planner.calculateSpiderLegsPositionsXyzRpyFF(path)
-    
+    pathPlanner = planning.PathPlanner(0.05, 0.2)
+    path = pathPlanner.calculateSpiderBodyPath([0.6, 0.5, 0.2, 0.0], [0.6, 0.6, 0.2, 0.0])
+    gridPlan = pathPlanner.calculateSpiderLegsPositionsXyzRpyFF(path)
 
-    # controller.movePlatformWrapper([0.6, 0.5, 0.2, 0.0], [0.6, 0.6, 0.2, 0.0], [pins[22], pins[9], pins[13], pins[25], pins[33]], 10)
-    # controller.moveLegsAndGrabPins([2], [pins[13]], [0.6, 0.5, 0.2, 0.0], [7])
-    # controller.moveLegsWrapper(5, gridPlan[0], [0.6, 0.5, 0.2, 0.0], [7, 7, 7, 7, 7])
-    while True:
-        print(motors.readLegPosition(0))
+    controller.moveLegsWrapper(5, gridPlan[0], [0.6, 0.5, 0.2, 0.0], [7, 7, 7, 7, 7], trajectoryType = 'minJerk')
+
+    # controller.movePlatformWrapper([0.6, 0.5, 0.2, 0.0], [0.6, 0.5, 0.2, 0.0], gridPlan[0], 3)
+    # controller.moveLegsAndGrabPins([0], [pins[28]], [0.6, 0.5, 0.2, 0.0], [7])
+    # traj, vel = trajPlanner.minJerkTrajectory([0.0, 0.0, 0.061, 0.0], [0.0, 0.0, 0.2, 0.0], 8)
+
+    # controller.movePlatform(traj, vel, )
 
     
 
