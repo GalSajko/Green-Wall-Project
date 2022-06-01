@@ -29,6 +29,7 @@ class MotorDriver:
         self.USB_DEVICE_NAME = "/dev/ttyUSB0"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.GOAL_VELOCITY_DATA_LENGTH = 4
+        self.ERROR_ADDR = 70
         
         self.motorsIds = np.array(motorsIds)
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
@@ -69,6 +70,15 @@ class MotorDriver:
             if comm:
                 print("Motor %d has been successfully enabled" % motorId) 
     
+    def disableMotor(self, motorId):
+        """Disable single motor.
+        """
+        # Disable torque.
+        result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
+        comm = self.commResultAndErrorReader(result, error)
+        if comm:
+            print("Motor %d has been successfully disabled" % motorId)
+
     def disableLegs(self, legId = 5):
         """ Disable all of the motors if value of motors parameter is 5. Otherwise, disable motors in given leg."""
         motorsArray = self.motorsIds.flatten()
@@ -204,3 +214,10 @@ class MotorDriver:
             return False
         
         return True
+
+    def readHardwareErrorRegister(self):
+        """Read hardware error register for each motor.
+        """
+        for motor in self.motorsIds:
+            errorCode, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, motor, self.ERROR_ADDR)
+            print(result)

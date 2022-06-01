@@ -256,6 +256,8 @@ class VelocityController:
             qCds = Kp * errors + Kd * dE + qDds[idx]
             lastErrors = errors
 
+            # self.motorDriver.readHardwareErrorRegister()
+
             if idx == len(trajectory) - 1:
                 qCds = np.zeros([len(legsIds), 3])
 
