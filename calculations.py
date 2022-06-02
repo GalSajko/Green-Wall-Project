@@ -117,11 +117,11 @@ class Kinematics:
         return np.array(joints)
     
     def platformDirectKinematics(self, legsIds, legsGlobalPositions, legsLocalPositions):
-        """Calculate forward kinematics of platform.
+        """Calculate forward kinematics of platform. Use only those legs, that are in contact with pins.
 
         :param legsIds: Legs used in calculations.
         :param legsGlobalPositions: Global positions of used legs - positions of used pins in wall-origin.
-        :param legsLocalPositions: Local positions of used legs given in spider's origin.
+        :param legsLocalPositions: Local positions of used legs given in spider's origin. 
         :return: Transformation matrix from wall-origin to spider.
         """
 
@@ -129,7 +129,45 @@ class Kinematics:
             print("Use exactly three legs for calculations of forward kinematics.")
             return False
         
+        legsLocalPositions = np.array(legsLocalPositions)
+        legsGlobalPositions = np.array(legsGlobalPositions)
+        l1, l2, l3 = legsLocalPositions
+        p1, p2, p3 = legsGlobalPositions
 
+        # Compute coordinate system of a wall-plane (in spider's origin)
+        l12 = l2 - l1
+        l13 = l3 - l1
+        n = np.cross(l12, l13) if np.cross(l12, l13)[2] >= 0.0 else np.cross(l13, l12)
+        ez = n / np.norm(n)
+        ex = (l2 - l1) / np.norm(l2 - l1)
+        ey = np.cross(ex, ez)
+        P = np.array([ex, ey, ez])
+
+        p12 = p2 - p1
+        phi = GeometryTools().calculateSignedAngleBetweenTwoVectors(p12[:2], np.array([1, 0]))
+
+        # Rotate P for angle phi aroud z axis to align it with global origin.
+        rot = np.array([
+            [math.cos(phi), -math.sin(phi), 0],
+            [math.sin(phi), math.cos(phi), 0],
+            [0, 0, 1]
+        ])
+        Pglobal = np.dot(rot, P)
+        Pglobal = np.c_(Pglobal, np.zeros(3))
+        Pglobal = np.r_[Pglobal, np.array([0, 0, 0, 1])]
+
+        def pinMatrix(pin):
+            mat = np.eye(4)
+            mat[:,3][:3] = pin
+            return mat
+
+        firstOriginPos = np.dot(np.dot(Pglobal, l1), pinMatrix(p1))
+        secondOriginPos = np.dot(np.dot(Pglobal, l2), pinMatrix(p2))
+        thirdOriginPos = np.dot(np.dot(Pglobal, l3), pinMatrix(p3))
+
+        spiderPose = np.linalg.inv(firstOriginPos)
+
+        
         
 
 
