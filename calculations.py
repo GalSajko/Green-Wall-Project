@@ -120,42 +120,18 @@ class Kinematics:
         """Calculate forward kinematics of platform.
 
         :param legsIds: Legs used in calculations.
-        :param legsGlobalPositions: Global positions of used legs.
-        :param legsLocalPositions: Local positions of used legs.
-        :return: x, y, z position of platform in global origin.
+        :param legsGlobalPositions: Global positions of used legs - positions of used pins in wall-origin.
+        :param legsLocalPositions: Local positions of used legs given in spider's origin.
+        :return: Transformation matrix from wall-origin to spider.
         """
 
-        p1, p2, p3 = legsGlobalPositions
-
-        r = []
-        for idx, leg in enumerate(legsIds):
-            spiderToLegVector = np.dot(self.spider.T_ANCHORS[leg], np.append(legsLocalPositions[idx], 1))
-            r.append(np.linalg.norm(spiderToLegVector[:3]))
-
-        r1, r2, r3 = r
-        phi = math.atan2(p2[1] - p1[1], p2[0] - p1[0])
-
-        firstPinMatrix = np.array([
-            [math.cos(phi), -math.sin(phi), 0, p1[0]],
-            [math.sin(phi), math.cos(phi), 0, p1[1]],
-            [0, 0, 1, p1[2]],
-            [0, 0, 0, 1]
-        ])
-        p1p2 = np.dot(np.linalg.inv(firstPinMatrix), np.append(p2, 1))
-        u = p1p2[0]
-        p1p3 = np.dot(np.linalg.inv(firstPinMatrix), np.append(p3, 1))
-        vx, vy = p1p3[:2]
-
-        x = (math.pow(r1, 2) - math.pow(r2, 2) + math.pow(u, 2)) / (2 * u)
-        y = (math.pow(r1, 2) - math.pow(r3, 2) + math.pow(vx, 2) + math.pow(vy, 2) - 2 * vx * x)
-        try:
-            z = math.sqrt(math.pow(r1, 2) - math.pow(x, 2) - math.pow(y, 2))
-        except:
-            print("INVALID VALUES!")
+        if len(legsIds) != 3 or len(legsGlobalPositions) != 3 or len(legsLocalPositions) != 3:
+            print("Use exactly three legs for calculations of forward kinematics.")
             return False
+        
 
-        poseInGlobal = np.dot(firstPinMatrix, np.array([x, y, z, 1]))
-        return poseInGlobal[:3]
+        
+
 
     def legJacobi(self, legIdx, jointValues):
         """ Calculate Jacobian matrix for single leg.
