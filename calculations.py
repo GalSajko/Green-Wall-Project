@@ -116,30 +116,30 @@ class Kinematics:
 
         return np.array(joints)
     
-    def platformDirectKinematics(self, legsIds, legsGlobalPositions, legsLocalPositions):
+    def platformDirectKinematics(self, legsIds, legsGlobalPositions, legsLocalPoses):
         """Calculate forward kinematics of platform. Use only those legs, that are in contact with pins.
 
         :param legsIds: Legs used in calculations.
         :param legsGlobalPositions: Global positions of used legs - positions of used pins in wall-origin.
-        :param legsLocalPositions: Local positions of used legs given in spider's origin. 
+        :param legsLocalPositions: Local poses of used legs given in spider's origin. 
         :return: Transformation matrix from wall-origin to spider.
         """
 
-        if len(legsIds) != 3 or len(legsGlobalPositions) != 3 or len(legsLocalPositions) != 3:
+        if len(legsIds) != 3 or len(legsGlobalPositions) != 3 or len(legsLocalPoses) != 3:
             print("Use exactly three legs for calculations of forward kinematics.")
             return False
         
-        legsLocalPositions = np.array(legsLocalPositions)
+        legsLocalPoses = np.array(legsLocalPoses)
         legsGlobalPositions = np.array(legsGlobalPositions)
-        l1, l2, l3 = legsLocalPositions
+        l1, l2, l3 = legsLocalPoses
         p1, p2, p3 = legsGlobalPositions
 
         # Compute coordinate system of a wall-plane (in spider's origin)
-        l12 = l2 - l1
-        l13 = l3 - l1
+        l12 = l2[:,3][:3] - l1[:,3][:3]
+        l13 = l3[:,3][:3] - l1[:,3][:3]
         n = np.cross(l12, l13) if np.cross(l12, l13)[2] >= 0.0 else np.cross(l13, l12)
         ez = n / np.norm(n)
-        ex = (l2 - l1) / np.norm(l2 - l1)
+        ex = l12 / np.norm(l12)
         ey = np.cross(ex, ez)
         P = np.array([ex, ey, ez])
 
