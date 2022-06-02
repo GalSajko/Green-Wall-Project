@@ -244,7 +244,7 @@ class VelocityController:
             return False
 
         lastErrors = np.zeros([len(legsIds), 3])
-        Kp = 10
+        Kp = 20
         Kd = 1
         timeStep = trajectory[1][-1] - trajectory[0][-1]
 
@@ -255,8 +255,6 @@ class VelocityController:
             dE = (errors - lastErrors) / timeStep
             qCds = Kp * errors + Kd * dE + qDds[idx]
             lastErrors = errors
-
-            # self.motorDriver.readHardwareErrorRegister()
 
             if idx == len(trajectory) - 1:
                 qCds = np.zeros([len(legsIds), 3])

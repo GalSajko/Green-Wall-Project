@@ -46,6 +46,8 @@ class MotorDriver:
         self.kinematics = calculations.Kinematics()
         self.spider = environment.Spider()
 
+        self.readHardwareErrorRegister()
+
     def initPort(self):
         """Initialize USB port and set baudrate.
         """
@@ -70,14 +72,19 @@ class MotorDriver:
             if comm:
                 print("Motor %d has been successfully enabled" % motorId) 
     
-    def disableMotor(self, motorId):
-        """Disable single motor.
+    def disableMotors(self, motorsIds):
+        """Disable given motors.
+
+        :param motorsIds: Array of motors ids to disable.
         """
+        if motorsIds == 5:
+            motorsIds = self.motorsIds.flatten()
         # Disable torque.
-        result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
-        comm = self.commResultAndErrorReader(result, error)
-        if comm:
-            print("Motor %d has been successfully disabled" % motorId)
+        for motorId in motorsIds:
+            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
+            comm = self.commResultAndErrorReader(result, error)
+            if comm:
+                print("Motor %d has been successfully disabled" % motorId)
 
     def disableLegs(self, legId = 5):
         """ Disable all of the motors if value of motors parameter is 5. Otherwise, disable motors in given leg."""
@@ -218,6 +225,7 @@ class MotorDriver:
     def readHardwareErrorRegister(self):
         """Read hardware error register for each motor.
         """
-        for motor in self.motorsIds:
-            errorCode, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, motor, self.ERROR_ADDR)
-            print(result)
+        for motorId in self.motorsIds.flatten():
+            hwError, commResult, commError = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.ERROR_ADDR)
+            binaryError = format(hwError, '0>8b')
+            print(f"Motor {motorId} - error code {binaryError}")
