@@ -244,7 +244,7 @@ class VelocityController:
             return False
 
         lastErrors = np.zeros([len(legsIds), 3])
-        Kp = 20
+        Kp = 10
         Kd = 1
         timeStep = trajectory[1][-1] - trajectory[0][-1]
 
@@ -344,7 +344,7 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.lock = threading.Lock()

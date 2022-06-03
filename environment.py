@@ -37,7 +37,7 @@ class Spider:
         # Array of transformation matrices for transformations from spider base to anchors in base origin.
         self.T_ANCHORS = self.getTransformMatricesToAnchors()
         # Spider's walking height.
-        self.WALKING_HEIGHT = 0.2
+        self.WALKING_HEIGHT = 0.25
         # Spider's height when laying on pins.
         self.LYING_HEIGHT = 0.057
     

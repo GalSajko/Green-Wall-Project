@@ -26,7 +26,7 @@ class MotorDriver:
         self.PRESENT_POSITION_ADDR = 132
         self.BAUDRATE = 2000000
         self.PROTOCOL_VERSION = 2.0      
-        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB1"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.GOAL_VELOCITY_DATA_LENGTH = 4
         self.ERROR_ADDR = 70
@@ -127,11 +127,11 @@ class MotorDriver:
         mappedPositions = []
         for leg in legsIds:
             positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
-            jointsValues = mappers.mapEncoderToJointRadians(positions)
+            jointsValues = mappers.mapEncoderToJointsRadians(positions)
             if not calculateLegPositions:
                 mappedPositions.append(jointsValues)
             else:
-                mappedPositions.append(self.kinematics.legDirectKinematics(leg, jointsValues)[:,3][:3])
+                mappedPositions.append(self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3])
 
         return np.array(mappedPositions)
 
@@ -191,8 +191,8 @@ class MotorDriver:
             self.commResultAndErrorReader(result, error)
             presentPositions.append(presentPosition)
 
-        jointRadians = mappers.mapEncoderToJointRadians(presentPositions)
-        position = self.kinematics.legDirectKinematics(legIdx, jointRadians)[:,3][:3]
+        jointRadians = mappers.mapEncoderToJointsRadians(presentPositions)
+        position = self.kinematics.legForwardKinematics(legIdx, jointRadians)[:,3][:3]
 
         return np.array(position)
 
@@ -204,7 +204,7 @@ class MotorDriver:
         """
         self.groupSyncRead.txRxPacket()
         positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[legIdx]]
-        return mappers.mapEncoderToJointRadians(positions)
+        return mappers.mapEncoderToJointsRadians(positions)
 
     def commResultAndErrorReader(self, result, error):
         """Helper function for reading communication result and error.

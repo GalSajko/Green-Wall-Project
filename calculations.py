@@ -8,13 +8,13 @@ import environment as env
 
 
 class Kinematics:
-    """Class for calculating kinematics of spider robot. Includes direct and reverse kinematics for spiders legs.
+    """Class for calculating spider's kinematics.
     """
     def __init__(self):
         self.spider = env.Spider()
 
-    def legDirectKinematics(self, legIdx, jointValues):
-        """ Calculate direct kinematics for spiders leg, using transformation matrices.  
+    def legForwardKinematics(self, legIdx, jointValues):
+        """ Calculate forward kinematics for spiders leg, using transformation matrices.  
 
         :param jointValues: Joint values in radians.
         :return: Transformation matrix from base to end effector.
@@ -32,7 +32,7 @@ class Kinematics:
             [0, 0, 0, 1]
         ])
     
-    def legBaseToThirdJointDirectKinematics(self, legIdx, jointValues):
+    def legBaseToThirdJointForwardKinematics(self, legIdx, jointValues):
         q1, q2, _ = jointValues
         L1 = self.spider.LEGS[legIdx][0]
         L2 = self.spider.LEGS[legIdx][1][0]
@@ -116,7 +116,7 @@ class Kinematics:
 
         return np.array(joints)
     
-    def platformDirectKinematics(self, legsIds, legsGlobalPositions, legsLocalPoses):
+    def platformForwardKinematics(self, legsIds, legsGlobalPositions, legsLocalPoses):
         """Calculate forward kinematics of platform. Use only those legs, that are in contact with pins.
 
         :param legsIds: Legs used in calculations.
@@ -132,15 +132,21 @@ class Kinematics:
         legsLocalPoses = np.array(legsLocalPoses)
         legsGlobalPositions = np.array(legsGlobalPositions)
         l1, l2, l3 = legsLocalPoses
-        p1, p2, p3 = legsGlobalPositions
+        p1, p2, _ = legsGlobalPositions
 
         # Compute coordinate system of a wall-plane (in spider's origin)
         l12 = l2[:,3][:3] - l1[:,3][:3]
         l13 = l3[:,3][:3] - l1[:,3][:3]
-        n = np.cross(l12, l13) if np.cross(l12, l13)[2] >= 0.0 else np.cross(l13, l12)
-        ez = n / np.norm(n)
-        ex = l12 / np.norm(l12)
-        ey = np.cross(ex, ez)
+        l23 = l3[:,3][:3] - l2[:,3][:3]
+        n = [
+            np.cross(l12, l13) if np.cross(l12, l13)[2] >= 0.0 else np.cross(l13, l12),
+            np.cross(l12, l23) if np.cross(l12, l23)[2] >= 0.0 else np.cross(l23, l12),
+            np.cross(-l13, -l23) if np.cross(-l13, -l23)[2] >= 0.0 else np.cross(-l23, -l13)
+        ]
+        n = np.mean(n, axis = 0)
+        ez = n / np.linalg.norm(n)
+        ex = l12 / np.linalg.norm(l12)
+        ey = np.cross(ez, ex)
         P = np.array([ex, ey, ez])
 
         p12 = p2 - p1
@@ -152,24 +158,24 @@ class Kinematics:
             [math.sin(phi), math.cos(phi), 0],
             [0, 0, 1]
         ])
-        Pglobal = np.dot(rot, P)
-        Pglobal = np.c_(Pglobal, np.zeros(3))
-        Pglobal = np.r_[Pglobal, np.array([0, 0, 0, 1])]
+        Pglobal = np.dot(np.linalg.inv(rot), P)
+        Pglobal = np.c_[Pglobal, np.zeros(3)]
+        Pglobal = np.r_[Pglobal, [[0, 0, 0, 1]]]
 
-        def pinMatrix(pin):
-            mat = np.eye(4)
-            mat[:,3][:3] = pin
-            return mat
+        positions = [np.dot(Pglobal[:3,:3], leg[:,3][:3]) + np.dot(Pglobal[:3,:3], -legsGlobalPositions[idx]) for idx, leg in enumerate(legsLocalPoses)]
+        print(np.array(positions))
+        Pglobal[:,3][:3] = np.mean(positions, axis = 0)
 
-        firstOriginPos = np.dot(np.dot(Pglobal, l1), pinMatrix(p1))
-        secondOriginPos = np.dot(np.dot(Pglobal, l2), pinMatrix(p2))
-        thirdOriginPos = np.dot(np.dot(Pglobal, l3), pinMatrix(p3))
+        pose = np.linalg.inv(Pglobal)
 
-        spiderPose = np.linalg.inv(firstOriginPos)
+        yaw = math.atan2(Pglobal[1, 0], Pglobal[0, 0])
+        pitch = math.atan2(-Pglobal[2, 0], math.sqrt(math.pow(Pglobal[2, 1], 2) + math.pow(Pglobal[2, 2], 2)))
+        roll = math.atan2(Pglobal[2, 1], Pglobal[2, 2])
 
+        x, y, z = pose[:,3][:3]
+        xyzrpy = [x, y, z, roll, pitch, yaw]
         
-        
-
+        return xyzrpy
 
     def legJacobi(self, legIdx, jointValues):
         """ Calculate Jacobian matrix for single leg.
@@ -187,11 +193,11 @@ class Kinematics:
         return np.array([
             [-math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.cos(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1)*math.sin(q2+q3)],
             [math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.sin(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.sin(q1)*math.sin(q2+q3)],
-            [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)] 
+            [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)]
             ])
 
-    def spiderBaseToLegTipDirectKinematics(self, legIdx, jointsValues):
-        """Calculate direct kinematics from spider base to leg-tip.
+    def spiderBaseToLegTipForwardKinematics(self, legIdx, jointsValues):
+        """Calculate forward kinematics from spider base to leg-tip.
         
         :param legIdx: Leg id.
         :param jointsValues: Joints values in radians.
@@ -399,7 +405,7 @@ class MatrixCalculator:
         for idx, leg in enumerate(legsIds):
             jointsValues = Kinematics().legInverseKinematics(leg, cls.getLegInLocal(leg, pinsPositions[idx], spiderPose))
             T_GA = np.dot(cls.xyzRpyToMatrix(spiderPose), env.Spider().T_ANCHORS[leg])
-            thirdJointLocalPosition = Kinematics().legBaseToThirdJointDirectKinematics(leg, jointsValues)[:,3][:3]
+            thirdJointLocalPosition = Kinematics().legBaseToThirdJointForwardKinematics(leg, jointsValues)[:,3][:3]
             thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
 
             pinToThirdJoint = thirdJointGlobalPosition - pinsPositions[idx]
