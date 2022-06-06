@@ -117,12 +117,19 @@ class MotorDriver:
                 return False
         return True
     
-    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False):
+    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False, base = 'leg'):
         """Read motors positions in given legs with sync reader.
 
         :param legsIds: Legs ids.
-        :return: nx3 matrix with motors positions where n is number of given legs.
+        :param calculateLegPositions: If true, calculate legs positions from joints values.
+        :param base: Origin in which to calculate legs positions.
+        :return: nx3 matrix with motors positions in radians, if calculateLegPositions is False, nx3 matrix with legs positions 
+        otherwise.
         """
+        if base is not None and base != 'leg' and base != 'spider':
+            print("Invalid value of base parameter.")
+            return False
+
         self.groupSyncRead.txRxPacket()
         mappedPositions = []
         for leg in legsIds:
@@ -131,7 +138,10 @@ class MotorDriver:
             if not calculateLegPositions:
                 mappedPositions.append(jointsValues)
             else:
-                mappedPositions.append(self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3])
+                if base == 'leg':
+                    mappedPositions.append(self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3])
+                elif base == 'spider':
+                    mappedPositions.append(self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3])
 
         return np.array(mappedPositions)
 
@@ -195,16 +205,6 @@ class MotorDriver:
         position = self.kinematics.legForwardKinematics(legIdx, jointRadians)[:,3][:3]
 
         return np.array(position)
-
-    def syncReadMotorsPositionsInLeg(self, legIdx):
-        """Read all motors positions in given leg with sync reader.
-
-        :param legIdx: Leg id.
-        :return: 1x3 array with positions of all three joints in leg.
-        """
-        self.groupSyncRead.txRxPacket()
-        positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[legIdx]]
-        return mappers.mapEncoderToJointsRadians(positions)
 
     def commResultAndErrorReader(self, result, error):
         """Helper function for reading communication result and error.

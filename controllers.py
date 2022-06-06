@@ -21,7 +21,7 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
-        self.gripperController = GripperController()
+        # self.gripperController = GripperController()
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -67,11 +67,13 @@ class VelocityController:
     def moveLegs(self, legsIds, trajectories, velocities, grippersCommands = None):
         """Move any number of legs (within number of spiders legs) along given trajectories.
 
-        :param ledIds: Array of legs ids.
+        :param ledIds: Array of legs ids, if value is 5 than all legs are selected.
         :param trajectory: 2D array of legs tips trajectories.
         :param velocity: 2D array of legs tips velocities.
         :return: True if movements were successfull, false otherwise.
         """
+        if legsIds == 5:
+            legsIds = [0, 1, 2, 3, 4]
         if len(legsIds) != len(trajectories) and len(legsIds) != len(velocities):
             raise ValueError("Invalid parameters!")
 
@@ -330,7 +332,7 @@ class VelocityController:
         return True
 
 class GripperController:
-    """Class for controlling a gripper via serial communication with Arduino.
+    """Class for controlling grippers via serial communication with Arduino.
     """
     def __init__(self):
         """Init serial communication with Arduino.
@@ -376,6 +378,7 @@ class GripperController:
         if msg[-1] != '\n':
             msg += '\n'
         msg = msg.encode("utf-8")
+        print(msg)
         with self.lock:
             self.comm.write(msg)
     
