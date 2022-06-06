@@ -213,7 +213,7 @@ class Kinematics:
 
         Hb3 = np.array([
             [math.cos(q2+q3) * math.cos(q1+qb), -math.cos(q1+qb) * math.sin(q2+q3), math.sin(q1+qb), r*math.cos(qb) + math.cos(q1+qb) * (L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
-            [math.cos(q2+q3) * math.sin(q1+qb), -math.sin(q2+q3) * math.sin(q1+qb), -math.cos(q1+qb), L1*math.cos(q1)*math.sin(q1) + (r + L1*math.cos(q1)) * math.sin(qb) + (L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)],
+            [math.cos(q2+q3) * math.sin(q1+qb), -math.sin(q2+q3) * math.sin(q1+qb), -math.cos(q1+qb), L1*math.cos(qb)*math.sin(q1) + (r + L1*math.cos(q1)) * math.sin(qb) + (L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)],
             [math.sin(q2+q3), math.cos(q2+q3), 0, -L3*math.cos(q2) + L2*math.sin(q2) + L4*math.sin(q2+q3)],
             [0, 0, 0, 1]
         ])
@@ -221,13 +221,14 @@ class Kinematics:
         return Hb3
         
 
-    def legTipToSpiderBaseJacobi(self, legIdx, jointValues):
+    def spiderBaseToLegTipJacobi(self, legIdx, jointValues):
         """Calculate Jacobian matrix for spiders origin - leg-tip relation.
 
         :param legIdx: Leg id.
         :param jointValues: Joint values in radians.
         :return: 3x3 Jacobian matrix.
         """
+        qb = legIdx * self.spider.ANGLE_BETWEEN_LEGS + math.pi / 2
         q1, q2, q3 = jointValues
         r = self.spider.BODY_RADIUS
         L1 = self.spider.LEGS[legIdx][0]
@@ -236,9 +237,9 @@ class Kinematics:
         L4 = self.spider.LEGS[legIdx][2]
 
         return np.array([
-            [r*math.cos(q2+q3)*math.sin(q1), (L1 + r*math.cos(q1))*math.sin(q2+q3), math.cos(q3)*(L3 + (L1 + r*math.cos(q1))*math.sin(q2)) + (L2 + (L1 + r*math.cos(q1))*math.cos(q2))*math.sin(q3)],
-            [-r*math.sin(q1)*math.sin(q2+q3), (L1 + r*math.cos(q1))*math.cos(q2+q3), (L2 + (L1 + r*math.cos(q1))*math.cos(q2))*math.cos(q3) - (L3 + (L1 + r*math.cos(q1))*math.sin(q2))*math.sin(q3)],
-            [-r*math.cos(q1), 0, 0]
+            [-((L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)), math.cos(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1+qb) * math.sin(q2 + q3)],
+            [math.cos(q1+qb) * (L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.sin(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.sin(q2+q3) * math.sin(q1+qb)],
+            [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)]
         ])
 
     def getSpiderToLegReferenceVelocities(self, spiderVelocity):
