@@ -1,10 +1,8 @@
 """ Wrapper module for controlling Dynamixel motors. Wraps some of the functions from dynamixel_sdk module.
 """
 
-import threading
 import numpy as np
 from dynamixel_sdk import *
-import time
 
 import calculations
 import mappers
@@ -46,9 +44,6 @@ class MotorDriver:
         self.kinematics = calculations.Kinematics()
         self.spider = environment.Spider()
 
-        self.qCdBuffer = np.zeros([5, 3])
-        self.locker = threading.Lock()
-
     def initPort(self):
         """Initialize USB port and set baudrate.
         """
@@ -61,38 +56,6 @@ class MotorDriver:
             print("Baudrate successfully changed.")
         else:
             print("Failed to change the baudrate.")
-    
-    def initSendingThread(self):
-        self.clearGroupSyncWriteParams()
-        # Add params for all motors.
-        for leg in range(self.spider.NUMBER_OF_LEGS):
-            encoderVelocities = mappers.mapJointVelocitiesToEncoderValues(self.qCdBuffer[leg])
-            for idx, motor in enumerate(self.motorsIds):
-                qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocities[idx])), DXL_HIBYTE(DXL_LOWORD(encoderVelocities[idx])), DXL_LOBYTE(DXL_HIWORD(encoderVelocities[idx])), DXL_HIBYTE(DXL_HIWORD(encoderVelocities[idx]))]
-                result = self.groupSyncWrite.addParam(motor, qCdBytes)
-                if not result:
-                    print("Failed adding parameter %d to Group Sync Writer" % motor)
-                    return False
-        # Write values from buffer continuously.
-        while True:
-            for leg in range(self.spider.NUMBER_OF_LEGS):
-                encoderVelocities = mappers.mapJointVelocitiesToEncoderValues(self.qCdBuffer[leg])
-                for idx, motor in enumerate(self.motorsIds):
-                    qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocities[idx])), DXL_HIBYTE(DXL_LOWORD(encoderVelocities[idx])), DXL_LOBYTE(DXL_HIWORD(encoderVelocities[idx])), DXL_HIBYTE(DXL_HIWORD(encoderVelocities[idx]))]
-                    result = self.groupSyncWrite.changeParam(motor, qCdBytes)
-                    if not result:
-                        print("Failed adding parameter %d to Group Sync Writer" % motor)
-                        return False
-            # Write velocities to motors.
-            with self.locker:
-                result = self.groupSyncWrite.txPacket()
-            if result != COMM_SUCCESS:
-                print("Failed to write velocities to motors.")
-                return False
-            
-        
-
-
 
     def enableMotors(self):
         """ Enable all of the motors from self.MOTOR_IDS, if they are connected.

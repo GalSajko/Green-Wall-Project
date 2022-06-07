@@ -13,6 +13,9 @@ class VelocityController:
     """ Class for velocity-control of spider's movement.
     """
     def __init__ (self):
+        # Controller loop frequency.
+        self.CONTROLLER_FREQUENCY = 50
+
         self.matrixCalculator = calculations.MatrixCalculator()
         self.kinematics = calculations.Kinematics()
         self.geometryTools = calculations.GeometryTools()
@@ -22,6 +25,32 @@ class VelocityController:
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
         self.gripperController = GripperController()
+
+        # Input buffer for controller - qDqDdBuffer[0] -> qD (reference positions), qDqDdBuffer[1] -> qDd (reference velocities).
+        self.qDqDdBuffer = np.array([np.zeros([self.spider.NUMBER_OF_LEGS, len(motors[0])]), np.zeros([self.spider.NUMBER_OF_LEGS, len(motors[0])])])
+
+    def initControllerThread(self):
+        legs = self.spider.NUMBER_OF_LEGS
+
+        self.motorDriver.clearGroupSyncReadParams()
+        self.motorDriver.clearGroupSyncWriteParams()
+        if not self.motorDriver.addGroupSyncReadParams(legs):
+            return False
+
+        # Start writing - add params into storage and keep motors at current positions (send velocity = 0).
+        self.motorDriver.syncWriteMotorsVelocitiesInLegs(legs, self.qDqDdBuffer[0])
+
+        # PD controller gains.
+        Kp = np.ones([self.spider.NUMBER_OF_LEGS, 3]) * 10
+        Kd = np.ones([self.spider.NUMBER_OF_LEGS, 3])
+        lastErrors = np.zeors([self.spider.NUMBER_OF_LEGS, 3])
+
+        # Controller loop - runs contiuously.
+        while True:
+
+
+
+
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -34,11 +63,11 @@ class VelocityController:
         qD = []
         qDd = []
         for idx, pose in enumerate(xD):
-            currentQd = self.kinematics.legInverseKinematics(legIdx, pose[:3])
-            J = self.kinematics.legJacobi(legIdx, currentQd)
-            currentQdd = np.dot(np.linalg.inv(J), xDd[idx][:3])
-            qD.append(currentQd)
-            qDd.append(currentQdd)
+            qDFf = self.kinematics.legInverseKinematics(legIdx, pose[:3])
+            J = self.kinematics.legJacobi(legIdx, qDFf)
+            qDdFf = np.dot(np.linalg.inv(J), xDd[idx][:3])
+            qD.append(qDFf)
+            qDd.append(qDdFf)
         
         return np.array(qD), np.array(qDd)
     
@@ -127,7 +156,6 @@ class VelocityController:
             sleepTime = timeLeft if timeLeft > 0 else 0
             time.sleep(sleepTime)
    
-
         self.motorDriver.clearGroupSyncReadParams()
         self.motorDriver.clearGroupSyncWriteParams()
         return True

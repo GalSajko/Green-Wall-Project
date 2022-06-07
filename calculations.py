@@ -20,10 +20,10 @@ class Kinematics:
         :return: Transformation matrix from base to end effector.
         """
         q1, q2, q3 = jointValues
-        L1 = self.spider.LEGS[legIdx][0]
-        L2 = self.spider.LEGS[legIdx][1][0]
-        L3 = self.spider.LEGS[legIdx][1][1]
-        L4 = self.spider.LEGS[legIdx][2]
+        L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
+        L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
             [math.cos(q1)*math.cos(q2+q3), -math.cos(q1)*math.sin(q2+q3), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
@@ -34,9 +34,9 @@ class Kinematics:
     
     def legBaseToThirdJointDirectKinematics(self, legIdx, jointValues):
         q1, q2, _ = jointValues
-        L1 = self.spider.LEGS[legIdx][0]
-        L2 = self.spider.LEGS[legIdx][1][0]
-        L3 = self.spider.LEGS[legIdx][1][1]
+        L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
 
         return np.array([
             [math.cos(q1)*math.cos(q2), -math.cos(q1)*math.cos(q2), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L3 * math.cos(q2))],
@@ -55,9 +55,9 @@ class Kinematics:
         endEffectorPosition = np.array(endEffectorPosition)
         endEffectorPosition[2] = -endEffectorPosition[2]
 
-        firstLink = self.spider.LEGS[legIdx][0]
-        virtualSecondLink = np.hypot(self.spider.LEGS[legIdx][1][0], self.spider.LEGS[legIdx][1][1])
-        thirdLink = self.spider.LEGS[legIdx][2]
+        firstLink = self.spider.LEGS_DIMENSIONS[legIdx][0]
+        virtualSecondLink = np.hypot(self.spider.LEGS_DIMENSIONS[legIdx][1][0], self.spider.LEGS_DIMENSIONS[legIdx][1][1])
+        thirdLink = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         # Angle in first joint.
         q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
@@ -165,10 +165,10 @@ class Kinematics:
         :return: 3x3 Jacobian matrix.
         """
         q1, q2, q3 = jointValues
-        L1 = self.spider.LEGS[legIdx][0]
-        L2 = self.spider.LEGS[legIdx][1][0]
-        L3 = self.spider.LEGS[legIdx][1][1]
-        L4 = self.spider.LEGS[legIdx][2]
+        L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
+        L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
             [-math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.cos(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1)*math.sin(q2+q3)],
@@ -186,10 +186,10 @@ class Kinematics:
         qb = legIdx * self.spider.ANGLE_BETWEEN_LEGS + math.pi / 2
         q1, q2, q3 = jointsValues
         r = self.spider.BODY_RADIUS
-        L1 = self.spider.LEGS[legIdx][0]
-        L2 = self.spider.LEGS[legIdx][1][0]
-        L3 = self.spider.LEGS[legIdx][1][1]
-        L4 = self.spider.LEGS[legIdx][2]
+        L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
+        L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         Hb3 = np.array([
             [math.cos(q2+q3) * math.cos(q1+qb), -math.cos(q1+qb) * math.sin(q2+q3), math.sin(q1+qb), r*math.cos(qb) + math.cos(q1+qb) * (L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
@@ -210,10 +210,10 @@ class Kinematics:
         """
         q1, q2, q3 = jointValues
         r = self.spider.BODY_RADIUS
-        L1 = self.spider.LEGS[legIdx][0]
-        L2 = self.spider.LEGS[legIdx][1][0]
-        L3 = self.spider.LEGS[legIdx][1][1]
-        L4 = self.spider.LEGS[legIdx][2]
+        L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
+        L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
             [r*math.cos(q2+q3)*math.sin(q1), (L1 + r*math.cos(q1))*math.sin(q2+q3), math.cos(q3)*(L3 + (L1 + r*math.cos(q1))*math.sin(q2)) + (L2 + (L1 + r*math.cos(q1))*math.cos(q2))*math.sin(q3)],
