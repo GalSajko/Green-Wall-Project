@@ -24,7 +24,6 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
-<<<<<<< HEAD
         self.gripperController = GripperController()
 
         # Input buffer for controller - qDqDdBuffer[0] -> qD (reference positions), qDqDdBuffer[1] -> qDd (reference velocities).
@@ -50,14 +49,11 @@ class VelocityController:
         while True:
             startTime = time.time()
             qA = self.motorDriver.syncReadMotorsPositionsInLeg(legs)
-            errors = np.array(self.qDqDdBuffer[0] - qA, dtype = )
+            errors = np.array(self.qDqDdBuffer[0] - qA, dtype = object)
 
 
 
 
-=======
-        # self.gripperController = GripperController()
->>>>>>> main
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
