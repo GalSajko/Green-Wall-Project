@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import serial
 import threading
+import itertools as itt
+import csv
 
 import calculations
 import dynamixel
@@ -16,40 +18,41 @@ import simulaton as sim
 
 if __name__ == "__main__":
     controller = controllers.VelocityController()
+    motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]], False)
     trajPlanner = planning.TrajectoryPlanner()
-    wall = env.Wall('squared')
-    pins = wall.createGrid(True)
-    # motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
-    # motors.disableLegs()
 
-    # grippers = controllers.GripperController()
+
     # legs = [0, 1, 2, 3, 4]
-    # for leg in legs:
-    #     grippers.moveGripper(leg, 'o')
+
+    testLegsPosition = [0.35, 0.0, -0.25]
+    legId = 1
+
+    motors.clearGroupSyncReadParams()
+    motors.addGroupSyncReadParams([legId])
+
+    while True:
+        currentLegsPositions = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'leg')
+        currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'spider')
+        print("BEFORE MOVEMENT: ", currentLegsPositions.flatten())
+
+        desiredPositionString = input("Enter x, y, z and time: ")
+        values = desiredPositionString.split(',')
+        desiredPosition = []
+        for value in values:
+            desiredPosition.append(float(value))
+
+        traj, vel = trajPlanner.minJerkTrajectory(currentLegsPositions[0], desiredPosition[:3], desiredPosition[3])
+        try:
+            result = controller.moveLegs([legId], [traj], [vel])
+        except:
+            print("Cannot move there.")
+            continue
+
+        currentLegsPositions = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'leg')
+        currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'spider')
+        print("AFTER MOVEMENT: ", currentLegsPositions.flatten())
+        print("===========")
     
-    # time.sleep(7)
-    # for leg in legs:
-    #     grippers.moveGripper(leg, 'c')
-
-    pathPlanner = planning.PathPlanner(0.05, 0.2)
-    path = pathPlanner.calculateSpiderBodyPath([0.6, 0.5, 0.2, 0.0], [0.6, 0.6, 0.2, 0.0])
-    gridPlan = pathPlanner.calculateSpiderLegsPositionsXyzRpyFF(path)
-
-    controller.moveLegsWrapper(5, gridPlan[0], [0.6, 0.5, 0.2, 0.0], [7, 7, 7, 7, 7], trajectoryType = 'minJerk')
-
-    # controller.movePlatformWrapper([0.6, 0.5, 0.2, 0.0], [0.6, 0.5, 0.2, 0.0], gridPlan[0], 3)
-    # controller.moveLegsAndGrabPins([0], [pins[28]], [0.6, 0.5, 0.2, 0.0], [7])
-    # traj, vel = trajPlanner.minJerkTrajectory([0.0, 0.0, 0.061, 0.0], [0.0, 0.0, 0.2, 0.0], 8)
-
-    # controller.movePlatform(traj, vel, )
-
-    
-
-    
-
-    
-    
-
 
 
 

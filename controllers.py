@@ -24,6 +24,7 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
+<<<<<<< HEAD
         self.gripperController = GripperController()
 
         # Input buffer for controller - qDqDdBuffer[0] -> qD (reference positions), qDqDdBuffer[1] -> qDd (reference velocities).
@@ -54,6 +55,9 @@ class VelocityController:
 
 
 
+=======
+        # self.gripperController = GripperController()
+>>>>>>> main
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -99,11 +103,13 @@ class VelocityController:
     def moveLegs(self, legsIds, trajectories, velocities, grippersCommands = None):
         """Move any number of legs (within number of spiders legs) along given trajectories.
 
-        :param ledIds: Array of legs ids.
+        :param ledIds: Array of legs ids, if value is 5 than all legs are selected.
         :param trajectory: 2D array of legs tips trajectories.
         :param velocity: 2D array of legs tips velocities.
         :return: True if movements were successfull, false otherwise.
         """
+        if legsIds == 5:
+            legsIds = [0, 1, 2, 3, 4]
         if len(legsIds) != len(trajectories) and len(legsIds) != len(velocities):
             raise ValueError("Invalid parameters!")
 
@@ -123,8 +129,8 @@ class VelocityController:
         # Index of longer trajectory:
         longerIdx = trajectories.index(max(trajectories, key = len))
         lastErrors = np.zeros([len(legsIds), 3])
-        Kp = 10
-        Kd = 1
+        Kp = np.array([5, 15, 15])
+        Kd = np.array([1, 1, 1])
 
         # Open grippers (if needed) and wait for them to open before moving legs.
         if grippersCommands == ['o'] * len(legsIds):
@@ -152,6 +158,7 @@ class VelocityController:
                     if grippersCommands is not None and grippersCommands[l] == self.gripperController.CLOSE_COMMAND: 
                         self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
                 qCds.append(qCd)
+                
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legsIds, qCds, i == 0):
                 return False
             
@@ -361,7 +368,7 @@ class VelocityController:
         return True
 
 class GripperController:
-    """Class for controlling a gripper via serial communication with Arduino.
+    """Class for controlling grippers via serial communication with Arduino.
     """
     def __init__(self):
         """Init serial communication with Arduino.
@@ -375,7 +382,7 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.lock = threading.Lock()
@@ -407,6 +414,7 @@ class GripperController:
         if msg[-1] != '\n':
             msg += '\n'
         msg = msg.encode("utf-8")
+        print(msg)
         with self.lock:
             self.comm.write(msg)
     

@@ -1,18 +1,15 @@
 """ Module for mapping angles between leg model and motor values. """
 
-from json import encoder
 import math
 import numpy as np
 
-def mapJointRadiansToMotorRadians(jointValues):
+def mapJointRadiansToMotorRadians(jointsValues):
     """Map angles from Inverse kinematics in radians into motor angles in radians.
 
-    :param q1: First joint angle.
-    :param q2: Second joint angle.
-    :param q3: Third joint angle.
+    :param jointsValues: Values of joints in leg.
     :return: Motors angles in radians that match input angles.
     """
-    q1, q2, q3 = jointValues
+    q1, q2, q3 = jointsValues
     q1 = q1 + math.pi
     q2 = math.pi - q2
     q3 = 1.5 * math.pi + q3
@@ -20,14 +17,12 @@ def mapJointRadiansToMotorRadians(jointValues):
     return q1, q2, q3
 
 def mapMotorRadiansToJointRadians(motorValues):
-    """Map angles from motors in degrees to joint angles in degrees.
+    """Map angles from motors in radians to joint angles in radians.
 
-    :param motorValues: Motor values in degrees.
-    :return: Joint values in degrees.
+    :param motorValues: Motor values in radians.
+    :return: Joint values in radians.
     """
-
     q1, q2, q3 = motorValues
-    
 
     q1 = q1 - math.pi
     q2 = -(q2 - math.pi)
@@ -36,9 +31,9 @@ def mapMotorRadiansToJointRadians(motorValues):
     return q1, q2, q3
 
 def mapMotorRadiansToEncoder(jointValues):
-    """Map degrees in motors to encoder values.
+    """Map radians in motors to encoder values.
 
-    :param jointValues: Angles in motors in degrees. 
+    :param jointValues: Angles in motors in radians. 
     :return: Encoder values to match input angles.
     """
     jointValues = np.degrees(jointValues)
@@ -61,11 +56,11 @@ def mapEncoderToMotorsDegrees(encoderValues):
 
     return encoderValues * 360.0 / math.pow(2, encoderBits)
 
-def mapEncoderToJointRadians(encoderValues):
+def mapEncoderToJointsRadians(encoderValues):
     """Map encoders values to joints radians.
 
     :param encoderValues: Encoders values for each motor in single leg.
-    :return: 1x3 array of joints values in leg.
+    :return: 1x3 array of joints radians in leg.
     """
     encoderValues = np.array(encoderValues)
     k = np.array([math.pi / 2048, -math.pi / 2048, math.pi / 2048])

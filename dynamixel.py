@@ -25,9 +25,10 @@ class MotorDriver:
         self.PRESENT_POSITION_ADDR = 132
         self.BAUDRATE = 2000000
         self.PROTOCOL_VERSION = 2.0      
-        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB1"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.GOAL_VELOCITY_DATA_LENGTH = 4
+        self.ERROR_ADDR = 70
         
         self.motorsIds = np.array(motorsIds)
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
@@ -43,6 +44,8 @@ class MotorDriver:
 
         self.kinematics = calculations.Kinematics()
         self.spider = environment.Spider()
+
+        self.readHardwareErrorRegister()
 
     def initPort(self):
         """Initialize USB port and set baudrate.
@@ -68,6 +71,20 @@ class MotorDriver:
             if comm:
                 print("Motor %d has been successfully enabled" % motorId) 
     
+    def disableMotors(self, motorsIds):
+        """Disable given motors.
+
+        :param motorsIds: Array of motors ids to disable.
+        """
+        if motorsIds == 5:
+            motorsIds = self.motorsIds.flatten()
+        # Disable torque.
+        for motorId in motorsIds:
+            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
+            comm = self.commResultAndErrorReader(result, error)
+            if comm:
+                print("Motor %d has been successfully disabled" % motorId)
+
     def disableLegs(self, legId = 5):
         """ Disable all of the motors if value of motors parameter is 5. Otherwise, disable motors in given leg."""
         motorsArray = self.motorsIds.flatten()
@@ -99,21 +116,31 @@ class MotorDriver:
                 return False
         return True
     
-    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False):
+    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False, base = 'leg'):
         """Read motors positions in given legs with sync reader.
 
         :param legsIds: Legs ids.
-        :return: nx3 matrix with motors positions where n is number of given legs.
+        :param calculateLegPositions: If true, calculate legs positions from joints values.
+        :param base: Origin in which to calculate legs positions.
+        :return: nx3 matrix with motors positions in radians, if calculateLegPositions is False, nx3 matrix with legs positions 
+        otherwise.
         """
+        if base is not None and base != 'leg' and base != 'spider':
+            print("Invalid value of base parameter.")
+            return False
+
         self.groupSyncRead.txRxPacket()
         mappedPositions = []
         for leg in legsIds:
             positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
-            jointsValues = mappers.mapEncoderToJointRadians(positions)
+            jointsValues = mappers.mapEncoderToJointsRadians(positions)
             if not calculateLegPositions:
                 mappedPositions.append(jointsValues)
             else:
-                mappedPositions.append(self.kinematics.legDirectKinematics(leg, jointsValues)[:,3][:3])
+                if base == 'leg':
+                    mappedPositions.append(self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3])
+                elif base == 'spider':
+                    mappedPositions.append(self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3])
 
         return np.array(mappedPositions)
 
@@ -173,20 +200,10 @@ class MotorDriver:
             self.commResultAndErrorReader(result, error)
             presentPositions.append(presentPosition)
 
-        jointRadians = mappers.mapEncoderToJointRadians(presentPositions)
-        position = self.kinematics.legDirectKinematics(legIdx, jointRadians)[:,3][:3]
+        jointRadians = mappers.mapEncoderToJointsRadians(presentPositions)
+        position = self.kinematics.legForwardKinematics(legIdx, jointRadians)[:,3][:3]
 
         return np.array(position)
-
-    def syncReadMotorsPositionsInLeg(self, legIdx):
-        """Read all motors positions in given leg with sync reader.
-
-        :param legIdx: Leg id.
-        :return: 1x3 array with positions of all three joints in leg.
-        """
-        self.groupSyncRead.txRxPacket()
-        positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[legIdx]]
-        return mappers.mapEncoderToJointRadians(positions)
 
     def commResultAndErrorReader(self, result, error):
         """Helper function for reading communication result and error.
@@ -203,3 +220,11 @@ class MotorDriver:
             return False
         
         return True
+
+    def readHardwareErrorRegister(self):
+        """Read hardware error register for each motor.
+        """
+        for motorId in self.motorsIds.flatten():
+            hwError, commResult, commError = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.ERROR_ADDR)
+            binaryError = format(hwError, '0>8b')
+            print(f"Motor {motorId} - error code {binaryError}")
