@@ -43,10 +43,13 @@ class VelocityController:
         # PD controller gains.
         Kp = np.ones([self.spider.NUMBER_OF_LEGS, 3]) * 10
         Kd = np.ones([self.spider.NUMBER_OF_LEGS, 3])
-        lastErrors = np.zeors([self.spider.NUMBER_OF_LEGS, 3])
+        lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
 
         # Controller loop - runs contiuously.
         while True:
+            startTime = time.time()
+            qA = self.motorDriver.syncReadMotorsPositionsInLeg(legs)
+            errors = np.array(self.qDqDdBuffer[0] - qA, dtype = )
 
 
 
