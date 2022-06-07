@@ -21,35 +21,24 @@ if __name__ == "__main__":
     motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
     trajPlanner = planning.TrajectoryPlanner()
 
-    # motors.disableLegs(0)
 
-    # grippers = controllers.GripperController()
-    # grippers.openGrippersAndWait([0, 1, 2, 3, 4])
-    legs = [0, 1, 2, 3, 4]
-    # for leg in legs:
-    #     grippers.moveGripper(leg, 'c')
+    legs = [1]
 
     testLegsPosition = [0.55, 0.0, -0.1]
-    legId = 0
+    legId = 1
 
     motors.clearGroupSyncReadParams()
     motors.addGroupSyncReadParams(legs)
-    # while True:
+
     currentLegsPositions = motors.syncReadMotorsPositionsInLegs(legs, True, base = 'leg')
     currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs(legs, True, base = 'spider')
-    # print(currentLegsPositions.flatten())
-    # time.sleep(0.02)
-    # print(currentLegsPositionsSpiderBase)
+    print(currentLegsPositions.flatten())
+    print(currentLegsPositionsSpiderBase)
     
-    trajectories, velocities = [], []
-    for leg in legs:
-        traj, vel = trajPlanner.minJerkTrajectory(currentLegsPositions[leg], testLegsPosition, 7)
-        trajectories.append(traj)
-        velocities.append(vel)
-    # controller.moveLegs([legId], [trajectories[legId]], [velocities[legId]])
-    # controller.moveLegs(5, trajectories, velocities)
 
-    time.sleep(1)
+    traj, vel = trajPlanner.minJerkTrajectory(currentLegsPositions[0], testLegsPosition, 7)
+    # controller.moveLegs(legs, [traj], [vel])
+
     currentLegsPositions = motors.syncReadMotorsPositionsInLegs(legs, True, base = 'leg')
     currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs(legs, True, base = 'spider')
     print(currentLegsPositions)
