@@ -93,8 +93,8 @@ class VelocityController:
         # Index of longer trajectory:
         longerIdx = trajectories.index(max(trajectories, key = len))
         lastErrors = np.zeros([len(legsIds), 3])
-        Kp = 10
-        Kd = 1
+        Kp = np.array([5, 15, 15])
+        Kd = np.array([1, 1, 1])
 
         # Open grippers (if needed) and wait for them to open before moving legs.
         if grippersCommands == ['o'] * len(legsIds):
@@ -122,6 +122,7 @@ class VelocityController:
                     if grippersCommands is not None and grippersCommands[l] == self.gripperController.CLOSE_COMMAND: 
                         self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
                 qCds.append(qCd)
+                
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legsIds, qCds, i == 0):
                 return False
             

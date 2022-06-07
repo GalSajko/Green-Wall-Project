@@ -18,40 +18,41 @@ import simulaton as sim
 
 if __name__ == "__main__":
     controller = controllers.VelocityController()
-    motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
+    motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]], False)
     trajPlanner = planning.TrajectoryPlanner()
 
 
-    legs = [1]
+    # legs = [0, 1, 2, 3, 4]
 
-    testLegsPosition = [0.55, 0.0, -0.1]
+    testLegsPosition = [0.35, 0.0, -0.25]
     legId = 1
 
     motors.clearGroupSyncReadParams()
-    motors.addGroupSyncReadParams(legs)
+    motors.addGroupSyncReadParams([legId])
 
-    currentLegsPositions = motors.syncReadMotorsPositionsInLegs(legs, True, base = 'leg')
-    currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs(legs, True, base = 'spider')
-    print(currentLegsPositions.flatten())
-    print(currentLegsPositionsSpiderBase)
+    while True:
+        currentLegsPositions = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'leg')
+        currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'spider')
+        print("BEFORE MOVEMENT: ", currentLegsPositions.flatten())
+
+        desiredPositionString = input("Enter x, y, z and time: ")
+        values = desiredPositionString.split(',')
+        desiredPosition = []
+        for value in values:
+            desiredPosition.append(float(value))
+
+        traj, vel = trajPlanner.minJerkTrajectory(currentLegsPositions[0], desiredPosition[:3], desiredPosition[3])
+        try:
+            result = controller.moveLegs([legId], [traj], [vel])
+        except:
+            print("Cannot move there.")
+            continue
+
+        currentLegsPositions = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'leg')
+        currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'spider')
+        print("AFTER MOVEMENT: ", currentLegsPositions.flatten())
+        print("===========")
     
-
-    traj, vel = trajPlanner.minJerkTrajectory(currentLegsPositions[0], testLegsPosition, 7)
-    # controller.moveLegs(legs, [traj], [vel])
-
-    currentLegsPositions = motors.syncReadMotorsPositionsInLegs(legs, True, base = 'leg')
-    currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs(legs, True, base = 'spider')
-    print(currentLegsPositions)
-    print(currentLegsPositionsSpiderBase)
-    
-    # poses = ['flat', '1st up', '2nd up', '3rd up', '4th up', '5th up', 'flat']
-    # i = 6
-    # with open('legs.csv', 'a') as f:
-    #     writer = csv.writer(f)
-    #     writer.writerow(poses[i])
-    #     for legPos in currentLegsPositionsSync:
-    #         writer.writerow(legPos)
-
 
 
 
