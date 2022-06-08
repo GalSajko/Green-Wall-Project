@@ -163,7 +163,6 @@ class Kinematics:
         Pglobal = np.r_[Pglobal, [[0, 0, 0, 1]]]
 
         positions = [np.dot(Pglobal[:3,:3], leg[:,3][:3]) + np.dot(Pglobal[:3,:3], -legsGlobalPositions[idx]) for idx, leg in enumerate(legsLocalPoses)]
-        print(np.array(positions))
         Pglobal[:,3][:3] = np.mean(positions, axis = 0)
 
         pose = np.linalg.inv(Pglobal)

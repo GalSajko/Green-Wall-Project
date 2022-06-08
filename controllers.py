@@ -25,35 +25,6 @@ class VelocityController:
         motors = [[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]]
         self.motorDriver = dmx.MotorDriver(motors)
         self.gripperController = GripperController()
-
-        # Input buffer for controller - qDqDdBuffer[0] -> qD (reference positions), qDqDdBuffer[1] -> qDd (reference velocities).
-        self.qDqDdBuffer = np.array([np.zeros([self.spider.NUMBER_OF_LEGS, len(motors[0])]), np.zeros([self.spider.NUMBER_OF_LEGS, len(motors[0])])])
-
-    def initControllerThread(self):
-        legs = self.spider.NUMBER_OF_LEGS
-
-        self.motorDriver.clearGroupSyncReadParams()
-        self.motorDriver.clearGroupSyncWriteParams()
-        if not self.motorDriver.addGroupSyncReadParams(legs):
-            return False
-
-        # Start writing - add params into storage and keep motors at current positions (send velocity = 0).
-        self.motorDriver.syncWriteMotorsVelocitiesInLegs(legs, self.qDqDdBuffer[0])
-
-        # PD controller gains.
-        Kp = np.ones([self.spider.NUMBER_OF_LEGS, 3]) * 10
-        Kd = np.ones([self.spider.NUMBER_OF_LEGS, 3])
-        lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
-
-        # Controller loop - runs contiuously.
-        while True:
-            startTime = time.time()
-            qA = self.motorDriver.syncReadMotorsPositionsInLeg(legs)
-            errors = np.array(self.qDqDdBuffer[0] - qA, dtype = object)
-
-
-
-
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
@@ -410,7 +381,6 @@ class GripperController:
         if msg[-1] != '\n':
             msg += '\n'
         msg = msg.encode("utf-8")
-        print(msg)
         with self.lock:
             self.comm.write(msg)
     

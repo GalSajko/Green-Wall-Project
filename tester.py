@@ -18,40 +18,20 @@ import simulaton as sim
 
 if __name__ == "__main__":
     controller = controllers.VelocityController()
-    motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]], False)
+    # motors = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]], False)
+    wall = env.Wall('squared')
     trajPlanner = planning.TrajectoryPlanner()
+    pathPlanner = planning.PathPlanner(0.05, 0.15)
+    startPosition = [0.6, 0.5, 0.2, 0.0]
 
+    pins = wall.createGrid(True)
 
-    # legs = [0, 1, 2, 3, 4]
+    legs = [0, 1, 2, 3, 4]
+    # controller.moveLegsWrapper(legs, [pins[22], pins[9], pins[13], pins[25], pins[33]], startPosition, [7] * 5, ['o'] * 5, trajectoryType = 'minJerk')
+    # controller.moveLegsWrapper([legs[0]], [pins[28]], startPosition, [7], ['o'], trajectoryType = 'minJerk')
+    controller.movePlatformWrapper(startPosition, startPosition, [pins[22], pins[9], pins[13], pins[25], pins[33]], 3)
+    controller.moveLegsAndGrabPins([legs[2]], [pins[13]], startPosition, [6])
 
-    testLegsPosition = [0.35, 0.0, -0.25]
-    legId = 1
-
-    motors.clearGroupSyncReadParams()
-    motors.addGroupSyncReadParams([legId])
-
-    while True:
-        currentLegsPositions = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'leg')
-        currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'spider')
-        print("BEFORE MOVEMENT: ", currentLegsPositions.flatten())
-
-        desiredPositionString = input("Enter x, y, z and time: ")
-        values = desiredPositionString.split(',')
-        desiredPosition = []
-        for value in values:
-            desiredPosition.append(float(value))
-
-        traj, vel = trajPlanner.minJerkTrajectory(currentLegsPositions[0], desiredPosition[:3], desiredPosition[3])
-        try:
-            result = controller.moveLegs([legId], [traj], [vel])
-        except:
-            print("Cannot move there.")
-            continue
-
-        currentLegsPositions = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'leg')
-        currentLegsPositionsSpiderBase = motors.syncReadMotorsPositionsInLegs([legId], True, base = 'spider')
-        print("AFTER MOVEMENT: ", currentLegsPositions.flatten())
-        print("===========")
     
 
 
