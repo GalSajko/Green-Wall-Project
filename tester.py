@@ -23,36 +23,37 @@ if __name__ == "__main__":
     wall = env.Wall('squared')
     trajPlanner = planning.TrajectoryPlanner()
     pathPlanner = planning.PathPlanner(0.05, 0.15)
-    startPosition = [0.6, 0.5, 0.2, -0.2]
-    goalPosition = [0.6, 0.5, 0.2, 0.0]
+    startPosition = [0.6, 0.3, 0.2, 0.0]
+    goalPosition = [0.6, 0.75, 0.2, 0.0]
 
     pins = wall.createGrid(True)
 
     legs = [0, 1, 2, 3, 4]
-    # controller.moveLegsWrapper(legs, [pins[22], pins[9], pins[13], pins[25], pins[33]], startPosition, [7] * 5, ['o'] * 5, trajectoryType = 'minJerk')
-    # controller.moveLegsWrapper([legs[0]], [pins[28]], startPosition, [7], ['o'], trajectoryType = 'minJerk')
-    # controller.movePlatformWrapper(startPosition, goalPosition, [pins[22], pins[9], pins[13], pins[25], pins[33]], 3)
-    # controller.moveLegsAndGrabPins([legs[2]], [pins[13]], startPosition, [6])
+    legsGlobal = [pins[21], pins[8], pins[12], pins[24], pins[32]]
 
-    motors.clearGroupSyncReadParams()
-    motors.addGroupSyncReadParams(legs)
 
-    legsJointsValues = motors.syncReadMotorsPositionsInLegs(legs)
-    legsPoses = [kinematics.spiderBaseToLegTipForwardKinematics(leg, legsJointsValues[leg]) for leg in legs]
-    spiderXyzrpy = kinematics.platformForwardKinematics([0, 1, 4], [pins[22], pins[9], pins[33]], [legsPoses[0], legsPoses[1], legsPoses[4]])
+    # path = pathPlanner.calculateSpiderBodyPath(startPosition, goalPosition)
+    # pathPins = pathPlanner.calculateSpiderLegsPositionsXyzRpyFF(path)
+    # startingPins = pathPins[0]
 
-    controller.movePlatformWrapper(spiderXyzrpy, goalPosition, [pins[22], pins[9], pins[13], pins[25], pins[33]], 3)
-
-    legsJointsValues = motors.syncReadMotorsPositionsInLegs(legs)
-    legsPoses = [kinematics.spiderBaseToLegTipForwardKinematics(leg, legsJointsValues[leg]) for leg in legs]
-    spiderXyzrpy = kinematics.platformForwardKinematics([0, 1, 4], [pins[22], pins[9], pins[33]], [legsPoses[0], legsPoses[1], legsPoses[4]])
-    print(spiderXyzrpy)
+    pose,ppins = pathPlanner.calculateWalkingMovesFF(startPosition, goalPosition)
+    print(pose)
+    print(ppins)
 
 
 
+    controller.movePlatformWrapper(legs, startPosition, ppins[0], 5)
 
-    
+    # spiderPose = motors.readPlatformPose(legs, ppins[-1])
+    # controller.walk([spiderPose[0], spiderPose[1], spiderPose[2], spiderPose[-1]], startPosition)
 
+    spiderPose = motors.readPlatformPose(legs, ppins[0])
+    print(spiderPose)
+    controller.walk([spiderPose[0], spiderPose[1], spiderPose[2], spiderPose[-1]], goalPosition)
+    time.sleep(5)
+    spiderPose = motors.readPlatformPose(legs, ppins[-1])
+    print(spiderPose)
+    controller.walk([spiderPose[0], spiderPose[1], spiderPose[2], spiderPose[-1]], startPosition)
 
 
 

@@ -4,6 +4,7 @@
 import numpy as np
 from dynamixel_sdk import *
 import time
+import itertools as itt
 
 import calculations
 import mappers
@@ -38,6 +39,8 @@ class MotorDriver:
         # Group sync positions reader and group sync velocity writer.
         self.groupSyncRead = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
         self.groupSyncWrite = GroupSyncWrite(self.portHandler, self.packetHandler, self.GOAL_VELOCITY_ADDR, self.GOAL_VELOCITY_DATA_LENGTH)
+
+        self.addGroupSyncReadParams([0, 1, 2, 3, 4])
 
         self.initPort()
         if enableMotors:
@@ -123,7 +126,7 @@ class MotorDriver:
         :param legsIds: Legs ids.
         :param calculateLegPositions: If true, calculate legs positions from joints values.
         :param base: Origin in which to calculate legs positions.
-        :return: nx3 matrix with motors positions in radians, if calculateLegPositions is False, nx3 matrix with legs positions 
+        :return: nx3 matrix with motors positions in radians, if calculateLegPositions is False, nx3 matrix with legs positions. 
         otherwise.
         """
         if base is not None and base != 'leg' and base != 'spider':
@@ -144,13 +147,31 @@ class MotorDriver:
                     mappedPositions.append(self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3])
 
         return np.array(mappedPositions)
+    
+    def readPlatformPose(self, legsIds, legsGlobalPositions):
+        """Read platform pose in global.
+
+        :param legsIds: Legs used for calculating platform pose - those legs that are attached to pins.
+        :param legsGlobalPositions: Global positions (pins) of used legs.
+        """
+        legsGlobalPositions = np.array(legsGlobalPositions)
+        spiderXyz = []
+        for legsSubset in itt.combinations(legsIds, 3):
+            legsSubset = np.array(legsSubset)
+            subsetIdxs = [legsIds.index(leg) for leg in legsSubset]
+            jointsValues = self.syncReadMotorsPositionsInLegs(legsSubset)
+            legsPoses = [self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx]) for idx, leg in enumerate(legsSubset)]
+            spiderXyz.append(self.kinematics.platformForwardKinematics(legsSubset, legsGlobalPositions[(subsetIdxs)], legsPoses))
+        spiderXyz = np.mean(np.array(spiderXyz), axis = 0)
+
+        return spiderXyz
 
     def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd, add = True):
         """Write motors velocities to given motors in legs with sync writer.
 
         :param legIdx: Legs ids.
         :param qCd: Reference velocities.
-        :param add: If true add parameters to storage, otherwise only change them, defaults to True
+        :param add: If true add parameters to storage, otherwise only change them, defaults to True.
         :return: True if writing was successfull, false otherwise.
         """
         

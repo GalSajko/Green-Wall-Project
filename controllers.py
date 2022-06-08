@@ -84,10 +84,9 @@ class VelocityController:
         qDds = []
         # Time steps of all trajectories should be the same (it is defined in trajectory planner).
         timeStep = trajectories[0][:,-1][1] - trajectories[0][:,-1][0]
-        self.motorDriver.clearGroupSyncReadParams()
+
         self.motorDriver.clearGroupSyncWriteParams()
-        if not self.motorDriver.addGroupSyncReadParams(legsIds):
-            return False
+
         for idx, leg in enumerate(legsIds):
             qD, qDd = self.getQdQddLegFF(leg, trajectories[idx], velocities[idx])
             qDs.append(qD)
@@ -133,7 +132,6 @@ class VelocityController:
             sleepTime = timeLeft if timeLeft > 0 else 0
             time.sleep(sleepTime)
    
-        self.motorDriver.clearGroupSyncReadParams()
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
@@ -221,6 +219,9 @@ class VelocityController:
         if not self.moveLegsWrapper(legsIds, detachPoints, spiderPose, np.ones(len(legsIds)) * detachTime, [self.gripperController.OPEN_COMMAND] * len(legsIds), readLegs, globalStartPositions, 'minJerk'):
             print("Legs movement error!")
             return False
+
+
+        # spiderPose = self.motorDriver.readPlatformPose()
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs = True, globalStartPositions = detachPoints):
             print("Legs movement error!")
             return False
@@ -243,10 +244,7 @@ class VelocityController:
         legsIds = [leg for leg in range(self.spider.NUMBER_OF_LEGS)]
         qDs, qDds = self.getQdQddPlatformFF(trajectory, velocity, globalLegsPositions)
 
-        self.motorDriver.clearGroupSyncReadParams()
         self.motorDriver.clearGroupSyncWriteParams()
-        if not self.motorDriver.addGroupSyncReadParams(legsIds):
-            return False
 
         lastErrors = np.zeros([len(legsIds), 3])
         Kp = 10
@@ -272,20 +270,25 @@ class VelocityController:
             except:
                 time.sleep(0)
 
-        self.motorDriver.clearGroupSyncReadParams()
         self.motorDriver.clearGroupSyncWriteParams()
         return True
 
-    def movePlatformWrapper(self, globalStartPose, globalGoalPose, globalLegsPositions, duration):
+    def movePlatformWrapper(self, legsIds, globalGoalPose, globalLegsPositions, duration):
         """Wrapper function for moving a platform. Includes trajectory calculations.
 
+        :param legsIds: Used legs for moving a platform (at least 4).
         :param globalStartPose: Starting pose in global origin.
         :param globalGoalPose: Goal pose in global origin.
         :param globalLegsPositions: Global positions of legs during platform movement.
         :param duration: Desired duration of movement.
         :return: True if movement was successfull, false otherwise.
         """
-        traj, vel = self.trajectoryPlanner.minJerkTrajectory(globalStartPose, globalGoalPose, duration)
+        if len(legsIds) < 4:
+            print("Cannot move platform with less than 4 legs.")
+            return False
+
+        startPose = self.motorDriver.readPlatformPose(legsIds, globalLegsPositions)
+        traj, vel = self.trajectoryPlanner.minJerkTrajectory(startPose, globalGoalPose, duration)
         result = self.movePlatform(traj, vel, globalLegsPositions)
 
         return result
@@ -299,12 +302,6 @@ class VelocityController:
         """
         platformPoses, pins = self.pathPlanner.calculateWalkingMovesFF(globalStartPose, globalGoalPose)
 
-        # Move legs on starting positions, based on calculations for starting spider's position. 
-        result = self.moveLegsAndGrabPins(5, pins[0], globalStartPose, np.ones(5) * 6)
-        if not result:
-            print("Legs movement error!")
-            return False
-
         # Move through calculated poses.
         for poseIdx, pose in enumerate(platformPoses):
             if poseIdx == 0:
@@ -317,8 +314,8 @@ class VelocityController:
             else:
                 rotDist = abs(platformPoses[poseIdx - 1][3] - pose[3])
                 parallelMovementDuration = 2 * rotDist / 0.1
- 
-            result = self.movePlatformWrapper(platformPoses[poseIdx - 1], pose, pins[poseIdx - 1], parallelMovementDuration)
+
+            result = self.movePlatformWrapper([0, 1, 2, 3, 4], pose, pins[poseIdx - 1], parallelMovementDuration)
             if not result:
                 print("Platform movement error!")
                 return False
@@ -327,7 +324,7 @@ class VelocityController:
             legsToMoveIdxs = np.array(np.where(np.any(pins[poseIdx] - pins[poseIdx - 1] != 0, axis = 1))).flatten()
             # Move legs and grab pins.
             for legIdx in legsToMoveIdxs:
-                result = self.moveLegsAndGrabPins([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 4, False, [pins[poseIdx - 1][legIdx]])
+                result = self.moveLegsAndGrabPins([legIdx], [pins[poseIdx][legIdx]], pose, np.ones(1) * 6)
                 if not result:
                     print("Legs movement error!")
                     return False
