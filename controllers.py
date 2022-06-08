@@ -436,12 +436,7 @@ class GripperController:
         if msg[-1] != '\n':
             msg += '\n'
         msg = msg.encode("utf-8")
-<<<<<<< HEAD
-        print(msg)
         with self.locker:
-=======
-        with self.lock:
->>>>>>> main
             self.comm.write(msg)
     
     def moveGripper(self, legId, command):
