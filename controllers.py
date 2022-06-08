@@ -14,7 +14,7 @@ class VelocityController:
     """
     def __init__ (self):
         # Controller loop frequency.
-        self.CONTROLLER_FREQUENCY = 50
+        self.CONTROLLER_FREQUENCY = 50.0
 
         self.matrixCalculator = calculations.MatrixCalculator()
         self.kinematics = calculations.Kinematics()
@@ -29,37 +29,61 @@ class VelocityController:
         # Input buffer for controller - qDqDdBuffer[0] -> qD (reference positions), qDqDdBuffer[1] -> qDd (reference velocities).
         self.qDqDdBuffer = np.array([np.zeros([self.spider.NUMBER_OF_LEGS, len(motors[0])]), np.zeros([self.spider.NUMBER_OF_LEGS, len(motors[0])])])
 
-    def initControllerThread(self):
-        legs = self.spider.NUMBER_OF_LEGS
+        self.locker = threading.Lock()
 
-        self.motorDriver.clearGroupSyncReadParams()
-        self.motorDriver.clearGroupSyncWriteParams()
-        if not self.motorDriver.addGroupSyncReadParams(legs):
-            return False
+    def controller(self):
+        """Velocity controller to controll all five legs contiuously.
+        """
+        legs = range(self.spider.NUMBER_OF_LEGS)
+        
+        with self.locker:
+            self.motorDriver.clearGroupSyncReadParams()
+            self.motorDriver.clearGroupSyncWriteParams()
+            if not self.motorDriver.addGroupSyncReadParams(legs):
+                return False
 
         # Start writing - add params into storage and keep motors at current positions (send velocity = 0).
-        self.motorDriver.syncWriteMotorsVelocitiesInLegs(legs, self.qDqDdBuffer[0])
+        with self.locker:
+            self.motorDriver.syncWriteMotorsVelocitiesInLegs(legs, self.qDqDdBuffer[0], True)
 
         # PD controller gains.
-        Kp = np.ones([self.spider.NUMBER_OF_LEGS, 3]) * 10
+        Kp = np.array([[5, 15, 15]] * self.spider.NUMBER_OF_LEGS)
         Kd = np.ones([self.spider.NUMBER_OF_LEGS, 3])
         lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        period = 1.0 / self.CONTROLLER_FREQUENCY
 
         # Controller loop - runs contiuously.
         while True:
             startTime = time.time()
-            qA = self.motorDriver.syncReadMotorsPositionsInLeg(legs)
-            errors = np.array(self.qDqDdBuffer[0] - qA, dtype = object)
+            with self.locker:
+                qD, qDd = self.qDqDdBuffer
+                qA = self.motorDriver.syncReadMotorsPositionsInLegs(legs)
+            errors = np.array(qD - qA, dtype = object)
+            dE = (errors - lastErrors) / period
+            qCds = Kp * errors + Kd * dE + qDd
+            lastErrors = errors
 
+            with self.locker:
+                if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legs, qCds, False):
+                    return False
+            
+            try: 
+                time.sleep(period - (time.time() - startTime))
+            except:
+                time.sleep(0)
 
-
+    def initControllerThread(self):
+        """Start a thread with controller function.
+        """
+        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = True)
+        thread.start()
 
     
     def getQdQddLegFF(self, legIdx, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
 
         :param legIdx: Leg id.
-        :param xD: Leg tip reference trajectory.
+        :param xD: Leg tip reference positions.
         :param xDd: Leg tip reference velocities.
         :return: Matrices of reference joints positions and velocities.
         """
@@ -85,14 +109,14 @@ class VelocityController:
         qD = []
         qDd = []
         for idx, pose in enumerate(xD):
-            currentQd = self.kinematics.platformInverseKinematics(pose[:-1], globalLegsPositions)
+            qDFf = self.kinematics.platformInverseKinematics(pose[:-1], globalLegsPositions)
             referenceLegsVelocities = self.kinematics.getSpiderToLegReferenceVelocities(xDd[idx])
-            currentQdd = []
+            qDdFf = []
             for leg in range(self.spider.NUMBER_OF_LEGS):
-                J = self.kinematics.legJacobi(leg, currentQd[leg])
-                currentQdd.append(np.dot(np.linalg.inv(J), referenceLegsVelocities[leg]))
-            qD.append(currentQd)
-            qDd.append(currentQdd)
+                J = self.kinematics.legJacobi(leg, qDFf[leg])
+                qDdFf.append(np.dot(np.linalg.inv(J), referenceLegsVelocities[leg]))
+            qD.append(qDFf)
+            qDd.append(qDdFf)
         
         return np.array(qD), np.array(qDd)
 
@@ -129,7 +153,7 @@ class VelocityController:
         Kd = np.array([1, 1, 1])
 
         # Open grippers (if needed) and wait for them to open before moving legs.
-        if grippersCommands == ['o'] * len(legsIds):
+        if grippersCommands == [self.gripperController.OPEN_COMMAND] * len(legsIds):
             self.gripperController.openGrippersAndWait(legsIds)
 
         # Use indexes of longest trajectory.
@@ -381,23 +405,28 @@ class GripperController:
         self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
-        self.lock = threading.Lock()
+        self.locker = threading.Lock()
 
-        readingThread = threading.Thread(target = self.readData, name = "serial_reading_thread", daemon = True)
-        readingThread.start()
+        self.initReadingThread()
 
         self.handshake()
     
+    def initReadingThread(self):
+        """Initialize reading data thread.
+        """
+        readingThread = threading.Thread(target = self.readData, name = "serial_reading_thread", daemon = True)
+        readingThread.start()
+
     def readData(self):
         """Constantly receiving data from Arduino.
         """
         while True:
             time.sleep(0.001)
-            with self.lock:
+            with self.locker:
                 msg = self.comm.readline()
             while not '\\n' in str(msg):
                 time.sleep(0.001)
-                with self.lock:
+                with self.locker:
                     msg += self.comm.readline()
 
             self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
@@ -411,7 +440,7 @@ class GripperController:
             msg += '\n'
         msg = msg.encode("utf-8")
         print(msg)
-        with self.lock:
+        with self.locker:
             self.comm.write(msg)
     
     def moveGripper(self, legId, command):
@@ -434,7 +463,7 @@ class GripperController:
             self.moveGripper(leg, self.OPEN_COMMAND)
         checkArray = np.array([False] * len(legsIds))
         while not checkArray.all():
-            with self.lock:
+            with self.locker:
                 recMsg = self.receivedMessage
             if len(recMsg) == 5:
                 for id, leg in enumerate(legsIds):
