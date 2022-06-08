@@ -41,15 +41,15 @@ class PathPlanner:
             path.append(startWalkingPose)
 
         # Rotate towards goal point.
-        refAngle = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1]) * (-1)
-        angleError = self.geometryTools.wrapToPi(refAngle - startPose[3])
-        if angleError != 0.0:
-            numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
-            rotatedPose = np.copy(path[-1])
-            rotatedPose[3] = refAngle 
-            rotatePath = np.linspace(path[-1], rotatedPose, numberOfSteps)
-            for pose in rotatePath:
-                path.append(pose)
+        # refAngle = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1]) * (-1)
+        # angleError = self.geometryTools.wrapToPi(refAngle - startPose[3])
+        # if angleError != 0.0:
+        #     numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
+        #     rotatedPose = np.copy(path[-1])
+        #     rotatedPose[3] = refAngle 
+        #     rotatePath = np.linspace(path[-1], rotatedPose, numberOfSteps)
+        #     for pose in rotatePath:
+        #         path.append(pose)
 
         # Move towards goal point.
         distToTravel = np.linalg.norm(np.array(goalPose[:2]) - np.array(startPose[:2]))
@@ -63,12 +63,12 @@ class PathPlanner:
                 path.append(pose)
 
         # Rotate in goal orientation.
-        angleError = self.geometryTools.wrapToPi(path[-1][3] - goalPose[3])
-        if angleError != 0.0:
-            numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
-            rotatePath = np.linspace(path[-1], goalPose, numberOfSteps )
-            for pose in rotatePath:
-                path.append(pose)
+        # angleError = self.geometryTools.wrapToPi(path[-1][3] - goalPose[3])
+        # if angleError != 0.0:
+        #     numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
+        #     rotatePath = np.linspace(path[-1], goalPose, numberOfSteps )
+        #     for pose in rotatePath:
+        #         path.append(pose)
 
         return np.array(path)
 
@@ -201,12 +201,16 @@ class TrajectoryPlanner:
         :param goalVelocity: Goal velocity, defaults to 0
         :return: Trajectory with pose and time stamp for each step and velocities in each pose.
         """
-        if len(startPose) == 3 and len(goalPose) == 3:
+        if len(startPose) == 3:
             startPose = [startPose[0], startPose[1], startPose[2], 0.0 , 0.0, 0.0]
+        
+        if len(goalPose) == 3:
             goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, 0.0]
 
-        if len(startPose) == 4 and len(goalPose) == 4:
+        if len(startPose) == 4:
             startPose = [startPose[0], startPose[1], startPose[2], 0.0, 0.0, startPose[3]]
+
+        if len(goalPose) == 4:
             goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, goalPose[3]]
 
         if (len(startPose) != len(goalPose) or len(startPose) != len(startVelocity) or len(startPose) != len(goalVelocity)):
