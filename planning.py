@@ -201,12 +201,16 @@ class TrajectoryPlanner:
         :param goalVelocity: Goal velocity, defaults to 0
         :return: Trajectory with pose and time stamp for each step and velocities in each pose.
         """
-        if len(startPose) == 3 and len(goalPose) == 3:
+        if len(startPose) == 3:
             startPose = [startPose[0], startPose[1], startPose[2], 0.0 , 0.0, 0.0]
+        
+        if len(goalPose) == 3:
             goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, 0.0]
 
-        if len(startPose) == 4 and len(goalPose) == 4:
+        if len(startPose) == 4:
             startPose = [startPose[0], startPose[1], startPose[2], 0.0, 0.0, startPose[3]]
+
+        if len(goalPose) == 4:
             goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, goalPose[3]]
 
         if (len(startPose) != len(goalPose) or len(startPose) != len(startVelocity) or len(startPose) != len(goalVelocity)):
