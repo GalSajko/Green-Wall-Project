@@ -346,6 +346,8 @@ class GripperController:
         self.INIT_MESSAGE = "init"
         self.GRIPPER_OPENED_RESPONSE = "1"
         self.GRIPPER_CLOSED_RESPONSE = "0"
+        self.SWITCH_OPEN_RESPONSE = "1"
+        self.SWITCH_CLOSE_RESPONSE = "0"
         self.INIT_RESPONSE = "OK"
         self.RECEIVED_MESSAGE_LENGTH = 10
 
@@ -424,6 +426,22 @@ class GripperController:
             with self.lock:
                 recMsg = self.receivedMessage
         return recMsg[5:]
+    
+    def getIdsOfAttachedLegs(self):
+        """Get ids of those legs, that are attached to pins. Leg is attached if switch and gripper are both closed.
+        """
+        recMsg = ''
+        while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
+            with self.lock:
+                recMsg = self.receivedMessage
+        grippersStates = recMsg[:5]
+        switchesStates = recMsg[5:]
+        attachedLegsIds = []
+        for id, gripper in enumerate(grippersStates):
+            if gripper == self.GRIPPER_CLOSED_RESPONSE and switchesStates[id] == self.SWITCH_CLOSE_RESPONSE:
+                attachedLegsIds.append(id)
+        
+        return attachedLegsIds
 
 
     def handshake(self):
