@@ -189,7 +189,7 @@ class VelocityController:
 
         return result
     
-    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None):
+    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, correctAfterDetach = True):
         """Open grippers, detach legs from pin, move them on approach positions above goal pins and than lower them on pins. Finally, close the grippers.
 
         :param legsIds: Legs ids.
@@ -198,11 +198,15 @@ class VelocityController:
         :param durations: Array of durations for each leg movement.
         :param readLegs: If true, read starting legs positions before movements, otherwise use FF calculations, defaults to True
         :param globalStartPositions: Global start positions of legs, defaults to None.
-        :param trajectoryType: Trajectory type for first movement (above the pin). Second movement is always along minJerk trajectory.
+        :param correctAfterDetach: If true, read platform pose after leg detaches itself from the pin and use this new pose as a base for further legs movements.
         :return: True if movements were successfull, false otherwise.
         """
+        if correctAfterDetach and len(legsIds) > 2:
+            raise ValueError("Cannot calculate platform pose with less than three legs attached to the pins.")
+
         if legsIds == 5:
             legsIds = [0, 1, 2, 3, 4]
+            
         approachTime = 1.5
         detachTime = 1
         durations = np.array(durations) - approachTime - detachTime
