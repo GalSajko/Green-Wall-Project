@@ -189,7 +189,7 @@ class VelocityController:
 
         return result
     
-    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, correctAfterDetach = True):
+    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, correctAfterDetach = True, globalLegsPositions = None):
         """Open grippers, detach legs from pin, move them on approach positions above goal pins and than lower them on pins. Finally, close the grippers.
 
         :param legsIds: Legs ids.
@@ -201,8 +201,10 @@ class VelocityController:
         :param correctAfterDetach: If true, read platform pose after leg detaches itself from the pin and use this new pose as a base for further legs movements.
         :return: True if movements were successfull, false otherwise.
         """
-        if correctAfterDetach and len(legsIds) > 2:
-            raise ValueError("Cannot calculate platform pose with less than three legs attached to the pins.")
+        # if correctAfterDetach and len(legsIds) > 2:
+        #     raise ValueError("Cannot calculate platform pose with less than three legs attached to the pins.")
+        # if correctAfterDetach and globalLegsPositions is None:
+        #     raise ValueError("Need global legs positions for calculating platform pose.")
 
         if legsIds == 5:
             legsIds = [0, 1, 2, 3, 4]
@@ -223,9 +225,6 @@ class VelocityController:
         if not self.moveLegsWrapper(legsIds, detachPoints, spiderPose, np.ones(len(legsIds)) * detachTime, [self.gripperController.OPEN_COMMAND] * len(legsIds), readLegs, globalStartPositions, 'minJerk'):
             print("Legs movement error!")
             return False
-
-
-        # spiderPose = self.motorDriver.readPlatformPose()
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs = True, globalStartPositions = detachPoints):
             print("Legs movement error!")
             return False
@@ -290,7 +289,6 @@ class VelocityController:
         if len(legsIds) < 4:
             print("Cannot move platform with less than 4 legs.")
             return False
-
         startPose = self.motorDriver.readPlatformPose(legsIds, globalLegsPositions)
         traj, vel = self.trajectoryPlanner.minJerkTrajectory(startPose, globalGoalPose, duration)
         result = self.movePlatform(traj, vel, globalLegsPositions)
@@ -332,6 +330,8 @@ class VelocityController:
                 if not result:
                     print("Legs movement error!")
                     return False
+
+                
 
         return True
 

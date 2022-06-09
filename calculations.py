@@ -296,7 +296,7 @@ class GeometryTools:
         """
         dotProduct = np.dot(firstVector, secondVector)
         productOfNorms = np.linalg.norm(firstVector) * np.linalg.norm(secondVector)
-        angle = math.acos(dotProduct / productOfNorms)
+        angle = math.acos(np.round(dotProduct / productOfNorms, 4))
         crossProduct = np.cross(firstVector, secondVector)
         # 2d vector.
         if len(firstVector) <= 2 and crossProduct < 0:

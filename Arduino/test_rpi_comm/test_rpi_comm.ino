@@ -19,8 +19,8 @@ char GRIPPER_MOVING_RESPONE = '2';
 bool isInit = false;
 
 // Values when servo is in closed or open position.
-int CLOSE_THRESHOLD = 440;
-int OPEN_THRESHOLD = 600;
+int GRIPPERS_OPEN_THRESHOLD[NUMBER_OF_LEGS] = {700, 710, 695, 685, 680};
+int GRIPPERS_CLOSE_THRESHOLD[NUMBER_OF_LEGS] = {440, 460, 440, 440, 420};
 
 float OPEN_STROKE_MM = 0;
 float CLOSED_STROKE_MM = 14;
@@ -67,15 +67,15 @@ String getGrippersStatesMessage(int currentStates[])
   char message[NUMBER_OF_LEGS];
   for (int i = 0; i < NUMBER_OF_LEGS; i++)
   {
-    if (currentStates[i] < CLOSE_THRESHOLD)
+    if (currentStates[i] < GRIPPERS_CLOSE_THRESHOLD[i])
     {
       message[i] = GRIPPER_CLOSED_RESPONSE;
     }
-    else if (currentStates[i] > OPEN_THRESHOLD)
+    else if (currentStates[i] > GRIPPERS_OPEN_THRESHOLD[i])
     {
       message[i] = GRIPPER_OPENED_RESPONSE;
     }
-    else if (currentStates[i] < OPEN_THRESHOLD && currentStates[i] > CLOSE_THRESHOLD)
+    else if (currentStates[i] < GRIPPERS_OPEN_THRESHOLD[i] && currentStates[i] > GRIPPERS_CLOSE_THRESHOLD[i])
     {
       message[i] = GRIPPER_MOVING_RESPONE;
     }
@@ -139,5 +139,5 @@ void loop()
   String grippersMessage = getGrippersStatesMessage(grippersStates);
   String switchesMessage = getSwitchesStatesMessage(switchesStates);
   Serial.println(grippersMessage + switchesMessage + '\n');
-  delay(50);
+  delay(100);
 }

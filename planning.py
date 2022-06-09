@@ -101,7 +101,7 @@ class PathPlanner:
                                 previousPin = selectedPins[step - 1][idx]
                                 distanceBetweenSelectedAndPreviousPin = np.linalg.norm(previousPin - pin)
                                 isLegMoving = 0 if distanceBetweenSelectedAndPreviousPin == 0 else 1
-                                criterionFunction = 0.4 * abs(angleBetweenIdealVectorAndPin) + 0.4 * isLegMoving + 0.2 * abs(distanceToPin - self.spider.CONSTRAINS[1])
+                                criterionFunction = 0.9 * abs(angleBetweenIdealVectorAndPin) + 0.1 * isLegMoving + 0.0 * abs(distanceToPin - self.spider.CONSTRAINS[1])
                             else:
                                 criterionFunction = abs(distanceToPin - self.spider.CONSTRAINS[1]) + abs(angleBetweenIdealVectorAndPin)
 
