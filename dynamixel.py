@@ -41,6 +41,7 @@ class MotorDriver:
         self.groupSyncWrite = GroupSyncWrite(self.portHandler, self.packetHandler, self.GOAL_VELOCITY_ADDR, self.GOAL_VELOCITY_DATA_LENGTH)
 
         self.addGroupSyncReadParams([0, 1, 2, 3, 4])
+        time.sleep(2)
 
         self.initPort()
         if enableMotors:
@@ -49,7 +50,7 @@ class MotorDriver:
         self.kinematics = calculations.Kinematics()
         self.spider = environment.Spider()
 
-        self.readHardwareErrorRegister()
+        # self.readHardwareErrorRegister()
 
     def initPort(self):
         """Initialize USB port and set baudrate.
@@ -247,6 +248,6 @@ class MotorDriver:
         """Read hardware error register for each motor.
         """
         for motorId in self.motorsIds.flatten():
-            hwError, commResult, commError = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.ERROR_ADDR)
+            hwError, _, _ = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.ERROR_ADDR)
             binaryError = format(hwError, '0>8b')
             print(f"Motor {motorId} - error code {binaryError}")

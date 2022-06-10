@@ -74,7 +74,7 @@ class Kinematics:
         # Distance between second joint and end effector.
         r = GeometryTools().calculateEuclideanDistance3d(secondJointPosition, endEffectorPosition)
         # Angle in third joint.
-        q3 = -math.acos((r**2 - virtualSecondLink**2 - thirdLink**2) / (2 * virtualSecondLink * thirdLink))
+        q3 = -math.acos(np.round((r**2 - virtualSecondLink**2 - thirdLink**2) / (2 * virtualSecondLink * thirdLink), 4))
         # Angle in second joint.
         q2 = math.atan2(secondJointToEndVector[2], np.linalg.norm(secondJointToEndVector[0:2])) + \
             math.atan2(thirdLink * math.sin(q3), virtualSecondLink + thirdLink * math.cos(q3))
