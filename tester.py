@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     # controller.moveLegsWrapper(legs, ppins[0], startPosition, [5] * 5, trajectoryType = 'minJerk')
 
-    # controller.movePlatformWrapper(legs, startPosition, legsGlobal, 2)
+    # controller.movePlatformWrapper(legs, startPosition,  ppins[0], 5)
     # controller.movePlatformWrapper(legs, [0.6, 0.5, 0.3, 0.0], legsGlobal, 5)
     # controller.movePlatformWrapper(legs, [0.4, 0.3, 0.3, 0.0], legsGlobal, 5)
     # controller.movePlatformWrapper(legs, [0.8, 0.3, 0.3, 0.0], legsGlobal, 5)
@@ -55,15 +55,28 @@ if __name__ == "__main__":
     # spiderPose = motors.readPlatformPose(legs, ppins[-1])
     # controller.walk([spiderPose[0], spiderPose[1], spiderPose[2], spiderPose[-1]], startPosition)
 
+    # spiderPose = motors.readPlatformPose(legs, ppins[0])
+    # print(spiderPose)
+
+    # leg = 0
+    # pin = 21
+    # pinWithOffset = np.copy(pins[pin])
+    # # pinWithOffset[1] += 0.02
+    # pinWithOffset[2] += 0.1
+
+    # controller.moveLegsWrapper([leg], [pinWithOffset], spiderPose, [3], ['o'], trajectoryType = 'minJerk')
+
+    # legs = list(set(legs) - set([leg]))
+
     spiderPose = motors.readPlatformPose(legs, ppins[0])
     print(spiderPose)
+
+    # controller.moveLegsWrapper([leg], [pins[pin]], spiderPose, [3], ['c'], trajectoryType = 'minJerk')
     controller.walk([spiderPose[0], spiderPose[1], spiderPose[2], spiderPose[-1]], goalPosition)
     time.sleep(5)
     spiderPose = motors.readPlatformPose(legs, ppins[-1])
     print(spiderPose)
     controller.walk([spiderPose[0], spiderPose[1], spiderPose[2], spiderPose[-1]], startPosition)
 
-
-   
 
 
