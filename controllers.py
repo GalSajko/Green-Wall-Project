@@ -181,11 +181,13 @@ class VelocityController:
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legsIds, qCds, i == 0):
                 return False
             
-            timeLeft = timeStep - (time.time() - startTime)
-            sleepTime = timeLeft if timeLeft > 0 else 0
-            time.sleep(sleepTime)
+            try:
+                time.sleep(timeStep - (time.time() - startTime))
+            except:
+                time.sleep(0)
    
         self.motorDriver.clearGroupSyncWriteParams()
+
         return True
 
     def moveLegsWrapper(self, legsIds, globalGoalPositions, spiderPose, durations, gripperCommands = None, readLegs = True, globalStartPositions = None, trajectoryType = "bezier"):
@@ -216,22 +218,25 @@ class VelocityController:
         # Calculate trajectories for each leg movement from local positions.
         trajectories = []
         velocities = []
+
+        if readLegs:
+            startPosition = self.motorDriver.syncReadMotorsPositionsInLegs(legsIds, True)
         for legIdx, leg in enumerate(legsIds):
             # Transform global positions into local.
             T_GA = np.dot(T_GS, self.spider.T_ANCHORS[leg])
-            if readLegs:
-                # startPosition = self.motorDriver.syncReadMotorsPositionsInLegs([leg], True)[0]
-                startPosition = self.motorDriver.readLegPosition(leg)
-            else:
+            # if readLegs:
+            #     startPosition = self.motorDriver.syncReadMotorsPositionsInLegs([leg], True)[0]
+                # startPosition = self.motorDriver.readLegPosition(leg)
+            if not readLegs:
                 legGlobalStartPosition = np.append(globalStartPositions[legIdx], 1)
                 startPosition = np.dot(np.linalg.inv(T_GA), legGlobalStartPosition)[:3]
             legGlobalGoalPosition = np.append(globalGoalPositions[legIdx], 1)
             localGoalPosition = np.dot(np.linalg.inv(T_GA), legGlobalGoalPosition)[:3]
             # Calculate trajectory and velocity.
             if trajectoryType == 'bezier':
-                traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition, localGoalPosition, durations[legIdx])
+                traj, vel = self.trajectoryPlanner.bezierTrajectory(startPosition[legIdx], localGoalPosition, durations[legIdx])
             elif trajectoryType == 'minJerk':
-                traj, vel = self.trajectoryPlanner.minJerkTrajectory(startPosition, localGoalPosition, durations[legIdx])
+                traj, vel = self.trajectoryPlanner.minJerkTrajectory(startPosition[legIdx], localGoalPosition, durations[legIdx])
             else:
                 print("Invalid trajectory type.")
                 return False
@@ -242,7 +247,7 @@ class VelocityController:
 
         return result
     
-    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None):
+    def moveLegsAndGrabPins(self, legsIds, globalGoalPositions, spiderPose, durations, readLegs = True, globalStartPositions = None, correctAfterDetach = True, globalLegsPositions = None):
         """Open grippers, detach legs from pin, move them on approach positions above goal pins and than lower them on pins. Finally, close the grippers.
 
         :param legsIds: Legs ids.
@@ -251,11 +256,17 @@ class VelocityController:
         :param durations: Array of durations for each leg movement.
         :param readLegs: If true, read starting legs positions before movements, otherwise use FF calculations, defaults to True
         :param globalStartPositions: Global start positions of legs, defaults to None.
-        :param trajectoryType: Trajectory type for first movement (above the pin). Second movement is always along minJerk trajectory.
+        :param correctAfterDetach: If true, read platform pose after leg detaches itself from the pin and use this new pose as a base for further legs movements.
         :return: True if movements were successfull, false otherwise.
         """
+        # if correctAfterDetach and len(legsIds) > 2:
+        #     raise ValueError("Cannot calculate platform pose with less than three legs attached to the pins.")
+        # if correctAfterDetach and globalLegsPositions is None:
+        #     raise ValueError("Need global legs positions for calculating platform pose.")
+
         if legsIds == 5:
             legsIds = [0, 1, 2, 3, 4]
+            
         approachTime = 1.5
         detachTime = 1
         durations = np.array(durations) - approachTime - detachTime
@@ -264,17 +275,13 @@ class VelocityController:
             detachPoints = np.copy(globalStartPositions)
         else:
             detachPoints = []
-            # localLegsPositions = self.motorDriver.syncReadMotorsPositionsInLegs([legsIds], True)
-            localLegsPositions = [self.motorDriver.readLegPosition(leg) for leg in legsIds]
+            localLegsPositions = self.motorDriver.syncReadMotorsPositionsInLegs(legsIds, True)
             detachPoints = self.matrixCalculator.getLegsInGlobal(legsIds, localLegsPositions, spiderPose)
         detachPoints[:, 2] += 0.02
  
         if not self.moveLegsWrapper(legsIds, detachPoints, spiderPose, np.ones(len(legsIds)) * detachTime, [self.gripperController.OPEN_COMMAND] * len(legsIds), readLegs, globalStartPositions, 'minJerk'):
             print("Legs movement error!")
             return False
-
-
-        # spiderPose = self.motorDriver.readPlatformPose()
         if not self.moveLegsWrapper(legsIds, approachPoints, spiderPose, durations, readLegs = True, globalStartPositions = detachPoints):
             print("Legs movement error!")
             return False
@@ -300,8 +307,8 @@ class VelocityController:
         self.motorDriver.clearGroupSyncWriteParams()
 
         lastErrors = np.zeros([len(legsIds), 3])
-        Kp = 10
-        Kd = 1
+        Kp = np.array([[5, 15, 15]] * len(legsIds))
+        Kd = np.array([[1, 1, 1]] * len(legsIds))
         timeStep = trajectory[1][-1] - trajectory[0][-1]
 
         for idx, qD in enumerate(qDs):
@@ -324,6 +331,7 @@ class VelocityController:
                 time.sleep(0)
 
         self.motorDriver.clearGroupSyncWriteParams()
+
         return True
 
     def movePlatformWrapper(self, legsIds, globalGoalPose, globalLegsPositions, duration):
@@ -339,8 +347,8 @@ class VelocityController:
         if len(legsIds) < 4:
             print("Cannot move platform with less than 4 legs.")
             return False
-
-        startPose = self.motorDriver.readPlatformPose(legsIds, globalLegsPositions)
+        attachedLegs = self.gripperController.getIdsOfAttachedLegs()
+        startPose = self.motorDriver.readPlatformPose(attachedLegs, np.array(globalLegsPositions)[(attachedLegs)])
         traj, vel = self.trajectoryPlanner.minJerkTrajectory(startPose, globalGoalPose, duration)
         result = self.movePlatform(traj, vel, globalLegsPositions)
 
@@ -382,6 +390,8 @@ class VelocityController:
                     print("Legs movement error!")
                     return False
 
+                
+
         return True
 
 class GripperController:
@@ -395,6 +405,8 @@ class GripperController:
         self.INIT_MESSAGE = "init"
         self.GRIPPER_OPENED_RESPONSE = "1"
         self.GRIPPER_CLOSED_RESPONSE = "0"
+        self.SWITCH_OPEN_RESPONSE = "1"
+        self.SWITCH_CLOSE_RESPONSE = "0"
         self.INIT_RESPONSE = "OK"
         self.RECEIVED_MESSAGE_LENGTH = 10
 
@@ -478,6 +490,22 @@ class GripperController:
             with self.lock:
                 recMsg = self.receivedMessage
         return recMsg[5:]
+    
+    def getIdsOfAttachedLegs(self):
+        """Get ids of those legs, that are attached to pins. Leg is attached if switch and gripper are both closed.
+        """
+        recMsg = ''
+        while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
+            with self.lock:
+                recMsg = self.receivedMessage
+        grippersStates = recMsg[:5]
+        switchesStates = recMsg[5:]
+        attachedLegsIds = []
+        for id, gripper in enumerate(grippersStates):
+            if gripper == self.GRIPPER_CLOSED_RESPONSE and switchesStates[id] == self.SWITCH_CLOSE_RESPONSE:
+                attachedLegsIds.append(id)
+        
+        return attachedLegsIds
 
 
     def handshake(self):
