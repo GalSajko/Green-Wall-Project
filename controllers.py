@@ -67,6 +67,14 @@ class VelocityController:
         thread.start()
 
     def moveLegAsync(self, legId,  goalPosition, duration, trajectoryType):
+        """Write reference positions and velocities into buffer.
+
+        Args:
+            legId: Leg id.
+            goalPosition: Desired goal positon.
+            duration: Desired movement duration.
+            trajectoryType: Type of movement trajectory (bezier or minJerk).
+        """     
         with self.locker:
             legCurrentPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'leg')
         try:
