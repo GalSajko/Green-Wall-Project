@@ -34,18 +34,6 @@ class VelocityController:
     def controller(self):
         """Velocity controller to controll all five legs contiuously.
         """
-        legs = range(self.spider.NUMBER_OF_LEGS)
-        
-        with self.locker:
-            self.motorDriver.clearGroupSyncReadParams()
-            self.motorDriver.clearGroupSyncWriteParams()
-            if not self.motorDriver.addGroupSyncReadParams(legs):
-                return False
-
-        # Start writing - add params into storage and keep motors at current positions (send velocity = 0).
-        with self.locker:
-            self.motorDriver.syncWriteMotorsVelocitiesInLegs(legs, self.qDqDdBuffer[0], True)
-
         # PD controller gains.
         Kp = np.array([[5, 15, 15]] * self.spider.NUMBER_OF_LEGS)
         Kd = np.ones([self.spider.NUMBER_OF_LEGS, 3])
@@ -57,14 +45,14 @@ class VelocityController:
             startTime = time.time()
             with self.locker:
                 qD, qDd = self.qDqDdBuffer
-                qA = self.motorDriver.syncReadMotorsPositionsInLegs(legs)
-            errors = np.array(qD - qA, dtype = object)
+                qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
+            errors = np.array(qD - qA, dtype = np.float32)
             dE = (errors - lastErrors) / period
             qCds = Kp * errors + Kd * dE + qDd
             lastErrors = errors
 
             with self.locker:
-                if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(legs, qCds, False):
+                if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
                     return False
             
             try: 
@@ -78,8 +66,17 @@ class VelocityController:
         thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = True)
         thread.start()
 
+    def moveLegAsync(self, legId,  goalPosition, duration, trajectoryType):
+        with self.locker:
+            legCurrentPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'leg')
+        try:
+            positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, goalPosition, duration, trajectoryType)
+        except ValueError:
+            return False
+        qD, qDd = self.getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
+
     
-    def getQdQddLegFF(self, legIdx, xD, xDd):
+    def getQdQddLegFF(self, legId, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
 
         :param legIdx: Leg id.
@@ -90,8 +87,8 @@ class VelocityController:
         qD = []
         qDd = []
         for idx, pose in enumerate(xD):
-            qDFf = self.kinematics.legInverseKinematics(legIdx, pose[:3])
-            J = self.kinematics.legJacobi(legIdx, qDFf)
+            qDFf = self.kinematics.legInverseKinematics(legId, pose[:3])
+            J = self.kinematics.legJacobi(legId, qDFf)
             qDdFf = np.dot(np.linalg.inv(J), xDd[idx][:3])
             qD.append(qDFf)
             qDd.append(qDdFf)
@@ -348,7 +345,7 @@ class VelocityController:
             print("Cannot move platform with less than 4 legs.")
             return False
         attachedLegs = self.gripperController.getIdsOfAttachedLegs()
-        startPose = self.motorDriver.readPlatformPose(attachedLegs, np.array(globalLegsPositions)[(attachedLegs)])
+        startPose = self.motorDriver.syncReadPlatformPose(attachedLegs, np.array(globalLegsPositions)[(attachedLegs)])
         traj, vel = self.trajectoryPlanner.minJerkTrajectory(startPose, globalGoalPose, duration)
         result = self.movePlatform(traj, vel, globalLegsPositions)
 

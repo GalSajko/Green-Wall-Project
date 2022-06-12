@@ -2,6 +2,7 @@
 """
 
 import math
+from multiprocessing.sharedctypes import Value
 import numpy as np 
 
 import environment
@@ -191,7 +192,7 @@ class PathPlanner:
 class TrajectoryPlanner:
     """ Class for calculating different trajectories.
     """
-    def minJerkTrajectory(self, startPose, goalPose, duration, startVelocity = [0, 0, 0, 0, 0, 0], goalVelocity = [0, 0, 0, 0, 0, 0]):
+    def minJerkTrajectory(self, startPose, goalPose, duration):
         """Calculate minimum jerk trajectory from start to goal position.
 
         :param startPose: Start pose (x, y, z, roll, pitch, yaw).
@@ -213,7 +214,7 @@ class TrajectoryPlanner:
         if len(goalPose) == 4:
             goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, goalPose[3]]
 
-        if (len(startPose) != len(goalPose) or len(startPose) != len(startVelocity) or len(startPose) != len(goalVelocity)):
+        if (len(startPose) != len(goalPose)):
             print("Invalid parameters.")
             return
         if duration <= 0:
@@ -255,7 +256,7 @@ class TrajectoryPlanner:
         timeStep = 0.02
         numberOfSteps = math.floor(duration / timeStep)
 
-        heightPercent = 0.4
+        heightPercent = 0.6
 
         startPoint, goalPoint = np.array(startPoint), np.array(goalPoint)
         firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + heightPercent * np.linalg.norm(goalPoint - startPoint)])
@@ -293,7 +294,26 @@ class TrajectoryPlanner:
 
         return np.array(trajectory), np.array(velocity)
 
-    
+    def calculateTrajectory(self, start, goal, duration, type):
+        """Wrapper for calcuating trajectories of desired type.
 
+        Args:
+            start: Start pose or position.
+            goal: Goal pose or position.
+            duration: Desired duration of movement.
+            type: Desired trajectory type (bezier or minJerk).
+
+        Raises:
+            ValueError: If trajectory type is unknown.      
+
+        Returns:
+            Position and velocity trajectory if trajectory calculation was succesfull.
+        """
+        if type == 'bezier':
+            return self.bezierTrajectory(start, goal, duration)
+        elif type == 'minJerk':
+            return self.minJerkTrajectory(start, goal, duration)
+        else:
+            raise ValueError("Unknown trajectory type!")
         
         

@@ -16,16 +16,19 @@ class Spider:
     def __init__(self):
         # Number of spiders legs.
         self.NUMBER_OF_LEGS = 5
+        # Number of motors in leg.
+        self.NUMBER_OF_MOTORS_IN_LEG = 3
         # Radius of spiders platform, in meters.
         self.BODY_RADIUS = 0.1215
         # Spiders legs, given as lengths of all three links in one leg. Note that second link is in L shape -
         # first value is a length in vertical direction, second value is a horizontal offset.
-        self.LEGS = [[0.065, (0.3, 0.025), 0.278],
+        self.LEGS_IDS = [0, 1, 2, 3, 4]
+        self.LEGS_DIMENSIONS = [[0.065, (0.3, 0.025), 0.278],
                      [0.065, (0.3, 0.025), 0.275],
                      [0.065, (0.3, 0.025), 0.277],
                      [0.065, (0.3, 0.025), 0.2785],
                      [0.065, (0.3, 0.020), 0.276]]
-        self.SECOND_JOINTS_OFFSETS = [math.tan(leg[1][1] / leg[1][0]) for leg in self.LEGS]
+        self.SECOND_JOINTS_OFFSETS = [math.tan(leg[1][1] / leg[1][0]) for leg in self.LEGS_DIMENSIONS]
         # Angles between legs, looking from spiders origin.
         self.ANGLE_BETWEEN_LEGS = np.radians(360 / self.NUMBER_OF_LEGS)
         # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.

@@ -40,8 +40,7 @@ class MotorDriver:
         self.groupSyncRead = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
         self.groupSyncWrite = GroupSyncWrite(self.portHandler, self.packetHandler, self.GOAL_VELOCITY_ADDR, self.GOAL_VELOCITY_DATA_LENGTH)
 
-        self.addGroupSyncReadParams([0, 1, 2, 3, 4])
-        time.sleep(2)
+        resultGroupSyncInit = self.initGroupReadWrite()
 
         self.initPort()
         if enableMotors:
@@ -64,6 +63,25 @@ class MotorDriver:
             print("Baudrate successfully changed.")
         else:
             print("Failed to change the baudrate.")
+    
+    def initGroupReadWrite(self):
+        """Add parameters for all motors into storage for group-sync reading and writing.
+        """
+        resultRead = self.addGroupSyncReadParams(self.spider.LEGS_IDS)
+        if not resultRead:
+            return False
+
+        for leg in self.spider.LEGS_IDS:
+            initVelocities = np.zeros(self.spider.NUMBER_OF_MOTORS_IN_LEG)
+            encoderVelocoties = mappers.mapJointVelocitiesToEncoderValues(initVelocities).astype(int)
+            for i, motor in enumerate(self.motorsIds[leg]):
+                initVelocityBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocoties[i]))]
+                resultWrite = self.groupSyncWrite.addParam(motor, initVelocityBytes)
+                if not resultWrite:
+                    print("Failed adding parameter %d to Group Sync Writer" % motor)
+                    return False
+        
+        return True
 
     def enableMotors(self):
         """ Enable all of the motors from self.MOTOR_IDS, if they are connected.
@@ -149,7 +167,7 @@ class MotorDriver:
 
         return np.array(mappedPositions)
     
-    def readPlatformPose(self, legsIds, legsGlobalPositions):
+    def syncReadPlatformPose(self, legsIds, legsGlobalPositions):
         """Read platform pose in global.
 
         :param legsIds: Legs used for calculating platform pose - those legs that are attached to pins.
@@ -167,8 +185,8 @@ class MotorDriver:
 
         return spiderXyz
 
-    def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd, add = True):
-        """Write motors velocities to given motors in legs with sync writer.
+    def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd):
+        """Write motors velocities to given motors in legs with sync writer. Note that parameters are added at class initialization.
 
         :param legIdx: Legs ids.
         :param qCd: Reference velocities.
@@ -181,17 +199,10 @@ class MotorDriver:
             encoderVelocoties = mappers.mapJointVelocitiesToEncoderValues(qCd[idx]).astype(int)
             for i, motor in enumerate(motorsInLeg):
                 qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocoties[i]))]
-                # Add or change parameters in storage.
-                if add:
-                    result = self.groupSyncWrite.addParam(motor, qCdBytes)
-                    if not result:
-                        print("Failed adding parameter %d to Group Sync Writer" % motor)
-                        return False
-                else:
-                    result = self.groupSyncWrite.changeParam(motor, qCdBytes)
-                    if not result:
-                        print("Failed changing Group Sync Writer parameter %d" % motor)
-                        return False   
+                result = self.groupSyncWrite.changeParam(motor, qCdBytes)
+                if not result:
+                    print("Failed changing Group Sync Writer parameter %d" % motor)
+                    return False   
         # Write velocities to motors.
         result = self.groupSyncWrite.txPacket()
         if result != COMM_SUCCESS:
