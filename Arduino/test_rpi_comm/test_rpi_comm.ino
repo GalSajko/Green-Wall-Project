@@ -82,6 +82,15 @@ String getGrippersStatesMessage(int currentStates[])
   }
   return message;
 }
+String getSwitchesStatesMessage(int currentStates[])
+{
+  String message;
+  for (int i = 0; i < NUMBER_OF_LEGS; i++)
+  {
+    message += String(currentStates[i]);
+  }
+  return message;
+}
 
 void setup() 
 {
@@ -118,13 +127,17 @@ void loop()
       }
     }
   }
+
   int grippersStates[NUMBER_OF_LEGS];
+  int switchesStates[NUMBER_OF_LEGS];
   for (int i = 0; i < NUMBER_OF_LEGS; i++)
   {
     grippersStates[i] = analogRead(GRIPPERS_FEEDBACK_PINS[i]);
+    switchesStates[i] = digitalRead(SWITCH_PINS[i]);
   }
 
-  String message = getGrippersStatesMessage(grippersStates);
-  Serial.println(message + '\n');
+  String grippersMessage = getGrippersStatesMessage(grippersStates);
+  String switchesMessage = getSwitchesStatesMessage(switchesStates);
+  Serial.println(grippersMessage + switchesMessage + '\n');
   delay(50);
 }

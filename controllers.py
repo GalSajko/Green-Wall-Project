@@ -396,6 +396,7 @@ class GripperController:
         self.GRIPPER_OPENED_RESPONSE = "1"
         self.GRIPPER_CLOSED_RESPONSE = "0"
         self.INIT_RESPONSE = "OK"
+        self.RECEIVED_MESSAGE_LENGTH = 10
 
         self.receivedMessage = ""
 
@@ -461,11 +462,23 @@ class GripperController:
         while not checkArray.all():
             with self.locker:
                 recMsg = self.receivedMessage
-            if len(recMsg) == 5:
+            if len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
                 for id, leg in enumerate(legsIds):
                     if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
                         checkArray[id] = True
         return True
+    
+    def getSwitchesStates(self):
+        """Get switches states.
+
+        :return: String of five elements, each representing state of the switch on the leg.
+        """
+        recMsg = ''
+        while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
+            with self.lock:
+                recMsg = self.receivedMessage
+        return recMsg[5:]
+
 
     def handshake(self):
         """Handshake procedure with Arduino.
