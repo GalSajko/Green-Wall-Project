@@ -31,6 +31,8 @@ class VelocityController:
         self.legsQueues = [Queue()] * self.spider.NUMBER_OF_LEGS
         self.sentinel = object()
 
+        self.lastMotorsPositions = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+
         self.locker = threading.Lock()
 
     def controller(self):
@@ -42,12 +44,19 @@ class VelocityController:
         lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         period = 1.0 / self.CONTROLLER_FREQUENCY
 
+        init = True
+
         # Controller loop - runs contiuously.
         while True:
             startTime = time.time()
             with self.locker:
                 qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
-            qD, qDd = self.getQdQddFromQueues(qA)
+            if init:
+                qD = qA
+                qDd = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+                init = False
+            else:
+                qD, qDd = self.getQdQddFromQueues(qA)
             errors = np.array(qD - qA, dtype = np.float32)
             dE = (errors - lastErrors) / period
             qCds = Kp * errors + Kd * dE + qDd
@@ -68,7 +77,7 @@ class VelocityController:
         thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = True)
         thread.start()
 
-    def getQdQddFromQueues(self, qA = None):
+    def getQdQddFromQueues(self, qA):
         """Read current qD and qDd from queues for each leg. If leg-queue is empty, keep leg on last given position.
 
         Args:
@@ -85,9 +94,12 @@ class VelocityController:
                     qD.append(queueData[0])
                     qDd.append(queueData[1])
                 else:
-                    qD.append(qA)
+                    self.lastMotorsPositions[leg] = qA[leg]
+                    qD.append(qA[leg])
                     qDd.append([0, 0, 0])
-        
+            qD.append(self.lastMotorsPositions[leg])
+            qDd.append([0, 0, 0])
+            
         return np.array(qD), np.array(qDd)
 
 
@@ -103,7 +115,7 @@ class VelocityController:
             spiderPose: Spider pose in global origin, used if goalPosition is given in global origin, defaults to None. 
         """    
         if origin != 'local' or origin != 'global':
-            raise ValueError("Invalid origin that goal position is given in.") 
+            raise ValueError("Unknown origin.") 
         if origin == 'global' and spiderPose is None:
             raise TypeError("Parameter spiderPose should not be None.")
 
