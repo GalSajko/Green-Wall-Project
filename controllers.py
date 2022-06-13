@@ -1,7 +1,9 @@
+import queue
 import numpy as np
 import time
 import serial
 import threading
+from queue import Queue
 
 import calculations 
 import environment as env
@@ -26,8 +28,8 @@ class VelocityController:
         self.motorDriver = dmx.MotorDriver(motors)
         self.gripperController = GripperController()
 
-        # Input buffer for controller - qDqDdBuffer[0] -> qD (reference positions), qDqDdBuffer[1] -> qDd (reference velocities).
-        self.qDqDdBuffer = np.array([np.zeros([self.spider.NUMBER_OF_LEGS, len(motors[0])]), np.zeros([self.spider.NUMBER_OF_LEGS, len(motors[0])])])
+        self.legsQueues = [Queue()] * self.spider.NUMBER_OF_LEGS
+        self.sentinel = object()
 
         self.locker = threading.Lock()
 
@@ -44,8 +46,8 @@ class VelocityController:
         while True:
             startTime = time.time()
             with self.locker:
-                qD, qDd = self.qDqDdBuffer
                 qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
+            qD, qDd = self.getQdQddFromQueues(qA)
             errors = np.array(qD - qA, dtype = np.float32)
             dE = (errors - lastErrors) / period
             qCds = Kp * errors + Kd * dE + qDd
@@ -66,22 +68,62 @@ class VelocityController:
         thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = True)
         thread.start()
 
-    def moveLegAsync(self, legId,  goalPosition, duration, trajectoryType):
-        """Write reference positions and velocities into buffer.
+    def getQdQddFromQueues(self, qA = None):
+        """Read current qD and qDd from queues for each leg. If leg-queue is empty, keep leg on last given position.
+
+        Args:
+            qA: Current joints values. Use only if leg-queue is empty.
+        Returns:
+            Two 5x3 numpy arrays of current qDs and qDds.
+        """
+        qD = []
+        qDd = []
+        for leg in self.spider.LEGS_IDS:
+            if not self.legsQueues[leg].empty():
+                queueData = self.legsQueues[leg].get()
+                if queueData is not self.sentinel:
+                    qD.append(queueData[0])
+                    qDd.append(queueData[1])
+                else:
+                    qD.append(qA)
+                    qDd.append([0, 0, 0])
+        
+        return np.array(qD), np.array(qDd)
+
+
+    def moveLegAsync(self, legId, origin, goalPosition, duration, trajectoryType, spiderPose = None):
+        """Write reference positions and velocities into leg-queue.
 
         Args:
             legId: Leg id.
+            origin: Origin that goal position is given in. Wheter 'local' or 'global'.
             goalPosition: Desired goal positon.
             duration: Desired movement duration.
             trajectoryType: Type of movement trajectory (bezier or minJerk).
-        """     
+            spiderPose: Spider pose in global origin, used if goalPosition is given in global origin, defaults to None. 
+        """    
+        if origin != 'local' or origin != 'global':
+            raise ValueError("Invalid origin that goal position is given in.") 
+        if origin == 'global' and spiderPose is None:
+            raise TypeError("Parameter spiderPose should not be None.")
+
+        # If goal position is given in global origin, convert it into local.
+        if origin == 'global':
+            goalPosition = self.matrixCalculator.getLegInLocal(legId, goalPosition, spiderPose)
         with self.locker:
             legCurrentPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'leg')
         try:
             positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, goalPosition, duration, trajectoryType)
         except ValueError:
             return False
-        qD, qDd = self.getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
+        qDs, qDds = self.getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
+        # Clear current leg-queue.
+        self.legsQueues[legId].queue.clear()
+        # Write new values.
+        for idx, qD in enumerate(qDs):
+            self.legsQueues[legId].put([qD, qDds[idx]])
+        # Put a sentinel object at the end, to notify when trajectory ends.
+        self.legsQueues[legId].put(self.sentinel)
 
     
     def getQdQddLegFF(self, legId, xD, xDd):
