@@ -31,6 +31,9 @@ class MotorDriver:
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.GOAL_VELOCITY_DATA_LENGTH = 4
         self.ERROR_ADDR = 70
+
+        self.kinematics = calculations.Kinematics()
+        self.spider = environment.Spider()
         
         self.motorsIds = np.array(motorsIds)
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
@@ -45,9 +48,6 @@ class MotorDriver:
         self.initPort()
         if enableMotors:
             self.enableMotors()
-
-        self.kinematics = calculations.Kinematics()
-        self.spider = environment.Spider()
 
         # self.readHardwareErrorRegister()
 

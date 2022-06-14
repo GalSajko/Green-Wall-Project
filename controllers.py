@@ -10,6 +10,7 @@ import calculations
 import environment as env
 import dynamixel as dmx
 import planning
+import config
 
 
 class VelocityController:
@@ -17,7 +18,7 @@ class VelocityController:
     """
     def __init__ (self):
         # Controller loop frequency.
-        self.CONTROLLER_FREQUENCY = 50.0
+        self.CONTROLLER_FREQUENCY = config.CONTROLLER_FREQUENCY
 
         self.matrixCalculator = calculations.MatrixCalculator()
         self.kinematics = calculations.Kinematics()
@@ -27,7 +28,7 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.gripperController = GripperController()
-        self.legsQueues = [Queue()] * self.spider.NUMBER_OF_LEGS
+        self.legsQueues = [Queue() for i in range(self.spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
         self.lastMotorsPositions = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         self.locker = threading.Lock()
@@ -38,9 +39,9 @@ class VelocityController:
         """Velocity controller to controll all five legs contiuously.
         """
         # PD controller gains.
-        Kp = np.array([[5, 15, 15]] * self.spider.NUMBER_OF_LEGS)
-        Kd = np.ones([self.spider.NUMBER_OF_LEGS, 3])
-        lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        Kp = np.array([[10, 10, 10]] * self.spider.NUMBER_OF_LEGS)
+        Kd = np.ones([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         period = 1.0 / self.CONTROLLER_FREQUENCY
 
         init = True
@@ -50,34 +51,43 @@ class VelocityController:
             startTime = time.time()
 
             # Read current motors positions.
+            # readingTime = time.time()
             with self.locker:
                 qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
+            # readingTime = time.time() - readingTime
             # If controller was just initialized, save current positions.
             if init:
                 with self.locker:
                     self.lastMotorsPositions = qA
+                init = False
 
             qD, qDd = self.getQdQddFromQueues(qA)
-            
+
             # PD controller.
             errors = np.array(qD - qA, dtype = np.float32)
             dE = (errors - lastErrors) / period
             qCds = Kp * errors + Kd * dE + qDd
             lastErrors = errors
-            print(qCds)
+
+            # writingTime = time.time()
             with self.locker:
                 if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
                     return False
+            # writingTime = time.time() - writingTime
+
+            # print("READING + WRITING TIME: ", readingTime + writingTime)
             
             try: 
                 time.sleep(period - (time.time() - startTime))
             except:
                 time.sleep(0)
+                print("NO TIME")
+                
 
     def initControllerThread(self):
         """Start a thread with controller function.
         """
-        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = True)
+        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
         thread.start()
         print("Controller thread is running.")
 
@@ -127,9 +137,9 @@ class VelocityController:
             TypeError: If origin is global and spiderPose is None.
         
         Returns:
-            False if ValueError is catched during trajectory calculation, None otherwise.
+            False if ValueError is catched during trajectory calculation, True otherwise.
         """    
-        if origin != 'l' or origin != 'g':
+        if origin != 'l' and origin != 'g':
             raise ValueError("Unknown origin.") 
         if origin == 'g' and spiderPose is None:
             raise TypeError("Parameter spiderPose should not be None.")
@@ -139,19 +149,23 @@ class VelocityController:
             goalPosition = self.matrixCalculator.getLegInLocal(legId, goalPosition, spiderPose)
 
         with self.locker:
-            legCurrentPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'leg')
+            legCurrentPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'leg')[0]
         try:
             positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, goalPosition, duration, trajectoryType)
-        except ValueError:
+        except ValueError as ve:
+            print(ve)
             return False
 
         qDs, qDds = self.getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
         # Clear current leg-queue.
-        self.legsQueues[legId].queue.clear()
+        if not self.legsQueues[legId].empty():
+            self.legsQueues[legId].queue.clear()
         # Write new values.
         _ = [self.legsQueues[legId].put([qD, qDds[idx]]) for idx, qD in enumerate(qDs)]
         # Put a sentinel object at the end, to notify when trajectory ends.
         self.legsQueues[legId].put(self.sentinel)
+
+        return True
     
     def movePlatformAsync(self, goalPose, duration):
         """Write reference positions and velocities into leg-queues to achieve platform movement. Note that platform cannot be moved

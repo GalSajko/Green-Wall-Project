@@ -7,6 +7,7 @@ import numpy as np
 
 import environment
 import calculations
+import config
 
 
 class PathPlanner:
@@ -215,13 +216,11 @@ class TrajectoryPlanner:
             goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, goalPose[3]]
 
         if (len(startPose) != len(goalPose)):
-            print("Invalid parameters.")
-            return
+            raise ValueError("Lengths of startPose and goalPose do not match.")
         if duration <= 0:
-            print("Invalid duration parameter.")
-            return
+            raise ValueError("Movement duration cannot be shorter thatn 0 seconds.")
 
-        timeStep = 0.02
+        timeStep = 1 / config.CONTROLLER_FREQUENCY
         timeVector = np.linspace(0, duration, int(duration / timeStep))
 
         trajectory = []
@@ -253,7 +252,7 @@ class TrajectoryPlanner:
             print("Invalid duration.")
             return
 
-        timeStep = 0.02
+        timeStep = 1 / config.CONTROLLER_FREQUENCY
         numberOfSteps = math.floor(duration / timeStep)
 
         heightPercent = 0.6
