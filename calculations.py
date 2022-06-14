@@ -85,21 +85,25 @@ class Kinematics:
 
         return q1, q2, q3
 
-    def platformInverseKinematics(self, goalPose, legsGlobalPositions):
+    def platformInverseKinematics(self, legsIds, legsGlobalPositions, goalPose):
         """Calculate inverse kinematics for spiders platform.
 
-        :param goalPose: Goal pose in global, given as a 1x6 array with positions and xyz orientation.
-        :param legs: Global positions of used legs.
-        :return: 3x5 matrix with joints values for all legs.
+        :param legsIds: Ids of used legs.
+        :param legsGlobalPositions: Global positions of used legs.
+        :param goalPose: Goal pose in global, given as a 1x6 array with position and rpy orientation.
+        :return: [3xlen(legsIds)] matrix with joints values for all legs.
         """
+        if len(legsIds) != len(legsGlobalPositions):
+            raise ValueError("Lengths of legsIds and legsGlobalPositions do not match.")
+
         # Get transformation matrix from spiders xyzrpy.
         globalTransformMatrix = MatrixCalculator().xyzRpyToMatrix(goalPose)
 
         # Array to store calculated joints values for all legs.
         joints = []
-        for idx, t in enumerate(self.spider.T_ANCHORS):
+        for idx, leg in enumerate(legsIds):
             # Pose of leg anchor in global
-            anchorInGlobal = np.dot(globalTransformMatrix, t)
+            anchorInGlobal = np.dot(globalTransformMatrix, self.spider.T_ANCHORS[leg])
             # Position of leg anchor in global.
             anchorInGlobalPosition = anchorInGlobal[:,3][:3]
 
@@ -111,7 +115,7 @@ class Kinematics:
             anchorToPinLocal = np.dot(np.linalg.inv(rotationMatrix), anchorToPinGlobal)
 
             # With inverse kinematics for single leg calculate joints values.
-            q1, q2, q3 = self.legInverseKinematics(idx, anchorToPinLocal)
+            q1, q2, q3 = self.legInverseKinematics(leg, anchorToPinLocal)
             joints.append(np.array([q1, q2, q3]))
 
         return np.array(joints)
@@ -241,9 +245,10 @@ class Kinematics:
             [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)]
         ])
 
-    def getSpiderToLegReferenceVelocities(self, spiderVelocity):
-        """Calculate current reference leg velocities from current spider velocity.
+    def getSpiderToLegReferenceVelocities(self, legsIds, spiderVelocity):
+        """Calculate current reference legs velocities from current spider velocity.
 
+        :param legsIds: Ids of legs for which to calculate reference velocities.
         :param spiderVelocity: Current spider's velocity.
         :return: Reference legs velocities.
         """
@@ -252,15 +257,15 @@ class Kinematics:
         anguarSpiderVelocity = spiderVelocity[3:]
 
         # Rotate spiders reference velocity into anchors velocities which represent reference velocities for single leg.
-        anchorsVelocities = [np.dot(np.linalg.inv(tAnchor[:3,:3]), linearSpiderVelocity) for tAnchor in self.spider.T_ANCHORS]
+        anchorsVelocities = [np.dot(np.linalg.inv(self.spider.T_ANCHORS[leg][:3,:3]), linearSpiderVelocity) for leg in legsIds]
         # Add angular velocities.
-        for i, anchorVelocity in enumerate(anchorsVelocities):
-            anchorPosition = self.spider.LEG_ANCHORS[i]
+        for idx, leg in enumerate(legsIds):
+            anchorPosition = self.spider.LEG_ANCHORS[leg]
             wx, wy, wz = anguarSpiderVelocity
-            anchorsVelocities[i] = np.array([
-                anchorVelocity[0],
-                anchorVelocity[1] + self.spider.BODY_RADIUS * wz,
-                anchorVelocity[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
+            anchorsVelocities[idx] = np.array([
+                anchorsVelocities[0],
+                anchorsVelocities[1] + self.spider.BODY_RADIUS * wz,
+                anchorsVelocities[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
             ])
         refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
 
