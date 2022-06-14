@@ -58,7 +58,8 @@ class VelocityController:
                     self.lastMotorsPositions = qA
 
             qD, qDd = self.getQdQddFromQueues(qA)
-
+            
+            # PD controller.
             errors = np.array(qD - qA, dtype = np.float32)
             dE = (errors - lastErrors) / period
             qCds = Kp * errors + Kd * dE + qDd
@@ -143,7 +144,7 @@ class VelocityController:
             positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, goalPosition, duration, trajectoryType)
         except ValueError:
             return False
-            
+
         qDs, qDds = self.getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
         # Clear current leg-queue.
         self.legsQueues[legId].queue.clear()
