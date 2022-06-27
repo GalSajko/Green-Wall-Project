@@ -1,4 +1,3 @@
-from distutils.dir_util import copy_tree
 import queue
 import numpy as np
 import time
@@ -83,13 +82,15 @@ class VelocityController:
                 time.sleep(0)
                 print("NO TIME")
                 
-
     def initControllerThread(self):
         """Start a thread with controller function.
         """
         thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
-        thread.start()
-        print("Controller thread is running.")
+        try:
+            thread.start()
+            print("Controller thread is running.")
+        except RuntimeError as re:
+            print(re)
 
     def getQdQddFromQueues(self, qA):
         """Read current qD and qDd from queues for each leg. If leg-queue is empty, keep leg on last given position.
@@ -191,7 +192,8 @@ class VelocityController:
         globalLegsPositions = self.matrixCalculator.getLegsInGlobal(attachedLegs, localLegsPositions, startPose)
         try:
             positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(startPose, goalPose, duration, 'minJerk')
-        except ValueError:
+        except ValueError as ve:
+            print(ve)
             return False
         qDs, qDds = self.getQdQddPlatformFF(attachedLegs, globalLegsPositions, positionTrajectory, velocityTrajectory)
         # Clear leg-queues of attached legs.
@@ -201,9 +203,6 @@ class VelocityController:
             [self.legsQueues[leg].put([qD[leg], qDds[idx][leg]]) for leg in attachedLegs]
         # Put a sentinel objects at the end of each leg-queue, to notify when trajectory ends.
         _ = [self.legsQueues[leg].put(self.sentinel) for leg in attachedLegs]
-
-            
-
     
     def getQdQddLegFF(self, legId, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for single leg movement.
