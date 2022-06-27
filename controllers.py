@@ -50,10 +50,8 @@ class VelocityController:
             startTime = time.time()
 
             # Read current motors positions.
-            # readingTime = time.time()
             with self.locker:
                 qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
-            # readingTime = time.time() - readingTime
             # If controller was just initialized, save current positions.
             if init:
                 with self.locker:
@@ -68,19 +66,13 @@ class VelocityController:
             qCds = Kp * errors + Kd * dE + qDd
             lastErrors = errors
 
-            # writingTime = time.time()
             with self.locker:
                 if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
                     return False
-            # writingTime = time.time() - writingTime
-
-            # print("READING + WRITING TIME: ", readingTime + writingTime)
-            
             try: 
                 time.sleep(period - (time.time() - startTime))
             except:
                 time.sleep(0)
-                print("NO TIME")
                 
     def initControllerThread(self):
         """Start a thread with controller function.
@@ -537,7 +529,7 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()

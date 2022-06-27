@@ -26,8 +26,8 @@ class MotorDriver:
         self.GOAL_VELOCITY_ADDR = 104
         self.PRESENT_POSITION_ADDR = 132
         self.BAUDRATE = 2000000
-        self.PROTOCOL_VERSION = 2.0      
-        self.USB_DEVICE_NAME = "/dev/ttyUSB1"
+        self.PROTOCOL_VERSION = 2.0     
+        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.GOAL_VELOCITY_DATA_LENGTH = 4
         self.ERROR_ADDR = 70
@@ -43,7 +43,7 @@ class MotorDriver:
         self.groupSyncRead = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
         self.groupSyncWrite = GroupSyncWrite(self.portHandler, self.packetHandler, self.GOAL_VELOCITY_ADDR, self.GOAL_VELOCITY_DATA_LENGTH)
 
-        resultGroupSyncInit = self.initGroupReadWrite()
+        self.initGroupReadWrite()
 
         self.initPort()
         if enableMotors:
@@ -152,20 +152,21 @@ class MotorDriver:
             print("Invalid value of base parameter.")
             return False
 
-        self.groupSyncRead.txRxPacket()
-        mappedPositions = []
-        for leg in legsIds:
-            positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
-            jointsValues = mappers.mapEncoderToJointsRadians(positions)
-            if not calculateLegPositions:
-                mappedPositions.append(jointsValues)
-            else:
-                if base == 'leg':
-                    mappedPositions.append(self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3])
-                elif base == 'spider':
-                    mappedPositions.append(self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3])
+        _ = self.groupSyncRead.fastSyncRead()
 
-        return np.array(mappedPositions)
+        # mappedPositions = []
+        # for leg in legsIds:
+        #     positions = [self.groupSyncRead.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
+        #     jointsValues = mappers.mapEncoderToJointsRadians(positions)
+        #     if not calculateLegPositions:
+        #         mappedPositions.append(jointsValues)
+        #     else:
+        #         if base == 'leg':
+        #             mappedPositions.append(self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3])
+        #         elif base == 'spider':
+        #             mappedPositions.append(self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3])
+
+        # return np.array(mappedPositions)
     
     def syncReadPlatformPose(self, legsIds, legsGlobalPositions):
         """Read platform pose in global.
