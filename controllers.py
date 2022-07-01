@@ -10,8 +10,7 @@ import environment as env
 import dynamixel as dmx
 import planning
 import config
-import timer
-
+import rtimer
 
 class VelocityController:
     """ Class for velocity-control of spider's movement.
@@ -72,7 +71,7 @@ class VelocityController:
         """Start a thread with controller function.
         """
         # thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
-        timer = utils.RepeatTimer(self.period, self.controller)
+        timer = rtimer.RepeatTimer(self.period, self.controller)
         timer.start()
         # try:
         #     thread.start()

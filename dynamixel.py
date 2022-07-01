@@ -5,6 +5,7 @@ import numpy as np
 from dynamixel_sdk import *
 import time
 import itertools as itt
+import ctypes
 
 import calculations
 import mappers
@@ -48,6 +49,11 @@ class MotorDriver:
         self.initPort()
         if enableMotors:
             self.enableMotors()
+
+        self.fun = ctypes.CDLL("/home/spider/Green-Wall-Project/CFunctions/readDynamixel.so")
+        self.fun.initPortHandler.argtypes = [ctypes.c_int]
+        returnValue = self.fun.initPortHandler(self.TORQUE_ENABLE_ADDR)
+        print(returnValue)
 
         # self.readHardwareErrorRegister()
 
