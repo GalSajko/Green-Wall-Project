@@ -10,6 +10,7 @@ import environment as env
 import dynamixel as dmx
 import planning
 import config
+import utils
 
 
 class VelocityController:
@@ -31,58 +32,53 @@ class VelocityController:
         self.sentinel = object()
         self.lastMotorsPositions = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         self.locker = threading.Lock()
+        
+        self.Kp = np.array([[5 ,5, 5]] * self.spider.NUMBER_OF_LEGS)
+        self.Kd = np.ones([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        self.lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        self.period = 1.0 / self.CONTROLLER_FREQUENCY
+        self.init = True
 
         self.initControllerThread()
 
     def controller(self):
         """Velocity controller to controll all five legs contiuously.
         """
-        # PD controller gains.
-        Kp = np.array([[10, 10, 10]] * self.spider.NUMBER_OF_LEGS)
-        Kd = np.ones([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        period = 1.0 / self.CONTROLLER_FREQUENCY
 
-        init = True
+        # Read current motors positions.
+        with self.locker:
+            qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
 
-        # Controller loop - runs contiuously.
-        while True:
-            startTime = time.time()
-
-            # Read current motors positions.
+        # If controller was just initialized, save current positions.
+        if self.init:
             with self.locker:
-                qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
-            # If controller was just initialized, save current positions.
-            if init:
-                with self.locker:
-                    self.lastMotorsPositions = qA
-                init = False
+                self.lastMotorsPositions = qA
+            self.init = False
 
-            qD, qDd = self.getQdQddFromQueues(qA)
+        qD, qDd = self.getQdQddFromQueues(qA)
 
-            # PD controller.
-            errors = np.array(qD - qA, dtype = np.float32)
-            dE = (errors - lastErrors) / period
-            qCds = Kp * errors + Kd * dE + qDd
-            lastErrors = errors
+        # PD controller.
+        errors = np.array(qD - qA, dtype = np.float32)
+        dE = (errors - self.lastErrors) / self.period
+        qCds = self.Kp * errors + self.Kd * dE + qDd
+        self.lastErrors = errors
 
-            with self.locker:
-                if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
-                    return False
-            try: 
-                time.sleep(period - (time.time() - startTime))
-            except:
-                time.sleep(0)
+        with self.locker:
+            if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
+                return False
+
                 
     def initControllerThread(self):
         """Start a thread with controller function.
         """
-        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
-        try:
-            thread.start()
-            print("Controller thread is running.")
-        except RuntimeError as re:
-            print(re)
+        # thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
+        timer = utils.RepeatTimer(self.period, self.controller)
+        timer.start()
+        # try:
+        #     thread.start()
+        #     print("Controller thread is running.")
+        # except RuntimeError as re:
+        #     print(re)
 
     def getQdQddFromQueues(self, qA):
         """Read current qD and qDd from queues for each leg. If leg-queue is empty, keep leg on last given position.
@@ -529,7 +525,7 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
