@@ -152,11 +152,7 @@ class MotorDriver:
             print("Invalid value of base parameter.")
             return False
         
-        t = time.time()
         _ = self.groupSyncRead.fastSyncRead()
-        t = (time.time() - t) * 1000.0
-        t = "{:.2f}".format(t)
-        print(t)
 
         mappedPositions = []
         for leg in legsIds:
