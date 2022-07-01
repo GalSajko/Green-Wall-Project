@@ -10,7 +10,7 @@ import environment as env
 import dynamixel as dmx
 import planning
 import config
-import utils
+import timer
 
 
 class VelocityController:
