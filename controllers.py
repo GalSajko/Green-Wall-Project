@@ -4,13 +4,13 @@ import time
 import serial
 import threading
 from queue import Queue
+import os
 
 import calculations 
 import environment as env
 import dynamixel as dmx
 import planning
 import config
-import rtimer
 
 class VelocityController:
     """ Class for velocity-control of spider's movement.
@@ -43,41 +43,48 @@ class VelocityController:
     def controller(self):
         """Velocity controller to controll all five legs contiuously.
         """
-
-        # Read current motors positions.
-        with self.locker:
-            qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
-
-        # If controller was just initialized, save current positions.
-        if self.init:
+        os.nice(-20)
+        while True:
+            # Read current motors positions.
+            startTime = time.perf_counter()
             with self.locker:
-                self.lastMotorsPositions = qA
-            self.init = False
+                qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
 
-        qD, qDd = self.getQdQddFromQueues(qA)
+            # If controller was just initialized, save current positions.
+            if self.init:
+                with self.locker:
+                    self.lastMotorsPositions = qA
+                self.init = False
 
-        # PD controller.
-        errors = np.array(qD - qA, dtype = np.float32)
-        dE = (errors - self.lastErrors) / self.period
-        qCds = self.Kp * errors + self.Kd * dE + qDd
-        self.lastErrors = errors
+            qD, qDd = self.getQdQddFromQueues(qA)
 
-        with self.locker:
-            if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
-                return False
+            # PD controller.
+            errors = np.array(qD - qA, dtype = np.float32)
+            dE = (errors - self.lastErrors) / self.period
+            qCds = self.Kp * errors + self.Kd * dE + qDd
+            self.lastErrors = errors
+
+            with self.locker:
+                if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
+                    return False
+
+            elapsedTime = time.perf_counter() - startTime
+            while elapsedTime < self.period:
+                elapsedTime = time.perf_counter() - startTime
+                time.sleep(0)
+            
+            print(f"{(time.perf_counter() - startTime) * 1000}")
 
                 
     def initControllerThread(self):
         """Start a thread with controller function.
         """
-        # thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
-        timer = rtimer.RepeatTimer(self.period, self.controller)
-        timer.start()
-        # try:
-        #     thread.start()
-        #     print("Controller thread is running.")
-        # except RuntimeError as re:
-        #     print(re)
+        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
+        try:
+            thread.start()
+            print("Controller thread is running.")
+        except RuntimeError as re:
+            print(re)
 
     def getQdQddFromQueues(self, qA):
         """Read current qD and qDd from queues for each leg. If leg-queue is empty, keep leg on last given position.
@@ -524,7 +531,7 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
