@@ -32,8 +32,8 @@ class VelocityController:
         self.lastMotorsPositions = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         self.locker = threading.Lock()
         
-        self.Kp = np.array([[5 ,5, 5]] * self.spider.NUMBER_OF_LEGS)
-        self.Kd = np.ones([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        self.Kp = np.array([[60, 60, 60]] * self.spider.NUMBER_OF_LEGS)
+        self.Kd = np.ones([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG]) * 0
         self.lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         self.period = 1.0 / self.CONTROLLER_FREQUENCY
         self.init = True
@@ -43,13 +43,15 @@ class VelocityController:
     def controller(self):
         """Velocity controller to controll all five legs contiuously.
         """
-        os.nice(-20)
-        while True:
-            # Read current motors positions.
+        # os.nice(-20)
+        while 1:
+            # Get current data.
             startTime = time.perf_counter()
             with self.locker:
-                qA = self.motorDriver.syncReadMotorsPositionsInLegs(self.spider.LEGS_IDS)
+                qA, currents = self.motorDriver.syncReadPositionCurrentWrapper()
+                # print((time.perf_counter() - startTime) * 1000)
 
+            # print((time.perf_counter() - startTime) * 1000)
             # If controller was just initialized, save current positions.
             if self.init:
                 with self.locker:
@@ -64,17 +66,18 @@ class VelocityController:
             qCds = self.Kp * errors + self.Kd * dE + qDd
             self.lastErrors = errors
 
+            # Send new commands to motors.
             with self.locker:
                 if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
                     return False
 
+            # print(f"{(time.perf_counter() - startTime) * 1000}")
             elapsedTime = time.perf_counter() - startTime
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
             
-            print(f"{(time.perf_counter() - startTime) * 1000}")
-
+            # print(f"{(time.perf_counter() - startTime) * 1000}")
                 
     def initControllerThread(self):
         """Start a thread with controller function.

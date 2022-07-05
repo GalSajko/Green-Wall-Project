@@ -68,6 +68,14 @@ def mapEncoderToJointsRadians(encoderValues):
 
     return np.array(k * encoderValues + n)
 
+def mapEncoderToMotorsCurrents(encoderValues):
+
+    encoderValues = np.array(encoderValues)
+    mappedValues = np.array([(encoderValue - 65535) if encoderValue > 0x7fff else encoderValue for encoderValue in encoderValues])
+
+    return mappedValues * 0.00269
+
+
 def mapJointVelocitiesToEncoderValues(jointVelocities):
     """Map calculated joints velocities to encoder values.
 

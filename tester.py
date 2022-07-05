@@ -2,6 +2,7 @@
 This module is meant as a testing sandbox for other modules, during implementation.
 """
 import controllers
+import time
 
 
 if __name__ == "__main__":    
@@ -16,11 +17,17 @@ if __name__ == "__main__":
 
     
     # time.sleep(3)
-    result = controller.moveLegAsync(4, [0.35, 0.0, 0.15], 'l', 1, 'minJerk')
+    # result = controller.moveLegAsync(4, [0.35, 0.0, 0.15], 'l', 3, 'minJerk')
+    # time.sleep(10)
+    while True:
+        result = controller.moveLegAsync(3, [0.35, 0.0, 0.25], 'l', 3, 'minJerk')
+        result = controller.moveLegAsync(2, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
+        time.sleep(4)
+        result = controller.moveLegAsync(3, [0.35, 0.0, 0.0], 'l', 3, 'minJerk')
+        result = controller.moveLegAsync(2, [0.35, 0.0, 0.25], 'l', 2, 'minJerk')
+        time.sleep(4)
     # time.sleep(1)
-    result = controller.moveLegAsync(3, [0.35, 0.0, 0.15], 'l', 2, 'minJerk')
-    # time.sleep(1)
-    result = controller.moveLegAsync(2, [0.35, 0.0, 0.15], 'l', 5, 'minJerk')
+    # result = controller.moveLegAsync(2, [0.35, 0.0, 0.15], 'l', 3, 'minJerk')
     # time.sleep(1)
     # result = controller.moveLegAsync(3, [0.35, 0.0, 0.15], 'l', 5, 'minJerk')
     # time.sleep(1)
