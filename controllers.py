@@ -52,12 +52,11 @@ class VelocityController:
             startTime = time.perf_counter()
             with self.locker:
                 self.qA, _ = self.motorDriver.syncReadPositionCurrentWrapper()
-
-            # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
-            if self.init:
-                with self.locker:
+                # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
+                if self.init:
+                    # with self.locker:
                     self.lastMotorsPositions = self.qA
-                self.init = False
+                    self.init = False
               
             qD, qDd = self.getQdQddFromQueues()
 
@@ -158,7 +157,8 @@ class VelocityController:
             return False
 
         # Clear current leg-queue.
-        self.legsQueues[legId].queue.clear()
+        with legsQueues[legId].mutex:
+            self.legsQueues[legId].queue.clear()
         qDs, qDds = self.getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
 
         # Write new values.
