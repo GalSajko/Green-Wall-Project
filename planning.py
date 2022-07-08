@@ -4,6 +4,7 @@
 import math
 from multiprocessing.sharedctypes import Value
 import numpy as np 
+import inspect
 
 import environment
 import calculations
@@ -223,18 +224,18 @@ class TrajectoryPlanner:
         timeStep = 1 / config.CONTROLLER_FREQUENCY
         timeVector = np.linspace(0, duration, int(duration / timeStep))
 
-        trajectory = []
-        velocities = []
-        for t in timeVector:
-            trajectoryRow = []
-            velocityRow = []
+        trajectory = np.empty([len(timeVector), len(startPose) + 1], dtype = np.float32)
+        velocities = np.empty([len(timeVector), len(startPose)], dtype = np.float32)
+        for idx, t in enumerate(timeVector):
+            trajectoryRow = np.empty([len(startPose) + 1], dtype = np.float32)
+            velocityRow = np.empty([len(startPose)], dtype = np.float32)
             for i in range(len(startPose)):
-                trajectoryRow.append(startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(t/duration, 5) - 15 * math.pow(t/duration, 4) + 10 * math.pow(t/duration, 3)))
-                velocityRow.append((30 * math.pow(t, 2) * math.pow(duration - t, 2) * (goalPose[i] - startPose[i])) / math.pow(duration, 5))
-            trajectoryRow.append(t)
-            trajectory.append(trajectoryRow)
-            velocities.append(velocityRow)
-        return np.array(trajectory), np.array(velocities)
+                trajectoryRow[i] = startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(t/duration, 5) - 15 * math.pow(t/duration, 4) + 10 * math.pow(t/duration, 3))
+                velocityRow[i] = (30 * math.pow(t, 2) * math.pow(duration - t, 2) * (goalPose[i] - startPose[i])) / math.pow(duration, 5)
+            trajectoryRow[-1] = t
+            trajectory[idx] = trajectoryRow
+            velocities[idx] = velocityRow
+        return trajectory, velocities
 
     def bezierTrajectory(self, startPoint, goalPoint, duration):
         """ Calculate cubic bezier trajectory between start and goal pose with fixed intermediate control points.
@@ -262,15 +263,13 @@ class TrajectoryPlanner:
         secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + heightPercent * np.linalg.norm(goalPoint - startPoint)])
         controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint])
 
-        trajectory = []
         timeVector = np.linspace(0, duration, numberOfSteps)
+        trajectory = np.empty([len(timeVector), len(startPose) + 1], dtype = np.float32)
 
-        for time in timeVector:
+        for idx, time in enumerate(timeVector):
             param = time / duration
             trajectoryPoint = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
-            trajectory.append([trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], time])
-
-        trajectory = np.array(trajectory)
+            trajectory[idx] = [trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], time]
 
         d = np.array([
             trajectory[:,0][-1] - trajectory[:,0][0],
@@ -282,16 +281,16 @@ class TrajectoryPlanner:
         t1 = duration / 3.0
         t2 = 2 * duration / 3.0
 
-        velocity = []
-        for time in timeVector:
+        velocity = np.empty([len(timeVector), len(startPose)], dtype = np.float32)
+        for idx, time in timeVector:
             if 0 <= time <= t1:
-                velocity.append(a * time)
+                velocity[idx] = a * time
             elif t1 < time < t2:
-                velocity.append(vMax)
+                velocity[idx] = vMax
             elif t2 <= time <= duration:
-                velocity.append(vMax - a * (time- t2))
+                velocity[idx] = vMax - a * (time- t2)
 
-        return np.array(trajectory), np.array(velocity)
+        return trajectory, velocity
 
     def calculateTrajectory(self, start, goal, duration, type):
         """Wrapper for calcuating trajectories of desired type.
