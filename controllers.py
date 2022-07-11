@@ -3,9 +3,10 @@ import numpy as np
 import time
 import serial
 import threading
-from queue import Queue
+import queue
 import os
 import inspect
+import multiprocessing
 
 import calculations 
 import environment as env
@@ -26,8 +27,7 @@ class VelocityController:
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.gripperController = GripperController()
         
-        self.legsQueues = [Queue() for i in range(self.spider.NUMBER_OF_LEGS)]
-        self.queuesReadyFlags = [False] * self.spider.NUMBER_OF_LEGS
+        self.legsQueues = [queue.Queue() for i in range(self.spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
         self.lastMotorsPositions = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         self.locker = threading.Lock()
@@ -61,7 +61,7 @@ class VelocityController:
             if init:
                 self.lastMotorsPositions = self.qA
                 init = False
-            
+
             qD, qDd = self.getQdQddFromQueues()
 
             # PD controller.
@@ -104,26 +104,42 @@ class VelocityController:
         qDd = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
 
         for leg in self.spider.LEGS_IDS:
-            with self.locker:
-                queueFlag = self.queuesReadyFlags[leg]
-
-            if not queueFlag:
+            try:
+                queueData = self.legsQueues[leg].get(False)
+                if queueData is self.sentinel:
+                    self.lastMotorsPositions[leg] = self.qA[leg]
+                    qD[leg] = self.lastMotorsPositions[leg]
+                    qDd[leg] = ([0, 0, 0])
+                else:
+                    qD[leg] = queueData[0]
+                    qDd[leg] = queueData[1]
+            except queue.Empty:
                 qD[leg] = self.lastMotorsPositions[leg]
-                qDd[leg] = ([0, 0, 0])
-                continue
-
-            queueData = self.legsQueues[leg].get()
-            if queueData is not self.sentinel:
-                qD[leg] = queueData[0]
-                qDd[leg] = queueData[1]
-                continue
-            
-            with self.locker:
-                self.lastMotorsPositions[leg] = self.qA[leg]
-            qD[leg] = self.lastMotorsPositions[leg]
-            qDd[leg] = ([0, 0, 0])
+                qDd[leg] = ([0, 0, 0]) 
             
         return qD, qDd
+        # pool = multiprocessing.Pool(self.spider.NUMBER_OF_LEGS)
+        # q1, q2, q3, q4, q5 = zip(*pool.map(self.getQdQddFromSingleQueue, range(self.spider.NUMBER_OF_LEGS)))
+
+        # return qD, qDd
+
+    # def getQdQddFromSingleQueue(self, legId):
+    #     qD = np.empty(self.spider.NUMBER_OF_MOTORS_IN_LEG)
+    #     qDd = np.empty(self.spider.NUMBER_OF_MOTORS_IN_LEG)
+    #     try:
+    #         queueData = self.legsQueues[legId].get(False)
+    #         if queueData is self.sentinel:
+    #             self.lastMotorsPositions[legId] = self.qA[legId]
+    #             qD = self.lastMotorsPositions[legId]
+    #             qDd = ([0, 0, 0])
+    #         else:
+    #             qD = queueData[0]
+    #             qDd = queueData[1]
+    #     except queue.Empty:
+    #         qD = self.lastMotorsPositions[legId]
+    #         qDd = ([0, 0, 0]) 
+        
+    #     return qD, qDd
 
     def moveLegAsync(self, legId, goalPosition, origin, duration, trajectoryType, spiderPose = None):
         """Write reference positions and velocities into leg-queue.
@@ -147,16 +163,8 @@ class VelocityController:
         if origin == 'g' and spiderPose is None:
             raise TypeError("Parameter spiderPose should not be None.")
 
-        with self.locker:
-            self.queuesReadyFlags[legId] = False
-
-        # Clear the leg-queue.
-        while not self.legsQueues[legId].empty():
-            try:
-                self.legsQueues[legId].get()
-            except Queue.empty(self):
-                continue
-            self.legsQueues[legId].task_done()
+        self.legsQueues[legId] = queue.Queue()
+        self.legsQueues[legId].put(self.sentinel)
 
         # If goal position is given in global origin, convert it into local.
         if origin == 'g':
@@ -174,10 +182,7 @@ class VelocityController:
 
         for idx, qD in enumerate(qDs):
             self.legsQueues[legId].put([qD, qDds[idx]])
-        self.legsQueues[legId].put(self.sentinel)   
-
-        with self.locker:
-            self.queuesReadyFlags[legId] = True     
+        self.legsQueues[legId].put(self.sentinel)       
 
         return True
     
