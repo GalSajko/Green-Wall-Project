@@ -272,6 +272,15 @@ class Kinematics:
 
         return np.array(refereneceLegVelocities)
 
+    def getForceOnLegTip(self, legId, jointsValues, currentsInMotors):
+        J = self.spiderBaseToLegTipJacobi(legId, jointsValues)
+        K = 1 / 0.4785
+        torques = K * currentsInMotors
+        force = np.dot(np.linalg.inv(np.transpose(J)), torques)
+
+        return force
+
+
 class GeometryTools:
     """Helper class for geometry calculations.
     """

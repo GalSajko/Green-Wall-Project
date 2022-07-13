@@ -198,10 +198,8 @@ class MotorDriver:
 
         :return: Two 5x3 matrices with currents in motors in Ampers and motors positions in radians.
         """
-        # t = time.perf_counter()
         _ = self.groupSyncReadCurrent.fastSyncRead()
         _ = self.groupSyncReadPosition.fastSyncRead()
-        # print((time.perf_counter() - t) * 1000)
 
         currents = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         positions = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
@@ -214,7 +212,6 @@ class MotorDriver:
             currents[leg] = mappers.mapEncoderToMotorsCurrents(currents[leg])
 
         return positions, currents
-
 
     def syncReadPlatformPose(self, legsIds, legsGlobalPositions):
         """Read platform pose in global.

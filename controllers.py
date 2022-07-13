@@ -7,8 +7,9 @@ import queue
 import os
 import inspect
 import multiprocessing
+import matplotlib.pyplot as plt
 
-import calculations 
+import calculations
 import environment as env
 import dynamixel as dmx
 import planning
@@ -26,15 +27,16 @@ class VelocityController:
         self.pathPlanner = planning.PathPlanner(0.05, 0.1, 'squared')
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.gripperController = GripperController()
-        
+
         self.legsQueues = [queue.Queue() for i in range(self.spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
         self.lastMotorsPositions = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         self.locker = threading.Lock()
         self.killControllerThread = False
-        
-        self.Kp = np.array([[30, 30, 30]] * self.spider.NUMBER_OF_LEGS)
-        self.Kd = np.ones([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+
+        # self.Kp = np.array([[300, 300, 300]] * self.spider.NUMBER_OF_LEGS)
+        self.Kp = np.array([[5, 5, 5]] * self.spider.NUMBER_OF_LEGS)
+        self.Kd = np.ones([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG]) * 0
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
 
         self.qA = []
@@ -46,6 +48,7 @@ class VelocityController:
         """
         lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         init = True
+        forces = np.empty([self.spider.NUMBER_OF_LEGS, 3])
 
         while 1:
             if self.killControllerThread:
@@ -55,12 +58,17 @@ class VelocityController:
 
             # Get current data.
             with self.locker:
-                self.qA, _ = self.motorDriver.syncReadPositionCurrentWrapper()
+                self.qA, currents = self.motorDriver.syncReadPositionCurrentWrapper()
 
             # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
             if init:
                 self.lastMotorsPositions = self.qA
                 init = False
+
+            for leg in self.spider.LEGS_IDS:
+                forces[leg] = self.kinematics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
+            
+            print(forces[1])
 
             qD, qDd = self.getQdQddFromQueues()
 
@@ -78,7 +86,7 @@ class VelocityController:
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
-                
+
     def initControllerThread(self):
         """Start a thread with controller function.
         """
@@ -88,7 +96,7 @@ class VelocityController:
             print("Controller thread is running.")
         except RuntimeError as re:
             print(re)
-    
+
     def endControllerThread(self):
         """Set flag to kill a controller thread.
         """
@@ -106,8 +114,8 @@ class VelocityController:
         for leg in self.spider.LEGS_IDS:
             try:
                 queueData = self.legsQueues[leg].get(False)
+                self.lastMotorsPositions[leg] = self.qA[leg]
                 if queueData is self.sentinel:
-                    self.lastMotorsPositions[leg] = self.qA[leg]
                     qD[leg] = self.lastMotorsPositions[leg]
                     qDd[leg] = ([0, 0, 0])
                 else:
@@ -115,31 +123,9 @@ class VelocityController:
                     qDd[leg] = queueData[1]
             except queue.Empty:
                 qD[leg] = self.lastMotorsPositions[leg]
-                qDd[leg] = ([0, 0, 0]) 
-            
+                qDd[leg] = ([0, 0, 0])
+
         return qD, qDd
-        # pool = multiprocessing.Pool(self.spider.NUMBER_OF_LEGS)
-        # q1, q2, q3, q4, q5 = zip(*pool.map(self.getQdQddFromSingleQueue, range(self.spider.NUMBER_OF_LEGS)))
-
-        # return qD, qDd
-
-    # def getQdQddFromSingleQueue(self, legId):
-    #     qD = np.empty(self.spider.NUMBER_OF_MOTORS_IN_LEG)
-    #     qDd = np.empty(self.spider.NUMBER_OF_MOTORS_IN_LEG)
-    #     try:
-    #         queueData = self.legsQueues[legId].get(False)
-    #         if queueData is self.sentinel:
-    #             self.lastMotorsPositions[legId] = self.qA[legId]
-    #             qD = self.lastMotorsPositions[legId]
-    #             qDd = ([0, 0, 0])
-    #         else:
-    #             qD = queueData[0]
-    #             qDd = queueData[1]
-    #     except queue.Empty:
-    #         qD = self.lastMotorsPositions[legId]
-    #         qDd = ([0, 0, 0]) 
-        
-    #     return qD, qDd
 
     def moveLegAsync(self, legId, goalPosition, origin, duration, trajectoryType, spiderPose = None):
         """Write reference positions and velocities into leg-queue.
@@ -150,16 +136,16 @@ class VelocityController:
             origin: Origin that goal position is given in. Wheter 'l' for leg-local or 'g' for global.
             duration: Desired movement duration.
             trajectoryType: Type of movement trajectory (bezier or minJerk).
-            spiderPose: Spider pose in global origin, used if goalPosition is given in global origin, defaults to None. 
+            spiderPose: Spider pose in global origin, used if goalPosition is given in global origin, defaults to None.
         Raises:
             ValueError: If origin is unknown.
             TypeError: If origin is global and spiderPose is None.
-        
+
         Returns:
             False if ValueError is catched during trajectory calculation, True otherwise.
-        """    
+        """
         if origin not in ('l', 'g'):
-            raise ValueError("Unknown origin.") 
+            raise ValueError("Unknown origin.")
         if origin == 'g' and spiderPose is None:
             raise TypeError("Parameter spiderPose should not be None.")
 
@@ -177,15 +163,15 @@ class VelocityController:
         except ValueError as ve:
             print(f'{ve} - {inspect.stack()[0][3]}')
             return False
-        
+
         qDs, qDds = self.getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
 
         for idx, qD in enumerate(qDs):
             self.legsQueues[legId].put([qD, qDds[idx]])
-        self.legsQueues[legId].put(self.sentinel)       
+        self.legsQueues[legId].put(self.sentinel)
 
         return True
-    
+
     def movePlatformAsync(self, goalPose, duration):
         """Write reference positions and velocities into leg-queues to achieve platform movement. Note that platform cannot be moved
         with less than 4 legs attached to the pins.
@@ -204,8 +190,11 @@ class VelocityController:
         attachedLegs = self.gripperController.getIdsOfAttachedLegs()
         if len(attachedLegs) < 4:
             raise ValueError("Number of attached legs is insufficient to move the platform. Should be at least 4.")
-        with self.locker:
-            localLegsPositions = self.motorDriver.syncReadMotorsPositionsInLegs(attachedLegs, True, 'leg')
+        localLegsPositions = np.array([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        for leg in self.spider.LEGS_IDS:
+            with self.locker:
+                localLegsPositions[leg] = self.kinematics.legForwardKinematics(leg, self.qA[leg])[:,3][:3]
+
         startPose = self.motorDriver.syncReadPlatformPose(attachedLegs, globalLegsPositions)
         globalLegsPositions = self.matrixCalculator.getLegsInGlobal(attachedLegs, localLegsPositions, startPose)
         try:
@@ -218,10 +207,12 @@ class VelocityController:
         _ = [self.legsQueues[leg].queue.clear() for leg in attachedLegs]
         # Write new values.
         for idx, qD in enumerate(qDs):
-            [self.legsQueues[leg].put([qD[leg], qDds[idx][leg]]) for leg in attachedLegs]
+            for leg in attachedLegs:
+                self.legsQueues[leg].put([qD[leg], qDds[idx][leg]])
         # Put a sentinel objects at the end of each leg-queue, to notify when trajectory ends.
-        _ = [self.legsQueues[leg].put(self.sentinel) for leg in attachedLegs]
-    
+        for leg in attachedLegs:
+            self.legsQueues[leg].put(self.sentinel)
+
     def getQdQddLegFF(self, legId, xD, xDd):
         """Feed-forward calculate and write reference joints positions and velocities for single leg movement into leg-queue.
 
@@ -238,9 +229,9 @@ class VelocityController:
             qDds[idx] = np.dot(np.linalg.inv(J), xDd[idx][:3])
 
         return qDs, qDds
-    
+
     def getQdQddPlatformFF(self, legsIds, globalLegsPositions, xD, xDd):
-        """Feed forward calculations of reference joints positions and velocities for parallel platform movement. 
+        """Feed forward calculations of reference joints positions and velocities for parallel platform movement.
 
         :param xD: Platform referenece positions.
         :param xDd: Platform reference velocities.
@@ -259,7 +250,7 @@ class VelocityController:
                 qDdFf.append(np.dot(np.linalg.inv(J), referenceLegsVelocities[idx]))
             qD[idx] = qDFf
             qDd[idx] = qDdFf
-        
+
         return qD, qDd
 
 class GripperController:
@@ -288,7 +279,7 @@ class GripperController:
         self.initReadingThread()
 
         self.handshake()
-    
+
     def initReadingThread(self):
         """Initialize reading data thread.
         """
@@ -313,13 +304,13 @@ class GripperController:
         """Send data to Arduino.
 
         :param msg: Message to send.
-        """ 
+        """
         if msg[-1] != '\n':
             msg += '\n'
         msg = msg.encode("utf-8")
         with self.locker:
             self.comm.write(msg)
-    
+
     def moveGripper(self, legId, command):
         """Send command to move gripper on selected leg.
 
@@ -329,7 +320,7 @@ class GripperController:
         if (command == self.OPEN_COMMAND or command == self.CLOSE_COMMAND):
             msg = command + str(legId) + "\n"
             self.sendData(msg)
-    
+
     def openGrippersAndWait(self, legsIds):
         """Open grippers on given legs and wait for them to come in open state.
 
@@ -347,7 +338,7 @@ class GripperController:
                     if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
                         checkArray[id] = True
         return True
-    
+
     def getSwitchesStates(self):
         """Get switches states.
 
@@ -358,7 +349,7 @@ class GripperController:
             with self.lock:
                 recMsg = self.receivedMessage
         return recMsg[5:]
-    
+
     def getIdsOfAttachedLegs(self):
         """Get ids of those legs, that are attached to pins. Leg is attached if switch and gripper are both closed.
         """
@@ -372,7 +363,7 @@ class GripperController:
         for id, gripper in enumerate(grippersStates):
             if gripper == self.GRIPPER_CLOSED_RESPONSE and switchesStates[id] == self.SWITCH_CLOSE_RESPONSE:
                 attachedLegsIds.append(id)
-        
+
         return attachedLegsIds
 
 

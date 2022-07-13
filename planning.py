@@ -264,7 +264,7 @@ class TrajectoryPlanner:
         controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint])
 
         timeVector = np.linspace(0, duration, numberOfSteps)
-        trajectory = np.empty([len(timeVector), len(startPose) + 1], dtype = np.float32)
+        trajectory = np.empty([len(timeVector), len(startPoint) + 1], dtype = np.float32)
 
         for idx, time in enumerate(timeVector):
             param = time / duration
@@ -281,15 +281,15 @@ class TrajectoryPlanner:
         t1 = duration / 3.0
         t2 = 2 * duration / 3.0
 
-        velocity = np.empty([len(timeVector), len(startPose)], dtype = np.float32)
-        for idx, time in timeVector:
+        velocity = np.empty([len(timeVector), len(startPoint)], dtype = np.float32)
+        for idx, time in enumerate(timeVector):
             if 0 <= time <= t1:
                 velocity[idx] = a * time
             elif t1 < time < t2:
                 velocity[idx] = vMax
             elif t2 <= time <= duration:
                 velocity[idx] = vMax - a * (time- t2)
-
+        
         return trajectory, velocity
 
     def calculateTrajectory(self, start, goal, duration, type):
