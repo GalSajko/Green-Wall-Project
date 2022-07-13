@@ -205,7 +205,7 @@ class Kinematics:
         
         :param legIdx: Leg id.
         :param jointsValues: Joints values in radians.
-        :return: Transformation matrix from leg-tip to spider base.
+        :return: Transformation matrix from spider base to leg-tip.
         """
         qb = legIdx * self.spider.ANGLE_BETWEEN_LEGS + math.pi / 2
         q1, q2, q3 = jointsValues
@@ -224,7 +224,6 @@ class Kinematics:
 
         return Hb3
         
-
     def spiderBaseToLegTipJacobi(self, legIdx, jointValues):
         """Calculate Jacobian matrix for spiders origin - leg-tip relation.
 
@@ -241,7 +240,7 @@ class Kinematics:
         L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
-            [-((L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)), math.cos(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1+qb) * math.sin(q2 + q3)],
+            [-((L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)), math.cos(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1+qb) * math.sin(q2+q3)],
             [math.cos(q1+qb) * (L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.sin(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.sin(q2+q3) * math.sin(q1+qb)],
             [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)]
         ])
@@ -273,13 +272,12 @@ class Kinematics:
         return np.array(refereneceLegVelocities)
 
     def getForceOnLegTip(self, legId, jointsValues, currentsInMotors):
+        currentsInMotors[1] *= -1
         J = self.spiderBaseToLegTipJacobi(legId, jointsValues)
         K = 1 / 0.4785
         torques = K * currentsInMotors
-        force = np.dot(np.linalg.inv(np.transpose(J)), torques)
-
-        return force
-
+        
+        return np.dot(np.linalg.inv(np.transpose(J)), torques)
 
 class GeometryTools:
     """Helper class for geometry calculations.

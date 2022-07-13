@@ -33,10 +33,11 @@ class VelocityController:
         self.lastMotorsPositions = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         self.locker = threading.Lock()
         self.killControllerThread = False
+        self.queuesReadyFlags = [False] * self.spider.NUMBER_OF_LEGS
 
-        # self.Kp = np.array([[300, 300, 300]] * self.spider.NUMBER_OF_LEGS)
-        self.Kp = np.array([[5, 5, 5]] * self.spider.NUMBER_OF_LEGS)
-        self.Kd = np.ones([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG]) * 0
+        self.Kp = np.array([[20, 20, 20]] * self.spider.NUMBER_OF_LEGS)
+        # self.Kp = np.array([[5, 5, 5]] * self.spider.NUMBER_OF_LEGS)
+        self.Kd = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS)
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
 
         self.qA = []
@@ -67,8 +68,6 @@ class VelocityController:
 
             for leg in self.spider.LEGS_IDS:
                 forces[leg] = self.kinematics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
-            
-            print(forces[1])
 
             qD, qDd = self.getQdQddFromQueues()
 
@@ -83,6 +82,7 @@ class VelocityController:
                 return False
 
             elapsedTime = time.perf_counter() - startTime
+            # print(elapsedTime * 1000)
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
@@ -125,6 +125,24 @@ class VelocityController:
                 qD[leg] = self.lastMotorsPositions[leg]
                 qDd[leg] = ([0, 0, 0])
 
+            # with self.locker:
+            #     queueFlag = self.queuesReadyFlags[leg]
+            # if queueFlag:
+            #     queueData = self.legsQueues[leg].get(False)
+            #     self.lastMotorsPositions[leg] = self.qA[leg]
+            #     if queueData is not self.sentinel:
+            #         qD[leg] = queueData[0]
+            #         qDd[leg] = queueData[1]
+            #         continue
+            #     qD[leg] = self.lastMotorsPositions[leg]
+            #     qDd[leg] = ([0, 0, 0])
+            #     continue 
+            # qD[leg] = self.lastMotorsPositions[leg]
+            # qDd[leg] = ([0, 0, 0])
+
+            
+
+
         return qD, qDd
 
     def moveLegAsync(self, legId, goalPosition, origin, duration, trajectoryType, spiderPose = None):
@@ -149,6 +167,9 @@ class VelocityController:
         if origin == 'g' and spiderPose is None:
             raise TypeError("Parameter spiderPose should not be None.")
 
+        # with self.locker:
+        #     self.queuesReadyFlags[legId] = False
+
         self.legsQueues[legId] = queue.Queue()
         self.legsQueues[legId].put(self.sentinel)
 
@@ -170,15 +191,20 @@ class VelocityController:
             self.legsQueues[legId].put([qD, qDds[idx]])
         self.legsQueues[legId].put(self.sentinel)
 
+        # with self.locker:
+        #     self.queuesReadyFlags[legId] = True
+
         return True
 
-    def movePlatformAsync(self, goalPose, duration):
+    def movePlatformAsync(self, goalPose, duration, globalLegsPositions):
         """Write reference positions and velocities into leg-queues to achieve platform movement. Note that platform cannot be moved
         with less than 4 legs attached to the pins.
 
         Args:
             goalPose: Desired global goal pose of the spider on the wall.
             duration: Duration of platform movement.
+            positioning: 'w' for positioning on the wall, 'f' for positioning on the floor.
+            globalLegsPositions: If spider is on the wall, this parameter representing global positions of used pins.
 
         Raises:
             ValueError: If number of attached legs is less than 4.
@@ -186,31 +212,35 @@ class VelocityController:
         Returns:
             False if ValueError is catched during trajectory calculation, None otherwise.
         """
-
-        attachedLegs = self.gripperController.getIdsOfAttachedLegs()
-        if len(attachedLegs) < 4:
+        usedLegs = self.gripperController.getIdsOfAttachedLegs()
+        if len(usedLegs) < 4:
             raise ValueError("Number of attached legs is insufficient to move the platform. Should be at least 4.")
-        localLegsPositions = np.array([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        for leg in self.spider.LEGS_IDS:
-            with self.locker:
-                localLegsPositions[leg] = self.kinematics.legForwardKinematics(leg, self.qA[leg])[:,3][:3]
 
-        startPose = self.motorDriver.syncReadPlatformPose(attachedLegs, globalLegsPositions)
-        globalLegsPositions = self.matrixCalculator.getLegsInGlobal(attachedLegs, localLegsPositions, startPose)
+        for leg in usedLegs:
+            self.legsQueues[leg] = queue.Queue()
+            self.legsQueues[leg].put(self.sentinel)
+
+        localLegsPositions = np.empty([len(usedLegs), 3])
+        for leg in usedLegs:
+            with self.locker:
+                localLegsPositions[leg] = self.kinematics.legForwardKinematics(leg, self.qA[leg])[:3][:,3]
+
+        startPose = self.motorDriver.syncReadPlatformPose(usedLegs, globalLegsPositions)
+
         try:
             positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(startPose, goalPose, duration, 'minJerk')
         except ValueError as ve:
             print(ve)
             return False
-        qDs, qDds = self.getQdQddPlatformFF(attachedLegs, globalLegsPositions, positionTrajectory, velocityTrajectory)
-        # Clear leg-queues of attached legs.
-        _ = [self.legsQueues[leg].queue.clear() for leg in attachedLegs]
+
+        qDs, qDds = self.getQdQddPlatformFF(usedLegs, globalLegsPositions, positionTrajectory, velocityTrajectory)
+
         # Write new values.
         for idx, qD in enumerate(qDs):
-            for leg in attachedLegs:
+            for leg in usedLegs:
                 self.legsQueues[leg].put([qD[leg], qDds[idx][leg]])
         # Put a sentinel objects at the end of each leg-queue, to notify when trajectory ends.
-        for leg in attachedLegs:
+        for leg in usedLegs:
             self.legsQueues[leg].put(self.sentinel)
 
     def getQdQddLegFF(self, legId, xD, xDd):
@@ -243,7 +273,7 @@ class VelocityController:
 
         for idx, pose in enumerate(xD):
             qDFf = self.kinematics.platformInverseKinematics(legsIds, globalLegsPositions, pose[:-1])
-            referenceLegsVelocities = self.kinematics.getSpiderToLegReferenceVelocities(xDd[idx])
+            referenceLegsVelocities = self.kinematics.getSpiderToLegReferenceVelocities(legsIds, xDd[idx])
             qDdFf = []
             for idx, leg in enumerate(legsIds):
                 J = self.kinematics.legJacobi(leg, qDFf[idx])
@@ -355,7 +385,7 @@ class GripperController:
         """
         recMsg = ''
         while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
-            with self.lock:
+            with self.locker:
                 recMsg = self.receivedMessage
         grippersStates = recMsg[:5]
         switchesStates = recMsg[5:]
