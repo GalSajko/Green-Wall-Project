@@ -14,13 +14,20 @@ class Kinematics:
     def __init__(self):
         self.spider = env.Spider()
 
-    def legForwardKinematics(self, legIdx, jointValues):
-        """ Calculate forward kinematics for spiders leg, using transformation matrices.  
+    def legForwardKinematics(self, legIdx, jointsValues):
+        """Calculate forward kinematics for spiders leg, using transformation matrices.  
 
         :param jointValues: Joint values in radians.
         :return: Transformation matrix from base to end effector.
+
+        Args:
+            legIdx (int):Leg id.
+            jointsValues (list): Joints values in radians.
+
+        Returns:
+            numpy.ndarray: 4x4 transformation matrix from base to end effector.
         """
-        q1, q2, q3 = jointValues
+        q1, q2, q3 = jointsValues
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
         L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
         L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
@@ -34,6 +41,15 @@ class Kinematics:
         ])
     
     def legBaseToThirdJointForwardKinematics(self, legIdx, jointValues):
+        """Calculate forward kinematics from leg base to third joint.
+
+        Args:
+            legIdx (int): Leg id.
+            jointValues (list): Joints values in radians.
+
+        Returns:
+            numpy.ndarray: 4x4 transformation matrix from leg-base to third joint.
+        """
         q1, q2, _ = jointValues
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
         L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
@@ -45,13 +61,16 @@ class Kinematics:
             [math.sin(q2), math.cos(q2), 0, -L3*math.cos(q2) + L2*math.sin(q2)],
             [0, 0, 0, 1]
         ])
-    
-    def legInverseKinematics(self, legIdx, endEffectorPosition):
-        """ Calculate inverse kinematics for leg, using geometry - considering L shape of second link.
 
-        :param legIdx: Index of leg (0 - 4).
-        :param endEffectorPosition: Desired end effector positions in leg-base origin.
-        :return: Joint values in radians.
+    def legInverseKinematics(self, legIdx, endEffectorPosition):
+        """Calculate inverse kinematics for leg, using geometry - considering L shape of second link.
+
+        Args:
+            legIdx (int): Leg id.
+            endEffectorPosition (list): Desired position of end effector in leg-base origin.
+
+        Returns:
+            tuple: Angles in radians in first, second and third joint.
         """
         endEffectorPosition = np.array(endEffectorPosition)
         endEffectorPosition[2] = -endEffectorPosition[2]
@@ -73,7 +92,7 @@ class Kinematics:
         secondJointToEndVector = np.array(endEffectorPosition - secondJointPosition)
 
         # Distance between second joint and end effector.
-        r = GeometryTools().calculateEuclideanDistance3d(secondJointPosition, endEffectorPosition)
+        r = np.linalg.norm(np.array(secondJointPosition - endEffectorPosition))
         # Angle in third joint.
         q3 = -math.acos(np.round((r**2 - virtualSecondLink**2 - thirdLink**2) / (2 * virtualSecondLink * thirdLink), 4))
         # Angle in second joint.
@@ -87,12 +106,18 @@ class Kinematics:
         return q1, q2, q3
 
     def platformInverseKinematics(self, legsIds, legsGlobalPositions, goalPose):
-        """Calculate inverse kinematics for spiders platform.
+        """Calculate inverse kinematics for spider platform.
 
-        :param legsIds: Ids of used legs.
-        :param legsGlobalPositions: Global positions of used legs.
-        :param goalPose: Goal pose in global, given as a 1x6 array with position and rpy orientation.
-        :return: [3xlen(legsIds)] matrix with joints values for all legs.
+        Args:
+            legsIds (list): Ids of used legs.
+            legsGlobalPositions (list): Global positions of used legs.
+            goalPose (list): Goal pose in global, given as 1x6 array of xyzrpy values.
+
+        Raises:
+            ValueError: If length of legsIds and legsGlobalPositions are not the same.
+
+        Returns:
+            numpy.ndarray: nx3 matrix with joints values for all used legs, where n is number of used legs.
         """
         if len(legsIds) != len(legsGlobalPositions):
             raise ValueError("Lengths of legsIds and legsGlobalPositions do not match.")
@@ -120,14 +145,17 @@ class Kinematics:
             joints.append(np.array([q1, q2, q3]))
 
         return np.array(joints)
-    
+
     def platformForwardKinematics(self, legsIds, legsGlobalPositions, legsLocalPoses):
         """Calculate forward kinematics of platform. Use only those legs, that are in contact with pins.
 
-        :param legsIds: Legs used in calculations.
-        :param legsGlobalPositions: Global positions of used legs - positions of used pins in wall-origin.
-        :param legsLocalPositions: Local poses of used legs given in spider's origin. 
-        :return: Transformation matrix from wall-origin to spider.
+        Args:
+            legsIds (list): Ids of used legs.
+            legsGlobalPositions (list): Global positions of used legs.
+            legsLocalPoses (list):4x4 transformation matrices, representing a legs poses in legs-local origins.
+
+        Returns:
+            list: 1x6 list with global xyzrpy values.
         """
 
         if len(legsIds) != 3 or len(legsGlobalPositions) != 3 or len(legsLocalPoses) != 3:
@@ -182,11 +210,14 @@ class Kinematics:
         return xyzrpy
 
     def legJacobi(self, legIdx, jointValues):
-        """ Calculate Jacobian matrix for single leg.
+        """Calculate Jacobian matrix for given leg.
 
-        :param legId: Leg id.
-        :jointValues: Joint values in radians.   
-        :return: 3x3 Jacobian matrix.
+        Args:
+            legIdx (int): Leg id.
+            jointValues (list): Joints values in radians.
+
+        Returns:
+            numpy.ndarray: 3x3 Jacobian matrix.
         """
         q1, q2, q3 = jointValues
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
@@ -198,14 +229,17 @@ class Kinematics:
             [-math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.cos(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1)*math.sin(q2+q3)],
             [math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.sin(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.sin(q1)*math.sin(q2+q3)],
             [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)]
-            ])
+            ], dtype = np.float32)
 
     def spiderBaseToLegTipForwardKinematics(self, legIdx, jointsValues):
         """Calculate forward kinematics from spider base to leg-tip.
-        
-        :param legIdx: Leg id.
-        :param jointsValues: Joints values in radians.
-        :return: Transformation matrix from spider base to leg-tip.
+
+        Args:
+            legIdx (int): Leg id.
+            jointsValues (list): Joints values in radians.
+
+        Returns:
+            numpy.ndarray: 4x4 transformation matrix from spider base to leg-tip.
         """
         qb = legIdx * self.spider.ANGLE_BETWEEN_LEGS + math.pi / 2
         q1, q2, q3 = jointsValues
@@ -220,16 +254,19 @@ class Kinematics:
             [math.cos(q2+q3) * math.sin(q1+qb), -math.sin(q2+q3) * math.sin(q1+qb), -math.cos(q1+qb), L1*math.cos(qb)*math.sin(q1) + (r + L1*math.cos(q1)) * math.sin(qb) + (L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)],
             [math.sin(q2+q3), math.cos(q2+q3), 0, -L3*math.cos(q2) + L2*math.sin(q2) + L4*math.sin(q2+q3)],
             [0, 0, 0, 1]
-        ])
+        ], dtype = np.float32)
 
         return Hb3
-        
-    def spiderBaseToLegTipJacobi(self, legIdx, jointValues):
-        """Calculate Jacobian matrix for spiders origin - leg-tip relation.
 
-        :param legIdx: Leg id.
-        :param jointValues: Joint values in radians.
-        :return: 3x3 Jacobian matrix.
+    def spiderBaseToLegTipJacobi(self, legIdx, jointValues):
+        """Calculate Jacobian matrix for spider's origin - leg-tip relation.
+
+        Args:
+            legIdx (int): Leg id.
+            jointValues (list): Joints values in radians.
+
+        Returns:
+            numpy.ndarray: 3x3 Jacobian matrix.
         """
         qb = legIdx * self.spider.ANGLE_BETWEEN_LEGS + math.pi / 2
         q1, q2, q3 = jointValues
@@ -243,14 +280,17 @@ class Kinematics:
             [-((L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)), math.cos(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1+qb) * math.sin(q2+q3)],
             [math.cos(q1+qb) * (L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.sin(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.sin(q2+q3) * math.sin(q1+qb)],
             [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)]
-        ])
+        ], dtype = np.float32)
 
     def getSpiderToLegReferenceVelocities(self, legsIds, spiderVelocity):
-        """Calculate current reference legs velocities from current spider velocity.
+        """Calculate needed legs velocities to match given spider velocity.
 
-        :param legsIds: Ids of legs for which to calculate reference velocities.
-        :param spiderVelocity: Current spider's velocity.
-        :return: Reference legs velocities.
+        Args:
+            legsIds (list): Ids of used legs.
+            spiderVelocity (list): 1x6 list with velocities in global xyzrpy directions.
+
+        Returns:
+            numpy.ndarray: nx3 array of reference legs velocities in leg-based origin, where n is number of used legs.
         """
         
         linearSpiderVelocity = spiderVelocity[:3]
@@ -266,12 +306,22 @@ class Kinematics:
                 anchorsVelocities[0],
                 anchorsVelocities[1] + self.spider.BODY_RADIUS * wz,
                 anchorsVelocities[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
-            ])
+            ], dtype = np.float32)
         refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
 
-        return np.array(refereneceLegVelocities)
+        return np.array(refereneceLegVelocities, dtype = np.float32)
 
     def getForceOnLegTip(self, legId, jointsValues, currentsInMotors):
+        """Calculate force, applied to leg-tip, from currents in motors.
+
+        Args:
+            legId (int): Leg id.
+            jointsValues (list): Joints values in radians.
+            currentsInMotors (list): Currents in motors in ampers.
+
+        Returns:
+            list: 3x1 array of forces in x, y and z direction.
+        """
         currentsInMotors[1] *= -1
         J = self.spiderBaseToLegTipJacobi(legId, jointsValues)
         K = 1 / 0.4785
@@ -282,30 +332,15 @@ class Kinematics:
 class GeometryTools:
     """Helper class for geometry calculations.
     """
-    def calculateEuclideanDistance2d(cls, firstPoint, secondPoint):
-        """Calculate euclidean distance between two points in 2d.
-
-        :param firstPoint: First point.
-        :param secondPoint: Second point.
-        :return: Distance between two points.
-        """
-        return math.sqrt((firstPoint[0] - secondPoint[0])**2 + (firstPoint[1] - secondPoint[1])**2)
-
-    def calculateEuclideanDistance3d(cls, firstPoint, secondPoint):
-        """Calculate euclidean distance between two points in 3d.
-
-        :param firstPoint: First point.
-        :param secondPoint: Second point.
-        :return: Distance between two points in 3d.
-        """
-        return math.sqrt((firstPoint[0] - secondPoint[0])**2 + (firstPoint[1] - secondPoint[1])**2 + (firstPoint[2] - secondPoint[2])**2)
-    
     def calculateSignedAngleBetweenTwoVectors(cls, firstVector, secondVector):
         """Calculate signed angle between two vectors.
 
-        :param firstVector: First vector.
-        :param secondVector: Second vector.
-        :return: Signed angle between two vectors in radians.    
+        Args:
+            firstVector (list): First vector.
+            secondVector (list): Second vector.
+
+        Returns:
+            float: Signed angle in radians.
         """
         dotProduct = np.dot(firstVector, secondVector)
         productOfNorms = np.linalg.norm(firstVector) * np.linalg.norm(secondVector)
@@ -317,26 +352,36 @@ class GeometryTools:
         # 3d vector.
         elif (crossProduct < 0).any() < 0:
             angle = -angle
+
         return angle
     
     def wrapToPi(cls, angle):
         """Wrap angle to Pi.
-        :param angle: Angle
-        :return: Angle wrapped to Pi.
+
+        Args:
+            angle (float): Angle.
+
+        Returns:
+            float: Wrapped angle.
         """
         if angle < -math.pi:
             angle += math.pi * 2
         elif angle > math.pi:
             angle -= math.pi * 2
+
         return angle
 
 class MatrixCalculator:
     """ Class for calculating matrices."""
     def xyzRpyToMatrix(cls, xyzrpy):
-        """Calculate global transformation matrix for transforming between global origin and spider base.
+        """Calculate global transformation matrix for global origin - spider relation.
 
-        :param xyzrpy: Desired global pose of a spiders platform, 1x6 array with positions and rpy orientation.
-        :param xyzy: Wheter or not the pose is given only as a x, y, z and yaw.
+        Args:
+            xyzrpy (list): Global spider's pose to be transformed into matrix. Could be given as 1x4 array, representing xyzy values or 
+            1x6 array, representing xyzrpy values.
+
+        Returns:
+            numpy.ndarray: 4x4 transformation matrix from global origin to spider.
         """
         if len(xyzrpy) == 4:
             xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
@@ -347,82 +392,90 @@ class MatrixCalculator:
             [math.cos(rpy[1]), 0, math.sin(rpy[1])],
             [0, 1, 0],
             [-math.sin(rpy[1]), 0, math.cos(rpy[1])]
-        ])
+        ], dtype = np.float32)
         pitch = np.array([
             [1, 0, 0],
             [0, math.cos(rpy[0]), -math.sin(rpy[0])],
-            [0, math.sin(rpy[0]), math.cos(rpy[0])] 
-        ])
+            [0, math.sin(rpy[0]), math.cos(rpy[0])]
+        ], dtype = np.float32)
         yaw = np.array([
             [math.cos(rpy[2]), -math.sin(rpy[2]), 0],
             [math.sin(rpy[2]), math.cos(rpy[2]), 0],
             [0, 0, 1]
-        ])
+        ], dtype = np.float32)
 
         rotationMatrix = np.dot(pitch, np.dot(roll, yaw))
 
         transformMatrix = np.c_[rotationMatrix, position]
-        transformMatrix = np.r_[transformMatrix, [[0, 0, 0, 1]]]
+        addRow = np.array([0, 0, 0, 1], dtype = np.float32)
+        transformMatrix = np.r_[transformMatrix, [addRow]]
         
         return transformMatrix
 
     def getLegInLocal(cls, legId, globalLegPosition, spiderPose):
-        """Calculate local position of leg from given global position.
+        """Calculate local leg's position from given global position.
 
-        :param legId: Leg id.
-        :param globalLegPosition: Global position of leg.
-        :param spiderPose: Spider's global pose.
-        :return: 1x3 array of local leg's position.
+        Args:
+            legId (int): Leg id.
+            globalLegPosition (list): Global position of leg.
+            spiderPose (list): Global spider's pose. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
+
+        Returns:
+            numpy.ndarray: 1x3 array of with x, y and z leg's positions in leg-local origin.
         """
         T_GS = cls.xyzRpyToMatrix(spiderPose)
         T_GA = np.dot(T_GS, env.Spider().T_ANCHORS[legId])
         globalLegPosition = np.append(globalLegPosition, 1)
+
         return np.dot(np.linalg.inv(T_GA), globalLegPosition)[:3]
 
-    
     def getLegsInGlobal(cls, legsIds, localLegsPositions, spiderPose):
-        """ Calculate global positions of legs from given local positions.
+        """Calculate global positions of legs from given local positions.
 
-        :param localLegsPositions: Legs positions in leg-based origins.
-        :param globalPose: Spider's position in global origin.
-        :return: Array of legs positions in global origin.
-        """
+        Args:
+            legsIds (list): Legs ids.
+            localLegsPositions (list): nx3 array of legs positions in their local origins, where n should be same as length of legsIds list.
+            spiderPose (list): Global spider's pose. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
 
-        if len(spiderPose) == 4:
-            spiderPose = [spiderPose[0], spiderPose[1], spiderPose[2], 0.0, 0.0, spiderPose[3]]
-            
-        legs = []
+        Returns:
+            numpy.ndarray: nx3 array of legs positions in global origin, where n is number of given legs.
+        """ 
+        legsGlobalPositions = np.empty([len(legsIds), 3], dtype = np.float32)
         T_GS = cls.xyzRpyToMatrix(spiderPose)
         for idx, leg in enumerate(legsIds):
             anchorInGlobal = np.dot(T_GS, env.Spider().T_ANCHORS[leg])
             legInGlobal = np.dot(anchorInGlobal, np.append(localLegsPositions[idx], 1))
-            legs.append(legInGlobal[:3])
-        return np.array(legs)
-    
-    def getLegsApproachPositionsInGlobal(cls, legsIds, spiderPose, pinsPositions, offset = 0.03):
-        """ Calculate approach point for leg-to-pin movement, so that gripper would fit on pin.
+            legsGlobalPositions[idx] = legInGlobal[:3]
 
-        :param legId: Leg id.
-        :param spiderPose: Spider's pose in global.
-        :param pinPosition: Pin position in global.
-        :param offset: Distance from pin, defaults to 0.02.
-        :raises ValueError: If length of legsIds and pinsPositions parameters are not the same.
-        :return: Position of approach point in global.
+        return legsGlobalPositions
+
+    def getLegsApproachPositionsInGlobal(cls, legsIds, spiderPose, globalPinsPositions, offset = 0.03):
+        """Calculate approach point in global origin, so that gripper would fit on pin.
+
+        Args:
+            legsIds (list): Ids of used legs.
+            spiderPose (list): Global spider's pose. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
+            globalPinsPositions (list): nx3 array of used pins positions in global origin, where n should be same as number of used legs.
+            offset (float, optional): Distance from pin to the approach point. Defaults to 0.03.
+
+        Raises:
+            ValueError: If lengths of legsIds and globalPinsPositions parameters are not the same.
+
+        Returns:
+            numpy.ndarray: nx3 array of approach positions in global origin, where n is number of used legs.
         """
-        if len(legsIds) != len(pinsPositions):
+        if len(legsIds) != len(globalPinsPositions):
             raise ValueError("Invalid values of legsIds or pinsPositions parameters.")
-        if len(spiderPose) == 4:
-            spiderPose = [spiderPose[0], spiderPose[1], spiderPose[2], 0.0, 0.0, spiderPose[3]]
         
-        approachPointsInGlobal = []
+        approachPointsInGlobal = np.empty([len(legsIds), 3])
         for idx, leg in enumerate(legsIds):
-            jointsValues = Kinematics().legInverseKinematics(leg, cls.getLegInLocal(leg, pinsPositions[idx], spiderPose))
+            jointsValues = Kinematics().legInverseKinematics(leg, cls.getLegInLocal(leg, globalPinsPositions[idx], spiderPose))
             T_GA = np.dot(cls.xyzRpyToMatrix(spiderPose), env.Spider().T_ANCHORS[leg])
             thirdJointLocalPosition = Kinematics().legBaseToThirdJointForwardKinematics(leg, jointsValues)[:,3][:3]
             thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
 
-            pinToThirdJoint = thirdJointGlobalPosition - pinsPositions[idx]
+            pinToThirdJoint = thirdJointGlobalPosition - globalPinsPositions[idx]
             pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
-            approachPointsInGlobal.append(pinsPositions[idx] + pinToThirdJoint)
+            approachPointsInGlobal[idx] = globalPinsPositions[idx] + pinToThirdJoint
 
-        return np.array(approachPointsInGlobal)
+        return approachPointsInGlobal

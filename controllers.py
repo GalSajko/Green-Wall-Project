@@ -41,20 +41,20 @@ class VelocityController:
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
 
         self.qA = []
+        self.forces = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
 
         self.initControllerThread()
 
     def controller(self):
-        """Velocity controller to controll all five legs contiuously.
+        """Velocity controller to controll all five legs continuously. Runs in separate thread.
         """
         lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         init = True
-        forces = np.empty([self.spider.NUMBER_OF_LEGS, 3])
 
         while 1:
             if self.killControllerThread:
                 break
-
+ 
             startTime = time.perf_counter()
 
             # Get current data.
@@ -67,7 +67,7 @@ class VelocityController:
                 init = False
 
             for leg in self.spider.LEGS_IDS:
-                forces[leg] = self.kinematics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
+                self.forces[leg] = self.kinematics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
 
             qD, qDd = self.getQdQddFromQueues()
 
@@ -82,7 +82,6 @@ class VelocityController:
                 return False
 
             elapsedTime = time.perf_counter() - startTime
-            # print(elapsedTime * 1000)
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
@@ -106,7 +105,7 @@ class VelocityController:
         """Read current qD and qDd from queues for each leg. If leg-queue is empty, keep leg on latest position.
 
         Returns:
-            Two 5x3 ndarrays of current qDs and qDds.
+            tuple: Two 5x3 numpy.ndarrays of current qDs and qDds.
         """
         qD = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
         qDd = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
@@ -125,50 +124,30 @@ class VelocityController:
                 qD[leg] = self.lastMotorsPositions[leg]
                 qDd[leg] = ([0, 0, 0])
 
-            # with self.locker:
-            #     queueFlag = self.queuesReadyFlags[leg]
-            # if queueFlag:
-            #     queueData = self.legsQueues[leg].get(False)
-            #     self.lastMotorsPositions[leg] = self.qA[leg]
-            #     if queueData is not self.sentinel:
-            #         qD[leg] = queueData[0]
-            #         qDd[leg] = queueData[1]
-            #         continue
-            #     qD[leg] = self.lastMotorsPositions[leg]
-            #     qDd[leg] = ([0, 0, 0])
-            #     continue 
-            # qD[leg] = self.lastMotorsPositions[leg]
-            # qDd[leg] = ([0, 0, 0])
-
-            
-
-
         return qD, qDd
 
     def moveLegAsync(self, legId, goalPosition, origin, duration, trajectoryType, spiderPose = None):
         """Write reference positions and velocities into leg-queue.
 
         Args:
-            legId: Leg id.
-            goalPosition: Desired goal positon.
-            origin: Origin that goal position is given in. Wheter 'l' for leg-local or 'g' for global.
-            duration: Desired movement duration.
-            trajectoryType: Type of movement trajectory (bezier or minJerk).
-            spiderPose: Spider pose in global origin, used if goalPosition is given in global origin, defaults to None.
+            legId (int): Leg id.
+            goalPosition (list): 1x3 array of  desired x, y, and z goal positons.
+            origin (str): Origin that goal position is given in. Wheter 'l' for leg-local or 'g' for global.
+            duration (float): Desired movement duration.
+            trajectoryType (str): Type of movement trajectory (bezier or minJerk).
+            spiderPose (list, optional): Spider pose in global origin, used if goalPosition is given in global origin. Defaults to None.
+
         Raises:
             ValueError: If origin is unknown.
             TypeError: If origin is global and spiderPose is None.
 
         Returns:
-            False if ValueError is catched during trajectory calculation, True otherwise.
+            bool: False if ValueError is catched during trajectory calculation, True otherwise.
         """
         if origin not in ('l', 'g'):
             raise ValueError("Unknown origin.")
         if origin == 'g' and spiderPose is None:
             raise TypeError("Parameter spiderPose should not be None.")
-
-        # with self.locker:
-        #     self.queuesReadyFlags[legId] = False
 
         self.legsQueues[legId] = queue.Queue()
         self.legsQueues[legId].put(self.sentinel)
@@ -191,30 +170,29 @@ class VelocityController:
             self.legsQueues[legId].put([qD, qDds[idx]])
         self.legsQueues[legId].put(self.sentinel)
 
-        # with self.locker:
-        #     self.queuesReadyFlags[legId] = True
-
         return True
 
+    # TODO: write wrapper for moving legs so that spider will reach desired pose, instead of this function.
     def movePlatformAsync(self, goalPose, duration, globalLegsPositions):
         """Write reference positions and velocities into leg-queues to achieve platform movement. Note that platform cannot be moved
         with less than 4 legs attached to the pins.
 
         Args:
-            goalPose: Desired global goal pose of the spider on the wall.
-            duration: Duration of platform movement.
-            positioning: 'w' for positioning on the wall, 'f' for positioning on the floor.
-            globalLegsPositions: If spider is on the wall, this parameter representing global positions of used pins.
+            goalPose (list): Desired global goal pose of the spider on the wall. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
+            duration (float): Duration of platform movement.
+            globalLegsPositions (list): nx3 array of global positions of legs, which are to be used for platform movement, where n should not be smaller than 4.
 
         Raises:
-            ValueError: If number of attached legs is less than 4.
+            ValueError: If number of attached legs is less than 4 or does not match the length of globalLegsPositions parameter.
 
         Returns:
-            False if ValueError is catched during trajectory calculation, None otherwise.
+            bool: False if ValueError is catched during trajectory calculation, True otherwise.
         """
         usedLegs = self.gripperController.getIdsOfAttachedLegs()
         if len(usedLegs) < 4:
             raise ValueError("Number of attached legs is insufficient to move the platform. Should be at least 4.")
+        if len(usedLegs) != len(globalLegsPositions):
+            raise ValueError("Number of given global legs positions is not the same as number of attached legs!")
 
         for leg in usedLegs:
             self.legsQueues[leg] = queue.Queue()
@@ -243,16 +221,22 @@ class VelocityController:
         for leg in usedLegs:
             self.legsQueues[leg].put(self.sentinel)
 
-    def getQdQddLegFF(self, legId, xD, xDd):
-        """Feed-forward calculate and write reference joints positions and velocities for single leg movement into leg-queue.
+        return True
 
-        :param legIdx: Leg id.
-        :param xD: Leg tip reference positions.
-        :param xDd: Leg tip reference velocities.
-        :return: Matrices of reference joints positions and velocities.
+    def getQdQddLegFF(self, legId, xD, xDd):
+        """(Feed-forward) calculate and write reference joints positions and velocities for single leg movement into leg-queue.
+
+        Args:
+            legId (int): Leg id.
+            xD (list): nx7 array of position (6 values for xyzrpy) trajectory and time stamps (7th value in a row), where n is number of steps on trajectory.
+            xDd (list): nx6 array for xyzrpy values of velocity trajectory, where n is number of steps on trajectory.
+
+        Returns:
+            tuple: Two nx3 numpy.ndarrays of reference joints positions and velocities, where n is number of steps on trajectory.
         """
-        qDs = np.empty([len(xD), self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        qDds = np.empty([len(xD), self.spider.NUMBER_OF_MOTORS_IN_LEG])
+
+        qDs = np.zeros([len(xD), self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        qDds = np.zeros([len(xD), self.spider.NUMBER_OF_MOTORS_IN_LEG])
         for idx, pose in enumerate(xD):
             qDs[idx] = self.kinematics.legInverseKinematics(legId, pose[:3])
             J = self.kinematics.legJacobi(legId, qDs[idx])
@@ -260,6 +244,7 @@ class VelocityController:
 
         return qDs, qDds
 
+    # TODO: with wrapper for moving separate legs, this function will not be needed.
     def getQdQddPlatformFF(self, legsIds, globalLegsPositions, xD, xDd):
         """Feed forward calculations of reference joints positions and velocities for parallel platform movement.
 
@@ -268,16 +253,16 @@ class VelocityController:
         :param globalLegsPositions: Legs positions during parallel movement in global origin.
         :return: Matrices of reference joints positions and velocities.
         """
-        qD = np.empty([len(xD), self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        qDd = np.empty([len(xD), self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        qD = np.zeros([len(xD), len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        qDd = np.zeros([len(xD), len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
 
         for idx, pose in enumerate(xD):
             qDFf = self.kinematics.platformInverseKinematics(legsIds, globalLegsPositions, pose[:-1])
             referenceLegsVelocities = self.kinematics.getSpiderToLegReferenceVelocities(legsIds, xDd[idx])
-            qDdFf = []
+            qDdFf = np.zeros_like(qDFf)
             for idx, leg in enumerate(legsIds):
                 J = self.kinematics.legJacobi(leg, qDFf[idx])
-                qDdFf.append(np.dot(np.linalg.inv(J), referenceLegsVelocities[idx]))
+                qDdFf[idx] = np.dot(np.linalg.inv(J), referenceLegsVelocities[idx])
             qD[idx] = qDFf
             qDd[idx] = qDdFf
 
@@ -317,7 +302,7 @@ class GripperController:
         readingThread.start()
 
     def readData(self):
-        """Constantly receiving data from Arduino.
+        """Constantly receiving data from Arduino. Runs in separate thread.
         """
         while True:
             time.sleep(0.001)
@@ -333,7 +318,8 @@ class GripperController:
     def sendData(self, msg):
         """Send data to Arduino.
 
-        :param msg: Message to send.
+        Args:
+            msg (str): Message to send.
         """
         if msg[-1] != '\n':
             msg += '\n'
@@ -342,10 +328,11 @@ class GripperController:
             self.comm.write(msg)
 
     def moveGripper(self, legId, command):
-        """Send command to move gripper on selected leg.
+        """Send command to move a gripper on selected leg.
 
-        :param legId: Leg id.
-        :param command: Command to execute on gripper.
+        Args:
+            legId (int): Leg id.
+            command (str): Command to execute on gripper - 'o' for opening, 'c' for closing .
         """
         if (command == self.OPEN_COMMAND or command == self.CLOSE_COMMAND):
             msg = command + str(legId) + "\n"
@@ -354,8 +341,11 @@ class GripperController:
     def openGrippersAndWait(self, legsIds):
         """Open grippers on given legs and wait for them to come in open state.
 
-        :param legsIds: Legs ids.
-        :return: True when all grippers are opened.
+        Args:
+            legsIds (list): Ids of used legs.
+
+        Returns:
+            bool: True, when all grippers reach open state.
         """
         for leg in legsIds:
             self.moveGripper(leg, self.OPEN_COMMAND)
@@ -368,20 +358,28 @@ class GripperController:
                     if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
                         checkArray[id] = True
         return True
-
-    def getSwitchesStates(self):
         """Get switches states.
 
         :return: String of five elements, each representing state of the switch on the leg.
         """
+    def getSwitchesStates(self):
+        """Get switches states - 0 for closed switch (attached leg), 1 otherwise.
+
+        Returns:
+            string: String of five characters - either '1' or '0', depends on the state of the switch.
+        """
         recMsg = ''
         while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
-            with self.lock:
+            with self.locker:
                 recMsg = self.receivedMessage
+
         return recMsg[5:]
 
     def getIdsOfAttachedLegs(self):
-        """Get ids of those legs, that are attached to pins. Leg is attached if switch and gripper are both closed.
+        """Get ids of attached legs. Leg is attached if switch and gripper are both in closed state.
+
+        Returns:
+            list: Ids of attached legs, empty list of none of the legs is attached.
         """
         recMsg = ''
         while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:

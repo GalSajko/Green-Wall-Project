@@ -70,8 +70,8 @@ def mapEncoderToJointsRadians(encoderValues):
 
 def mapEncoderToMotorsCurrents(encoderValues):
 
-    encoderValues = np.array(encoderValues)
-    mappedValues = np.array([(encoderValue - 65535) if encoderValue > 0x7fff else encoderValue for encoderValue in encoderValues])
+    encoderValues = np.array(encoderValues, dtype = np.float32)
+    mappedValues = np.array([(encoderValue - 65535) if encoderValue > 0x7fff else encoderValue for encoderValue in encoderValues], dtype = np.float32)
 
     return mappedValues * 0.00269
 

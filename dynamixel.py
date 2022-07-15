@@ -201,8 +201,8 @@ class MotorDriver:
         _ = self.groupSyncReadCurrent.fastSyncRead()
         _ = self.groupSyncReadPosition.fastSyncRead()
 
-        currents = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        positions = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        currents = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+        positions = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
 
         for leg in self.spider.LEGS_IDS:
             for idx, motorInLeg in enumerate(self.motorsIds[leg]):
