@@ -16,10 +16,11 @@ class MotorDriver:
     """ Class for controlling Dynamixel motors.
     """
     def __init__(self, motorsIds, enableMotors = True):
-        """Set motors control table addresses and initialize USB port.
+        """Initialize USB port and enable motors.
 
-        :param motorIds: Ids of motors to use. It should be 2d array, with motors from one leg grouped together.
-        :param enableMotors: If True, enable motors on initialization.
+        Args:
+            motorsIds (list): List of motors ids.
+            enableMotors (bool, optional): If True, enable torque in motors. Defaults to True.
         """
         # Motor series - we are using XM series.
         self.MOTOR_SERIES = "X_SERIES"
@@ -59,7 +60,7 @@ class MotorDriver:
             self.enableMotors()
 
     def initPort(self):
-        """Initialize USB port and set baudrate.
+        """Initialize USB port and set baudrate. Note that baudrate should match with baudrate that is already set on motors.
         """
         if self.portHandler.openPort():
             print("Port successfully opened.")
@@ -77,7 +78,7 @@ class MotorDriver:
         self.groupSyncReadCurrent.clearParam()
         self.groupSyncReadPosition.clearParam()
 
-        resultAddParams = self.addGroupSyncReadParams(self.spider.LEGS_IDS)
+        resultAddParams = self.addGroupSyncReadParams()
         if not resultAddParams:
             return False
 
@@ -94,7 +95,7 @@ class MotorDriver:
         return True
 
     def enableMotors(self):
-        """ Enable all of the motors from self.MOTOR_IDS, if they are connected.
+        """ Enable all of the motors, given at class initialization, if they are connected.
         """
         motorsArray = self.motorsIds.flatten()
         for motorId in motorsArray:
@@ -105,9 +106,10 @@ class MotorDriver:
                 print("Motor %d has been successfully enabled" % motorId)
 
     def disableMotors(self, motorsIds):
-        """Disable given motors.
+        """Disable motors.
 
-        :param motorsIds: Array of motors ids to disable.
+        Args:
+            motorsIds (list): Ids of motors, which are to be disabled.
         """
         if motorsIds == 5:
             motorsIds = self.motorsIds.flatten()
@@ -118,10 +120,14 @@ class MotorDriver:
             if comm:
                 print("Motor %d has been successfully disabled" % motorId)
 
-    def disableLegs(self, legId = 5):
-        """ Disable all of the motors if value of motors parameter is 5. Otherwise, disable motors in given leg."""
-        motorsArray = self.motorsIds.flatten()
-        if legId == 5:
+    def disableLegs(self, legIds = 5):
+        """Disable all of the motors in given legs.
+
+        Args:
+            legId (list, optional): Ids of legs, which are to be disabled, if value is 5 all legs will be disabled. Defaults to 5.
+        """
+        if legIds == 5:
+            motorsArray = self.motorsIds.flatten()
             for motorId in motorsArray:
                 # Disable torque.
                 result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
@@ -130,19 +136,19 @@ class MotorDriver:
                     print("Motor %d has been successfully disabled" % motorId)
             return
 
-        for motorId in self.motorsIds[legId]:
+        for motorId in self.motorsIds[legIds]:
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
             comm = self.commResultAndErrorReader(result, error)
             if comm:
                 print("Motor %d has been successfully disabled" % motorId)
 
-    def addGroupSyncReadParams(self, legIdx):
-        """Add parameters (motors ids of legs) to group sync reader parameters storages - for position and current reading.
+    def addGroupSyncReadParams(self):
+        """Add parameters (motors ids) to group sync reader parameters storages - for position and current reading.
 
-        :param legIdx: Array of leg ids.
+        Returns:
+            bool: True if adding was successfull, False otherwise.
         """
-        motors = np.array(self.motorsIds[legIdx]).flatten()
-        for motor in motors:
+        for motor in self.motorsIds.flatten():
             resultPosition = self.groupSyncReadPosition.addParam(motor)
             resultCurrent = self.groupSyncReadCurrent.addParam(motor)
             if not (resultPosition and resultCurrent):
@@ -150,7 +156,6 @@ class MotorDriver:
                 return False
         return True
 
-    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False, base = 'leg'):
         """Read motors positions in given legs with sync reader.
 
         :param legsIds: Legs ids.
@@ -159,34 +164,52 @@ class MotorDriver:
         :return: nx3 matrix with motors positions in radians, if calculateLegPositions is False, nx3 matrix with legs positions.
         otherwise.
         """
-        if base is not None and base != 'leg' and base != 'spider':
+    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False, base = 'l'):
+        """Read motors positions in given legs with sync reader. Optionally calculate legs positions.
+
+        Args:
+            legsIds (list): Legs ids.
+            calculateLegPositions (bool, optional): If true, calculate legs positions. Defaults to False.
+            base (str, optional): Origin in which to calculate legs positions, 's' for spider's origin, 'l' for leg-local origin. Defaults to 'l'.
+
+        Returns:
+            numpy.ndarray: nx3 array with either values in joints or legs positions in given origin, where n is number of given legs.
+        """
+        if base is not None and base != 'l' and base != 's':
             print("Invalid value of base parameter.")
             return False
 
         _ = self.groupSyncReadPosition.fastSyncRead()
 
-        mappedPositions = []
-        for leg in legsIds:
+        mappedPositions = np.zeros([len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+        for idx, leg in enumerate(legsIds):
             positions = [self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
             jointsValues = mappers.mapEncoderToJointsRadians(positions)
             if not calculateLegPositions:
-                mappedPositions.append(jointsValues)
+                mappedPositions[idx] = jointsValues
             else:
-                if base == 'leg':
-                    mappedPositions.append(self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3])
-                elif base == 'spider':
-                    mappedPositions.append(self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3])
+                if base == 'l':
+                    mappedPositions[idx] = self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3]
+                elif base == 's':
+                    mappedPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3]
 
-        return np.array(mappedPositions)
-
-    def syncReadMotorsCurrent(self, legsIds):
+        return mappedPositions
         """Read motors positions in given legs with sync reader.
 
         :param legsIds: Legs ids.
         :return: nx3 matrix with currents in motors in Ampers.
         """
+    def syncReadMotorsCurrent(self, legsIds):
+        """Read current in motors in given legs with sync reader.
+
+        Args:
+            legsIds (list): Legs ids.
+
+        Returns:
+            numpy.ndarray: nx3 array with currents in motors, where n is number of given legs.
+        """
         _ = self.groupSyncReadCurrent.fastSyncRead()
-        currents = np.empty([len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        currents = np.zeros([len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
         for idx, leg in enumerate(legsIds):
             currents[idx] = [self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
             currents[idx] = mappers.mapEncoderToMotorsCurrents(currents[idx])
@@ -194,9 +217,10 @@ class MotorDriver:
         return currents
 
     def syncReadPositionCurrentWrapper(self):
-        """Wrapper functions for reading currents and positions from all motors.
+        """Read positions and currents from all connected motors.
 
-        :return: Two 5x3 matrices with currents in motors in Ampers and motors positions in radians.
+        Returns:
+            tuple: Two 5x3 numpy.ndarrays with positions in radians and currents in Ampers in each motor.
         """
         _ = self.groupSyncReadCurrent.fastSyncRead()
         _ = self.groupSyncReadPosition.fastSyncRead()
@@ -213,11 +237,21 @@ class MotorDriver:
 
         return positions, currents
 
-    def syncReadPlatformPose(self, legsIds, legsGlobalPositions):
         """Read platform pose in global.
 
         :param legsIds: Legs used for calculating platform pose - those legs that are attached to pins.
         :param legsGlobalPositions: Global positions (pins) of used legs.
+        """
+    def syncReadPlatformPose(self, legsIds, legsGlobalPositions):
+        """Wrapper function for reading spider's pose in global origin. If more than three legs are given, it calculates spider's pose from each
+        combination of these three legs. Finally pose is determined as mean value of all calculations.
+
+        Args:
+            legsIds (list): Ids of legs to use for calculating spider's pose. Should not use less than three legs.
+            legsGlobalPositions (list): nx3 array of x, y, z positions of used legs in global origin, where n should be the same as length of legsIds.
+
+        Returns:
+            list: 1x6 array of xyzrpy positions.
         """
         legsGlobalPositions = np.array(legsGlobalPositions)
         spiderXyz = []
@@ -231,16 +265,17 @@ class MotorDriver:
 
         return spiderXyz
 
-    def syncWriteMotorsVelocitiesInLegs(self, legIdx, qCd):
-        """Write motors velocities to given motors in legs with sync writer. Note that parameters are added at class initialization.
+    def syncWriteMotorsVelocitiesInLegs(self, legIds, qCd):
+        """Write velocities to motors in given legs with sync writer.
 
-        :param legIdx: Legs ids.
-        :param qCd: Reference velocities.
-        :param add: If true add parameters to storage, otherwise only change them, defaults to True.
-        :return: True if writing was successfull, false otherwise.
+        Args:
+            legIdx (list): Legs ids.
+            qCd (list): nx3 array of desired velocities, where n is number of given legs.
+
+        Returns:
+            bool: True if writing was successfull, False otherwise.
         """
-
-        for idx, leg in enumerate(legIdx):
+        for idx, leg in enumerate(legIds):
             motorsInLeg = self.motorsIds[leg]
             encoderVelocoties = mappers.mapJointVelocitiesToEncoderValues(qCd[idx]).astype(int)
             for i, motor in enumerate(motorsInLeg):
@@ -266,25 +301,6 @@ class MotorDriver:
         """Clear group sync writer parameters storage.
         """
         self.groupSyncWrite.clearParam()
-
-    def readLegPosition(self, legIdx):
-        """Read legs position, using direct kinematics.
-
-        :param legIdx: Leg id
-        :return: Position of the end effector in leg-base origin.
-        """
-        motorsInLeg = self.motorsIds[legIdx]
-
-        presentPositions = []
-        for motorId in motorsInLeg:
-            presentPosition, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, motorId, self.PRESENT_POSITION_ADDR)
-            self.commResultAndErrorReader(result, error)
-            presentPositions.append(presentPosition)
-
-        jointRadians = mappers.mapEncoderToJointsRadians(presentPositions)
-        position = self.kinematics.legForwardKinematics(legIdx, jointRadians)[:,3][:3]
-
-        return np.array(position)
 
     def commResultAndErrorReader(self, result, error):
         """Helper function for reading communication result and error.

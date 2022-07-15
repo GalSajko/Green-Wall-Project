@@ -8,11 +8,8 @@ import numpy as np
 import math
 
 class Spider:
-    """ Spider class. Class is a singleton class, meaning it can only be instantiated once."""
-
-    # Singleton class instance tracker.
-    instance = None
-
+    """ Spider class. 
+    """
     def __init__(self):
         # Number of spiders legs.
         self.NUMBER_OF_LEGS = 5
@@ -43,17 +40,15 @@ class Spider:
         self.WALKING_HEIGHT = 0.25
         # Spider's height when laying on pins.
         self.LYING_HEIGHT = 0.057
-    
-    def __new__(cls, *args, **kwargs):
-        if not isinstance(cls.instance, cls):
-            cls.instance = object.__new__(cls)
-        return cls.instance
-
-    #region Helper functions
-    def getLegAnchorsInSpiderOrigin(self):
         """ Helper function for setting positions of legs anchors in spiders origin.
 
         :return: Numpy array of anchors positions. 
+        """
+    def getLegAnchorsInSpiderOrigin(self):
+        """Calculate positions of legs-anchors in spider's origin.
+
+        Returns:
+            numpy.ndarray: 5x2 array of x, y positions for each anchor.
         """
         # Angles between anchors and spiders x axis.
         legAngles = self.getLegAnglesXAxis()
@@ -65,12 +60,12 @@ class Spider:
         legAnchorsReversed = np.insert(legAnchorsReversed, 0, legAnchors[0], 0)
 
         return np.array(legAnchorsReversed)
-    
-    def getIdealLegVectors(self):
-        """ Helper functions for setting ideal leg vectors in spiders origin. 
-        Ideal leg vector has a radial direction, looking from spiders origin (center of a body).
 
-        :return: Numpy array of ideal leg unit vectors.
+    def getIdealLegVectors(self):
+        """Calculate directions of ideal leg vectors in spider's origin. Ideal leg vector has a radial direction, looking from center of a spider's body.
+
+        Returns:
+            numpy.ndarray: 5x2 array of x, y directions of ideal vectors.
         """
         legAngles = self.getLegAnglesXAxis()
 
@@ -84,24 +79,30 @@ class Spider:
         return np.array(idealLegVectorsReversed)
 
     def getLegAnglesXAxis(self):
-        """ Helper function for calculating angles between leg anchors and spiders x axis. 
+        """Calculate angles between vectors between anchor and spider's origin and spider's x axis.
 
-        :return: Numpy array of angles in radians. 
+        Returns:
+            numpy.ndarray: 1x5 array of angles in radians. 
         """
         legAngles = [np.radians(90) - leg * self.ANGLE_BETWEEN_LEGS for leg in range(self.NUMBER_OF_LEGS)]
         return np.array(legAngles)
 
-    def getTransformMatricesToAnchors(self):
-        """Calculate transformation matrices for transformation between base and anchors origin, in base origin.
+        """Calculate transformation matrices for transformation between base and leg-anchors origin, in base origin.
 
         :return: Array of transformation matrices
         """
+    def getTransformMatricesToAnchors(self):
+        """Calculate transformation matrices for transformation from spider's base to anchor.
+
+        Returns:
+            numpy.ndarray: 5x4x4 array of 4x4 transformation matrices for each leg-anchor.
+        """
         # Constant rotation offset, because anchors x axis is pointed in radial direction.
-        constantRoation = math.pi / 2
+        constantRotation = math.pi / 2
 
         T = []
         for i in range(self.NUMBER_OF_LEGS):
-            rotationAngle = i * self.ANGLE_BETWEEN_LEGS + constantRoation
+            rotationAngle = i * self.ANGLE_BETWEEN_LEGS + constantRotation
             T.append(np.array([
                 [math.cos(rotationAngle), -math.sin(rotationAngle), 0, self.LEG_ANCHORS[i][0]],
                 [math.sin(rotationAngle), math.cos(rotationAngle), 0, self.LEG_ANCHORS[i][1]],
@@ -110,17 +111,10 @@ class Spider:
             ]))
         
         return np.array(T)
-    #endregion
 
 class Wall:
-    """ Wall class. Class is a singleton class, meaning it can only be instantiated once.
-    
-    :param: gridPattern: Squared or rhombus pattern of pins grid.
+    """Wall class.
     """
-    
-    # Singleton class instance tracker.
-    instance = None
-
     def __init__(self, gridPattern):
         # Wall size given in meters - (x, y).
         self.WALL_SIZE = [1.25, 1.3]
@@ -130,16 +124,15 @@ class Wall:
         if (gridPattern != 'squared' and gridPattern != 'rhombus'):
             raise ValueError("Invalid value of gridPatter parameter!")
         self.gridPattern = gridPattern
-    
-    def __new__(cls, *args, **kwargs):
-            if not isinstance(cls.instance, cls):
-                cls.instance = object.__new__(cls)
-            return cls.instance
 
     def createRhombusGrid(self, threeDim):
-        """ Calculate pins positions. Pins are placed in rhombus pattern. 
+        """Calculate pins positions. Pins are placed in rhombus pattern. 
 
-        :return: Numpy array of pins positions in wall origin - (0, 0) is in the bottom-left corner of the wall.
+        Args:
+            threeDim (bool): If True, calculate pins positions in 3d space, otherwise in 2d space.
+
+        Returns:
+            numpy.ndarray: nx3 or nx2 array of pins positions, where n is number of pins and second number depends wheter positions are calculated in 3d or 2d space.
         """
         # Distance from edge of the wall and first row/column of pins.
         edgeOffset = 0.0
@@ -174,9 +167,13 @@ class Wall:
         return np.array(pins)
     
     def createSquaredGrid(self, threeDim):
-        """Calculate pins positions. Pins are placed in square pattern.
+        """Calculate pins positions. Pins are placed in squared pattern. 
 
-        :return: Numpy array of pins positions in wall origin - (0, 0) is in the left-bottom corner of the wall.
+        Args:
+            threeDim (bool): If True, calculate pins positions in 3d space, otherwise in 2d space.
+
+        Returns:
+            numpy.ndarray: nx3 or nx2 array of pins positions, where n is number of pins and second number depends on wheter positions are calculated in 3d or 2d space.
         """
         numberOfPinsInX = math.ceil(self.WALL_SIZE[0] / self.WALL_RASTER[0])
         numberOfPinsInY = math.ceil(self.WALL_SIZE[1] / self.WALL_RASTER[1])
@@ -193,14 +190,15 @@ class Wall:
                     pins.append([x, y, self.PIN_HEIGHT])
             
         return np.array(pins)
-    
-    def createGrid(self, threeDim = False):
-        """Create grid of pins.
 
-        :param gridPattern: Grid pattern.
-        :param threeDim: Wheter or not pins positions are given in 3d space (including z value), defaults to False
-        :raises ValueError: If gridPattern parameter value is not 'squared' or 'rhombus'.
-        :return: Array of pins.
+    def createGrid(self, threeDim = False):
+        """Wrapper function for calculating pins positions on the wall. Desired shape of grid is given at class initialization.
+
+        Args:
+            threeDim (bool, optional): If True, calculate pins positions in 3d space, otherwise in 2d space. Defaults to False.
+
+        Returns:
+            numpy.ndarray: nx3 or nx2 array of pins positions, where n is number of pins and second number depends on wheter positions are calculated in 3d or 2d space.
         """
         if self.gridPattern == 'squared':
             return self.createSquaredGrid(threeDim)

@@ -358,15 +358,12 @@ class GripperController:
                     if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
                         checkArray[id] = True
         return True
-        """Get switches states.
 
-        :return: String of five elements, each representing state of the switch on the leg.
-        """
     def getSwitchesStates(self):
         """Get switches states - 0 for closed switch (attached leg), 1 otherwise.
 
         Returns:
-            string: String of five characters - either '1' or '0', depends on the state of the switch.
+            string: String of five characters, each represeting switch state - either '1' or '0', depends on the state of the switch.
         """
         recMsg = ''
         while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
@@ -379,7 +376,7 @@ class GripperController:
         """Get ids of attached legs. Leg is attached if switch and gripper are both in closed state.
 
         Returns:
-            list: Ids of attached legs, empty list of none of the legs is attached.
+            list: Ids of attached legs, empty list if none of the legs is attached.
         """
         recMsg = ''
         while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
