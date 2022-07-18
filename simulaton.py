@@ -17,12 +17,12 @@ class Plotter:
         # Figure for plotting.
         self.figure = plt.figure()
         self.board = plt.axes(xlim = (0, self.wall.WALL_SIZE[0]), ylim = (0, self.wall.WALL_SIZE[1]))
-    
-    def plotWallGrid(self, plotPins = False):
-        """Plot wall with pins.
 
-        :param pattern: Wall grid pattern, defaults to 'square'.
-        :param plotPins: Show figure if True, defaults to False
+    def plotWallGrid(self, plotPins = False):
+        """Plot 2-d representation of wall with pins.
+
+        Args:
+            plotPins (bool, optional): Show graph if True. Defaults to False.
         """
         pins = np.transpose(self.wall.createGrid())
         self.board.plot(pins[0], pins[1], 'g.')
@@ -30,22 +30,24 @@ class Plotter:
             plt.show()
 
     def plotSpidersPath(self, path, plotPath = False):
-        """Plot path of the spider on the wall.
+        """Plot 2-d representation of spider's path.
 
-        :param path: (x, y) points on spiders path.
-        :param plotPath: Show figure if True, defaults to False
+        Args:
+            path (list): Array of spider's body path. Only x and y values are used for plotting.
+            plotPath (bool, optional): Show plotting figure if True. Defaults to False.
         """
         path = np.transpose(path)
         self.board.plot(path[0], path[1], 'rx')
         if plotPath:
             self.plotWallGrid()
             plt.show()
-    
-    def plotSpiderMovement(self, path, legPositions):
-        """Complete drawing function for showing a spiders movement on the wall.
 
-        :param path: (x, y) points on the path.
-        :param legPositions: Array of (x, y) positions of legs for each point on the path.
+    def plotSpiderMovement(self, path, legPositions):
+        """2-d animation of spider's movement between two points on the wall.
+
+        Args:
+            path (list): nxm array of spider's body path, where n is number of steps. Only x and y values are used for plotting.
+            legPositions (list): nx5x3 array of global legs positions on each step of the path.
         """
         # First plot an environment (wall with pins) and path.
         self.plotWallGrid()

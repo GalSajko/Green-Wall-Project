@@ -1,5 +1,4 @@
 import socket
-import struct
 
 class UdpServer:
 
