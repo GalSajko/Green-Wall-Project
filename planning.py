@@ -23,18 +23,21 @@ class PathPlanner:
         self.maxLinStep = maxLinStep
         self.maxRotStep = maxRotStep
         self.maxLiftStep = 0.3
-    
+
     def calculateSpiderBodyPath(self, startPose, goalPose):
-        """Calculate descrete path of spider's body including rotation around z axis. First rotate toward goal point,
-        than move towards this point and lastly, if rotateInGoalOrientation is True, rotate into goal orientation.
+        """Calculate steps of spider's path, including rotation around z axis (orientation). Path's segments are as follow:
+        - lift spider on the walking height (if necessary),
+        - rotate spider towards the goal point,
+        - walk towards the goal point,
+        - when on goal point, rotate in goal orientation. 
 
-        :param startPose: Starting pose as (x, y, z, rotZ) where rotZ is rotation around global z axis.
-        :param goalPose: Goal pose as (x, y, z, rotZ).
-        :return: Array of (x, y, z, rotZ) poses, representing the descrete path.
+        Args:
+            startPose (list): 1x4 array of starting pose, given as x, y, z, rotZ values in global origin, where rotZ is toration around global z axis. 
+            goalPose (_type_): 1x4 array of goal pose, given as x, y, z, rotZ values in global origin, where rotZ is toration around global z axis.
+
+        Returns:
+            numpy.ndarray: nx4 array of poses on each step of movenet, where n is number of steps.
         """
-        # Path segments: first rotate towards goal position, than move from start to goal position
-        # and finally rotate into goal orientation.
-
         path = [startPose]
 
         # If spider is lying on the pins first lift it up on the walking height.
@@ -76,10 +79,14 @@ class PathPlanner:
         return np.array(path)
 
     def calculateSpiderLegsPositionsXyzRpyFF(self, path):
-        """Calculate legs positions for each step on the path, including spider's rotations.
+        """Calculate legs positions in global origin (same as positions of pins in wall's origin), for each step of the spider's path. 
+        Orientation around global z axis is included in path.
 
-        :param path: Spider's path.
-        :return: Array of selected pins for each leg on each step of the path.
+        Args:
+            path (list): nx4 array of poses on each step of the path, where n is number of steps.
+
+        Returns:
+            list: nx5x3 array of global positions of each leg on each step of the path, where n is number of steps in the path.
         """
         pins = self.wall.createGrid(True)
         selectedPins = []
@@ -118,62 +125,17 @@ class PathPlanner:
 
         return selectedPins                   
 
-    def calculateSpiderLegsPositionsFF(self, path, params = [1/3, 1/3, 1/3]):
-        """Calculate legs positions for each step on the path.
-
-        :param path: Spider's path.
-        :param params: Values of parameters for calculating best pin to put a leg on, defaults to [1/3, 1/3, 1/3]
-        :return: Array of selected pins for each leg on each step on the path.
-        """
-        pins = self.wall.createGrid()
-        selectedPins = []
-        for step, (x, y) in enumerate(path):
-            # Leg anchors in global origin.
-            legAnchors = self.spider.LEG_ANCHORS + [x, y]
-            # Selected pins for each leg on each step.
-            selectedPinsOnEachStep = []
-            for idx, legAnchor in enumerate(legAnchors):
-                # Potential pins for each leg.
-                potentialPinsForSingleLeg = []
-                for pin in pins:
-                    # First check distance from anchor to pin.
-                    distanceToPin = self.geometryTools.calculateEuclideanDistance2d(legAnchor, pin)
-                    if self.spider.CONSTRAINS[0] < distanceToPin < self.spider.CONSTRAINS[1]:                       
-                        # Than check angle between ideal leg direction and pin.
-                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(
-                            self.spider.IDEAL_LEG_VECTORS[idx], 
-                            np.array(np.array(pin) - np.array(legAnchor)))
-                        if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
-                            if step not in (0, len(path) - 1):
-                                previousPin = selectedPins[step - 1][idx]
-                                # criterion - pick pin with best distance, minimum angle and those with minimum distance from previous pin (avoid unnecesarry movement).
-                                distanceBetweenSelectedAndPreviousPin = self.geometryTools.calculateEuclideanDistance2d(previousPin, pin)
-                                isLegMoving = 0 if distanceBetweenSelectedAndPreviousPin == 0 else 1
-                                distanceFromPinToEndPoint = self.geometryTools.calculateEuclideanDistance2d(pin, path[-1])
-                                criterionFunction = params[0] * abs(angleBetweenIdealVectorAndPin) + params[1] * isLegMoving + params[2] * distanceFromPinToEndPoint
-                            else:
-                                # criterion - pick pin with best distance and minimal angle.
-                                criterionFunction = abs(distanceToPin - self.spider.CONSTRAINS[1]) + abs(angleBetweenIdealVectorAndPin)
-                            potentialPinsForSingleLeg.append([pin, criterionFunction])
-
-                potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg)
-                # Sort potential pins based on minimal value of criterion function.
-                potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:, 1].argsort()]
-                # Append potential pin with minimum criterion function value to selected pins on each step.
-                selectedPinsOnEachStep.append(potentialPinsForSingleLeg[0][0])
-
-            selectedPins.append(selectedPinsOnEachStep)
-
-        return selectedPins
-    
     def calculateWalkingMovesFF(self, globalStartPose, globalGoalPose):
-        """Feed forward calculations of platform and legs positions during walking procedure. 
-        Platform is moving until one (or more) of the legs has to move on new pin.
+        """(Feed-forward) calculation of spider's poses and its legs positions during walking. Spider's body is moving 
+        continuously untily one of the leg has to change its position.
 
-        :param globalStartPose: Spider's starting pose in global (wall) origin
-        :param globalGoalPose: Spider's goal pose in global (wall) origin.
-        :param maxStep: Platform step.
-        :return: Arrays of calculated platform poses and selected pins.
+        Args:
+            globalStartPose (list): 1x4 array of spider's start pose in global origin, given as x, y, z and rotZ, where rotZ is rotation around global z axis.
+            globalGoalPose (list): 1x4 array of spider's goal pose in global origin, given as x, y, z and rotZ, where rotZ is rotation around global z axis.
+
+        Returns:
+            tuple: Two numpy.ndarrays, first of shape nx4 representing all of the spider's body poses during the walking, second of shape nx5x3 representing all of 
+            legs positions during walking, where n is number of walking steps.
         """
         path = self.calculateSpiderBodyPath(globalStartPose, globalGoalPose)
         selectedPins = self.calculateSpiderLegsPositionsXyzRpyFF(path)
@@ -195,14 +157,26 @@ class TrajectoryPlanner:
     """ Class for calculating different trajectories.
     """
     def minJerkTrajectory(self, startPose, goalPose, duration):
-        """Calculate minimum jerk trajectory from start to goal position.
+        """Calculate minimum jerk trajectory of positions and velocities between two points.
 
-        :param startPose: Start pose (x, y, z, roll, pitch, yaw).
-        :param goalPose: Goal pose (x, y, z, roll, pitch, yaw).
-        :param duration: Duration of movement in seconds.
-        :param startVelocity: Start velocity, defaults to 0
-        :param goalVelocity: Goal velocity, defaults to 0
-        :return: Trajectory with pose and time stamp for each step and velocities in each pose.
+        Args:
+            startPose (list): 1xn array of starting pose, where n can be: 
+                - 3 for representing x, y, and z starting position,
+                - 4 for representing x, y, z and rotZ, where rotZ is rotation around global z axis,
+                - 6 for representing x, y, z, r, p and y pose given in global origin.
+            goalPose (list): 1xn array of goal pose, where n can be: 
+                - 3 for representing x, y, and z starting position,
+                - 4 for representing x, y, z and rotZ, where rotZ is rotation around global z axis,
+                - 6 for representing x, y, z, r, p and y pose given in global origin.
+            duration (float): Duration of trajectory.
+
+        Raises:
+            ValueError: If lengths of start and goal pose are not the same.
+            ValueError: If value of duration parameter is smaller or equal to 0.
+
+        Returns:
+            tuple: nx7 array, representing pose trajectory with x, y, z, r, p, y and t values, where t are time stamps and 
+            nx6 array representing velocity trajectory with x, y, z, r, p, y velocities, where n is the number of steps in trajectory.
         """
         if len(startPose) == 3:
             startPose = [startPose[0], startPose[1], startPose[2], 0.0 , 0.0, 0.0]
@@ -236,8 +210,6 @@ class TrajectoryPlanner:
             trajectory[idx] = trajectoryRow
             velocities[idx] = velocityRow
         return trajectory, velocities
-
-    def bezierTrajectory(self, startPoint, goalPoint, duration):
         """ Calculate cubic bezier trajectory between start and goal pose with fixed intermediate control points.
 
         :param startPoint: Starting point
@@ -245,26 +217,40 @@ class TrajectoryPlanner:
         :param duration: Duration of movement between start and goal point.
         :return: Cubic Bezier trajectory with positions, time steps and velocities in each step.
         """
+    def bezierTrajectory(self, startPosition, goalPosition, duration):
+        """Calculate cubic bezier trajectory between start and goal point with fixed intermediat control points.
 
-        if (len(startPoint) != len(goalPoint)):
-            print("Invalid start and goal points.")
-            return
+        Args:
+            startPosition (list): 1x3 array of x, y, z values, representing starting position of trajectory, given in global origin.
+            goalPosition (list): 1x3 array of x, y, z values, representing goal position of trajectory, given in global origin.
+            duration (float): Duration of trajectory.
+
+        Raises:
+            ValueError: If lengths of given start and/or goal pose are not equal to 3.
+            ValueError: If value of duration parameter is smaller or equal to 0.
+
+        Returns:
+            tuple: nx4 array, representing position trajectory with x, y, z and t values, where t are time stamps and 
+            nx3 array representing velocity trajectory with x, y and z velocities, where n is the number of steps in trajectory.
+        """
+
+        if len(startPosition) != 3 or len(goalPosition) != 3:
+            raise ValueError("Start and/or goal position were not given correctly.")
         if duration <= 0:
-            print("Invalid duration.")
-            return
+            raise ValueError("Movement duration cannot be shorter thatn 0 seconds.")
 
         timeStep = 1 / config.CONTROLLER_FREQUENCY
         numberOfSteps = math.floor(duration / timeStep)
 
         heightPercent = 0.6
 
-        startPoint, goalPoint = np.array(startPoint), np.array(goalPoint)
-        firstInterPoint = np.array([startPoint[0], startPoint[1], startPoint[2] + heightPercent * np.linalg.norm(goalPoint - startPoint)])
-        secondInterPoint = np.array([goalPoint[0], goalPoint[1], goalPoint[2] + heightPercent * np.linalg.norm(goalPoint - startPoint)])
-        controlPoints =  np.array([startPoint, firstInterPoint, secondInterPoint, goalPoint])
+        startPosition, goalPosition = np.array(startPosition), np.array(goalPosition)
+        firstInterPoint = np.array([startPosition[0], startPosition[1], startPosition[2] + heightPercent * np.linalg.norm(goalPosition - startPosition)])
+        secondInterPoint = np.array([goalPosition[0], goalPosition[1], goalPosition[2] + heightPercent * np.linalg.norm(goalPosition - startPosition)])
+        controlPoints =  np.array([startPosition, firstInterPoint, secondInterPoint, goalPosition])
 
         timeVector = np.linspace(0, duration, numberOfSteps)
-        trajectory = np.empty([len(timeVector), len(startPoint) + 1], dtype = np.float32)
+        trajectory = np.empty([len(timeVector), len(startPosition) + 1], dtype = np.float32)
 
         for idx, time in enumerate(timeVector):
             param = time / duration
@@ -281,7 +267,7 @@ class TrajectoryPlanner:
         t1 = duration / 3.0
         t2 = 2 * duration / 3.0
 
-        velocity = np.empty([len(timeVector), len(startPoint)], dtype = np.float32)
+        velocity = np.empty([len(timeVector), len(startPosition)], dtype = np.float32)
         for idx, time in enumerate(timeVector):
             if 0 <= time <= t1:
                 velocity[idx] = a * time
