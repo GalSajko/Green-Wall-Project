@@ -6,13 +6,13 @@ import calculations
 import environment as env
 import time
 import random
-import udpServer as server
+import udpServer as udpServer
 import threading
 
 
 def forceSending(frequency):
     while True:
-        server.send(controller.forces)
+        udpServer.send(controller.forces)
         time.sleep(1.0 / frequency)
 
 def initSendingThread():
@@ -22,7 +22,7 @@ def initSendingThread():
 
 if __name__ == "__main__":    
     controller = controllers.VelocityController()
-    server = server.UdpServer('192.168.1.11')
+    udpServer = udpServer.UdpServer('192.168.1.11')
     wall = env.Wall('squared')
     pins = wall.createGrid(True)
     time.sleep(3)

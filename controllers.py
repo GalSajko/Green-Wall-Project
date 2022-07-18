@@ -16,7 +16,8 @@ import planning
 import config
 
 class VelocityController:
-    """ Class for velocity-control of spider's movement.
+    """ Class for velocity-control of spider's movement. All legs are controlled with same controller, but can be moved separately and independently
+    from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop controller takes first values from all of the legs-queues.
     """
     def __init__ (self):
         self.matrixCalculator = calculations.MatrixCalculator()
@@ -171,6 +172,46 @@ class VelocityController:
         self.legsQueues[legId].put(self.sentinel)
 
         return True
+    
+    def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose):
+        """Open gripper, move leg to the new pin and close the gripper.
+
+        Args:
+            legId (int): Leg id.
+            goalPosition (list): 1x3 array of global x, y and z position of leg.
+            duration (float): Duration of movement.
+            spiderPose (list): 1x4 array of global x, y, z and rotZ pose of spider's body.
+        """
+        detachOffset = 0.02
+        attachTime = 1
+        detachTime = 1
+
+        with self.locker:
+            legPosition = self.motorDriver.syncReadMotorsPositionsInLegs(legId, True, 'g')
+
+        detachPosition = np.copy(legPosition)
+        detachPosition[2] += detachOffset
+        attachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], spiderPose, [goalPosition])
+
+        # If leg is attached, open a gripper.
+        if legId in self.gripperController.getIdsOfAttachedLegs():
+            self.gripperController.openGrippersAndWait(legId)
+
+        # Move from pin to detach position, to attach position and finally to new pin.
+        self.moveLegAsync(legId, detachPosition, 'g', detachTime, 'minJerk', spiderPose)
+        time.sleep(detachTime + 0.01)
+        self.moveLegAsync(legId, attachPosition, 'g', duration, 'bezier', spiderPose)
+        time.sleep(duration + 0.01)
+        self.moveLegAsync(legId, goalPosition, 'g', attachTime, 'minJerk', spiderPose)
+        time.sleep(attachTime + 0.01)
+
+        # Close gripper.
+        self.gripperController.moveGripper(legId, self.gripperController.CLOSE_COMMAND)
+
+    # def moveLegAndGripperWrapper(self, legId, goalPosition, duration, spiderPose):
+
+    #     legThread = threading.Thread()
+
 
     # TODO: write wrapper for moving legs so that spider will reach desired pose, instead of this function.
     def movePlatformAsync(self, goalPose, duration, globalLegsPositions):
