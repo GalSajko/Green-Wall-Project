@@ -1,28 +1,35 @@
-""" Module for mapping angles between leg model and motor values. """
+""" Module for mapping angles between leg model and motors. """
 
 import math
 import numpy as np
 
-def mapJointRadiansToMotorRadians(jointsValues):
-    """Map angles from Inverse kinematics in radians into motor angles in radians.
+def mapModelAnglesRadiansToMotorsAnglesRadians(modelAngles):
+    """Map leg-model angles to motors angles, both in radians. Each leg has three motors, 
+    so this function converts three leg-model angles to three motors angles.
 
-    :param jointsValues: Values of joints in leg.
-    :return: Motors angles in radians that match input angles.
+    Args:
+        modelAngles (list): 1x3 array of leg-model angles in radians.
+
+    Returns:
+        tuple: Motors angles for each motor in leg in radians, matching given leg-model angles.
     """
-    q1, q2, q3 = jointsValues
+    q1, q2, q3 = modelAngles
     q1 = q1 + math.pi
     q2 = math.pi - q2
     q3 = 1.5 * math.pi + q3
 
     return q1, q2, q3
 
-def mapMotorRadiansToJointRadians(motorValues):
-    """Map angles from motors in radians to joint angles in radians.
+def mapMotorsAnglesRadiansToModelAnglesRadians(motorsAngles):
+    """Map motors angles to leg-model angles, both in radians. For all three motos in leg.
 
-    :param motorValues: Motor values in radians.
-    :return: Joint values in radians.
+    Args:
+        motorsAngles (list): 1x3 array of motors angles in radians
+
+    Returns:
+        tuple: Leg-model angles in radians, matching given motors' angles.
     """
-    q1, q2, q3 = motorValues
+    q1, q2, q3 = motorsAngles
 
     q1 = q1 - math.pi
     q2 = -(q2 - math.pi)
@@ -30,64 +37,81 @@ def mapMotorRadiansToJointRadians(motorValues):
 
     return q1, q2, q3
 
-def mapMotorRadiansToEncoder(jointValues):
-    """Map radians in motors to encoder values.
+def mapModelAnglesRadiansToPositionEncoderValues(modelAngles):
+    """Map leg-model angles in radians to motors' encoders values.
 
-    :param jointValues: Angles in motors in radians. 
-    :return: Encoder values to match input angles.
+    Args:
+        modelAngles (list): 1x3 array of leg-model angles in radians.
+
+    Returns:
+        numpy.ndarray: 1x3 array of motors' encoders values, matching given leg-model angles.
     """
-    jointValues = np.degrees(jointValues)
+    modelAngles = np.degrees(modelAngles)
     encoderBits = 12
-    # Convert joints values to encoder values.
-    jointValues = np.array(jointValues)
-    encoderValues = np.array(jointValues * math.pow(2, encoderBits) / 360.0)
+    modelAngles = np.array(modelAngles)
+    encoderValues = np.array(modelAngles * math.pow(2, encoderBits) / 360.0)
 
     return encoderValues
 
-def mapEncoderToMotorsDegrees(encoderValues):
-    """Map encoder values to motors degrees.
+def mapPositionEncoderValuesToMotorsAnglesDegrees(encodersValues):
+    """Map motors' encoder values to motors' angles in degrees.
 
-    :param encoderValues: Encoder values for each motor in leg.
-    :return: Motors degrees for each motor in leg.
+    Args:
+        encodersValues (list): 1xn array of encoder values to convert, where n is number of given values.
+
+    Returns:
+        numpy.ndarray: 1xn array of motors' angles in degrees, where n is number of input encoders' values.
     """
     encoderBits = 12
-    # Convert encoders values in degrees.
-    encoderValues = np.array(encoderValues)
+    encodersValues = np.array(encodersValues)
 
-    return encoderValues * 360.0 / math.pow(2, encoderBits)
+    return encodersValues * 360.0 / math.pow(2, encoderBits)
 
-def mapEncoderToJointsRadians(encoderValues):
-    """Map encoders values to joints radians.
+def mapPositionEncoderValuesToModelAnglesRadians(encodersValues):
+    """Map encoders' values of each motor in leg to model angles in radians.
 
-    :param encoderValues: Encoders values for each motor in single leg.
-    :return: 1x3 array of joints radians in leg.
+    Args:
+        encodersValues (list): 1x3 array of encoders' values of each motor in leg.
+
+    Returns:
+        numpy.ndarray: 1x3 array of leg-model angles in radians.
     """
-    encoderValues = np.array(encoderValues)
+    encodersValues = np.array(encodersValues)
     k = np.array([math.pi / 2048, -math.pi / 2048, math.pi / 2048])
     n = np.array([-math.pi, math.pi, -3*math.pi / 2])
 
-    return np.array(k * encoderValues + n)
+    return np.array(k * encodersValues + n)
 
-def mapEncoderToMotorsCurrents(encoderValues):
+def mapCurrentEncoderToMotorsCurrentsAmpers(encoderValues):
+    """Map encoded current values of each motor in leg to currents in motors in Ampers.
+
+    Args:
+        encoderValues (list): 1x3 array of encoded current values of each motor in leg.
+
+    Returns:
+        numpy.ndarray: 1x3 array of currents in motors in Ampers.
+    """
 
     encoderValues = np.array(encoderValues, dtype = np.float32)
     mappedValues = np.array([(encoderValue - 65535) if encoderValue > 0x7fff else encoderValue for encoderValue in encoderValues], dtype = np.float32)
 
     return mappedValues * 0.00269
 
+def mapModelVelocitiesToVelocityEncoderValues(modelVelocities):
+    """Map velocities of each joint in leg-model to velocity encoders values.
 
-def mapJointVelocitiesToEncoderValues(jointVelocities):
-    """Map calculated joints velocities to encoder values.
+    Args:
+        modelVelocities (list): 1x3 array of velocities in each joint of leg-model.
 
-    :param jointVelocities: Reference joints velocities in rad/s.
-    :return: Encoder values to match desired joints velocities.
+    Returns:
+        numpy.ndarray: 1x3 array of encoded motors' velocities, matching given leg-model velocities.
     """
     encoderVelocityLimit = 75
     jointVelocitiyRpmLimit = 17.18
 
-    jointVelocities = np.array(jointVelocities)
+    modelVelocities = np.array(modelVelocities)
     # Rad/s to rad/min.
-    jointVelocitiesRpm = (60 / (2*math.pi)) * jointVelocities
+    jointVelocitiesRpm = (60 / (2*math.pi)) * modelVelocities
 
     # Convert to encoder values.
     encoderValues = jointVelocitiesRpm * (encoderVelocityLimit / jointVelocitiyRpmLimit)

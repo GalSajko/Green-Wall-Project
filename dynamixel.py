@@ -84,7 +84,7 @@ class MotorDriver:
 
         for leg in self.spider.LEGS_IDS:
             initVelocities = np.zeros(self.spider.NUMBER_OF_MOTORS_IN_LEG)
-            encoderVelocoties = mappers.mapJointVelocitiesToEncoderValues(initVelocities).astype(int)
+            encoderVelocoties = mappers.mapModelVelocitiesToVelocityEncoderValues(initVelocities).astype(int)
             for i, motor in enumerate(self.motorsIds[leg]):
                 initVelocityBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocoties[i]))]
                 resultWrite = self.groupSyncWrite.addParam(motor, initVelocityBytes)
@@ -184,7 +184,7 @@ class MotorDriver:
         mappedPositions = np.zeros([len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
         for idx, leg in enumerate(legsIds):
             positions = [self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
-            jointsValues = mappers.mapEncoderToJointsRadians(positions)
+            jointsValues = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions)
             if not calculateLegPositions:
                 mappedPositions[idx] = jointsValues
             else:
@@ -212,7 +212,7 @@ class MotorDriver:
         currents = np.zeros([len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
         for idx, leg in enumerate(legsIds):
             currents[idx] = [self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
-            currents[idx] = mappers.mapEncoderToMotorsCurrents(currents[idx])
+            currents[idx] = mappers.mapCurrentEncoderToMotorsCurrentsAmpers(currents[idx])
 
         return currents
 
@@ -232,8 +232,8 @@ class MotorDriver:
             for idx, motorInLeg in enumerate(self.motorsIds[leg]):
                 positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
                 currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
-            positions[leg] = mappers.mapEncoderToJointsRadians(positions[leg])
-            currents[leg] = mappers.mapEncoderToMotorsCurrents(currents[leg])
+            positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
+            currents[leg] = mappers.mapCurrentEncoderToMotorsCurrentsAmpers(currents[leg])
 
         return positions, currents
 
@@ -277,7 +277,7 @@ class MotorDriver:
         """
         for idx, leg in enumerate(legIds):
             motorsInLeg = self.motorsIds[leg]
-            encoderVelocoties = mappers.mapJointVelocitiesToEncoderValues(qCd[idx]).astype(int)
+            encoderVelocoties = mappers.mapModelVelocitiesToVelocityEncoderValues(qCd[idx]).astype(int)
             for i, motor in enumerate(motorsInLeg):
                 qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocoties[i]))]
                 with self.locker:

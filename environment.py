@@ -40,10 +40,7 @@ class Spider:
         self.WALKING_HEIGHT = 0.25
         # Spider's height when laying on pins.
         self.LYING_HEIGHT = 0.057
-        """ Helper function for setting positions of legs anchors in spiders origin.
 
-        :return: Numpy array of anchors positions. 
-        """
     def getLegAnchorsInSpiderOrigin(self):
         """Calculate positions of legs-anchors in spider's origin.
 
