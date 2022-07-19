@@ -6,11 +6,13 @@ class UdpServer:
         self.LOCAL_IP = '192.168.1.67'
         self.LOCAL_PORT = 20000
         self.REMOTE_PORT = 6565
-
-        self.udpServerSocket = socket.socket(family = socket.AF_INET, type = socket.SOCK_DGRAM)
-        self.udpServerSocket.bind((self.LOCAL_IP, self.LOCAL_PORT))
-
+        
         self.addressToSend = addressToSend
+        self.udpServerSocket = socket.socket(family = socket.AF_INET, type = socket.SOCK_DGRAM)
+        try:
+            self.udpServerSocket.bind((self.LOCAL_IP, self.LOCAL_PORT))
+        except socket.error as se:
+            print(se)
 
         print("UDP Server running.")
     

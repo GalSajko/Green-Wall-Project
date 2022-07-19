@@ -33,7 +33,7 @@ class Spider:
         # Unit vectors pointing in radial directions (looking from center of body).
         self.IDEAL_LEG_VECTORS = self.getIdealLegVectors()
         # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
-        self.CONSTRAINS = [0.25, 0.55, np.radians(40)]
+        self.CONSTRAINS = [0.25, 0.55, np.radians(80)]
         # Array of transformation matrices for transformations from spider base to anchors in base origin.
         self.T_ANCHORS = self.getTransformMatricesToAnchors()
         # Spider's walking height.
@@ -114,7 +114,7 @@ class Wall:
     """
     def __init__(self, gridPattern):
         # Wall size given in meters - (x, y).
-        self.WALL_SIZE = [1.25, 1.3]
+        self.WALL_SIZE = [6, 4]
         # Pin raster - distances between pins in (x, y).
         self.WALL_RASTER = [0.2, 0.25]
         self.PIN_HEIGHT = 0.02
