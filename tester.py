@@ -10,13 +10,14 @@ import simulaton
 if __name__ == "__main__":    
     wall = env.Wall('squared')
     pins = wall.createGrid(True)
-    pathPlanner = planning.PathPlanner(0.05, 0.2)
+    pathPlanner = planning.PathPlanner(0.05, 0.1)
     plotter = simulaton.Plotter('squared')
-    start = [0.5, 0.5, 0.25, 0.0]
-    goal = [0.5, 1.5, 0.25, 0.0]
+    start = [0.5, 0.5, 0.2, 0.0]
+    goal = [0.5, 0.5, 0.2, 0.0]
     path = pathPlanner.calculateSpiderBodyPath(start, goal)
-    usedPins = pathPlanner.calculateIdealLegsPositionsFF(path)
-    plotter.plotSpiderMovement(path, usedPins)
+    pins, rValues = pathPlanner.calculateIdealLegsPositionsFF(path)
+    print(rValues)
+    plotter.plotSpiderMovement(path, pins)
 
 
 

@@ -22,6 +22,7 @@ class VelocityController:
     def __init__ (self):
         self.matrixCalculator = calculations.MatrixCalculator()
         self.kinematics = calculations.Kinematics()
+        self.dynamics = calculations.Dynamics()
         self.geometryTools = calculations.GeometryTools()
         self.spider = env.Spider()
         self.trajectoryPlanner = planning.TrajectoryPlanner()
@@ -68,7 +69,7 @@ class VelocityController:
                 init = False
 
             for leg in self.spider.LEGS_IDS:
-                self.forces[leg] = self.kinematics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
+                self.forces[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
 
             qD, qDd = self.getQdQddFromQueues()
 
@@ -308,6 +309,8 @@ class VelocityController:
             qDd[idx] = qDdFf
 
         return qD, qDd
+    
+    def equalizeForces(self, rValues, )
 
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.

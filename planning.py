@@ -19,6 +19,7 @@ class PathPlanner:
         self.geometryTools = calculations.GeometryTools()
         self.matrixCalculator = calculations.MatrixCalculator()
         self.kinematics = calculations.Kinematics()
+        self.dynamics = calculations.Dynamics()
 
         self.maxLinStep = maxLinStep
         self.maxRotStep = maxRotStep
@@ -47,15 +48,15 @@ class PathPlanner:
             path.append(startWalkingPose)
 
         # Rotate towards goal point.
-        refAngle = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1]) * (-1)
-        angleError = self.geometryTools.wrapToPi(refAngle - startPose[3])
-        if angleError != 0.0:
-            numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
-            rotatedPose = np.copy(path[-1])
-            rotatedPose[3] = refAngle 
-            rotatePath = np.linspace(path[-1], rotatedPose, numberOfSteps)
-            for pose in rotatePath:
-                path.append(pose)
+        # refAngle = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1]) * (-1)
+        # angleError = self.geometryTools.wrapToPi(refAngle - startPose[3])
+        # if angleError != 0.0:
+        #     numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
+        #     rotatedPose = np.copy(path[-1])
+        #     rotatedPose[3] = refAngle 
+        #     rotatePath = np.linspace(path[-1], rotatedPose, numberOfSteps)
+        #     for pose in rotatePath:
+        #         path.append(pose)
 
         # Move towards goal point.
         distToTravel = np.linalg.norm(np.array(goalPose[:2]) - np.array(startPose[:2]))
@@ -68,13 +69,13 @@ class PathPlanner:
             for pose in linPath:
                 path.append(pose)
 
-        # Rotate in goal orientation.
-        angleError = self.geometryTools.wrapToPi(path[-1][3] - goalPose[3])
-        if angleError != 0.0:
-            numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
-            rotatePath = np.linspace(path[-1], goalPose, numberOfSteps )
-            for pose in rotatePath:
-                path.append(pose)
+        # Rotate towards goal orientation.
+        # angleError = self.geometryTools.wrapToPi(path[-1][3] - goalPose[3])
+        # if angleError != 0.0:
+        #     numberOfSteps = math.ceil(abs(angleError) / self.maxRotStep) + 1
+        #     rotatePath = np.linspace(path[-1], goalPose, numberOfSteps )
+        #     for pose in rotatePath:
+        #         path.append(pose)
 
         return np.array(path)
 
@@ -126,12 +127,26 @@ class PathPlanner:
         return selectedPins
     
     def calculateIdealLegsPositionsFF(self, path):
+        """Calculate ideal legs positions during spider's movement, using force manipulability ellipsoids. Position (or pin) is considered ideal, 
+        if the size of the vector from center to the surface of ellipsoid in direction of gravity is biggest among all others potential positions/pins.
+
+        Args:
+            path (list): nx4 array of poses on each step of the path, where n is number of steps.
+
+        Returns:
+            tuple: Two numpy.ndarrays, first a nx5x3 array of positions of selected pins on each step of spider's path, and second a nx5 array of
+            sizes of force ellipsoids in gravity directions for each selected pins, where n is number of steps of spider's path. 
+        """
         pins = self.wall.createGrid(True)
-        selectedPins = []
+        globalGravityVector = np.array([0, -1, 0])
+        selectedPins = np.zeros([len(path), 5, 3])
+        selectedPinsRgValues = np.zeros([len(path), 5])
         for step, pose in enumerate(path):
             T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
+            spiderGravityVector = np.dot(T_GS[:3, :3], globalGravityVector)
             anchorsPositions = [np.dot(T_GS, t)[:,3][:3] for t in self.spider.T_ANCHORS]
-            selectedPinsOnEachStep = []
+            selectedPinsOnEachStep = np.zeros([5, 3])
+            selectedPinsRgValuesOnEachStep = np.zeros([5])
             for idx, anchorPosition in enumerate(anchorsPositions):
                 potentialPinsForSingleLeg = []
                 for pin in pins:
@@ -139,42 +154,22 @@ class PathPlanner:
                     if self.spider.CONSTRAINS[0] < distanceToPin < self.spider.CONSTRAINS[1]:
                         rotatedIdealLegVector = np.dot(T_GS[:3,:3], np.append(self.spider.IDEAL_LEG_VECTORS[idx], 0))
                         pinInLegLocal = np.array(np.array(pin) - np.array(anchorPosition))
-                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(
-                            rotatedIdealLegVector[:2],
-                            pinInLegLocal[:2])
+                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(rotatedIdealLegVector[:2], pinInLegLocal[:2])
                         if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
                             jointsValues = self.kinematics.legInverseKinematics(idx, pinInLegLocal)
                             J = self.kinematics.spiderBaseToLegTipJacobi(idx, jointsValues)
-                            A = np.linalg.inv(np.dot(J, np.transpose(J)))
-                            eigVals, eigVects = np.linalg.eig(A)
-
-                            # eigVectsRotMatrix = np.array(eigVects)
-                            # Rotate gravity vector into ellipsoid origin.
-                            # spiderGravityVector = np.array([0, -1, 0])
-                            # Unit vector of gravity direction in ellipsoid origin.
-                            # eg = np.dot(eigVectsRotMatrix, spiderGravityVector)
-                            # eg = eg / np.linalg.norm(eg)
-
-                            # Direction of gravity in spider's origin.
-                            eg = np.array([0, -1, 0])
-                            # Ellipsoid's semi-axis lengths.
-                            a, b, c = math.sqrt(eigVals[0]), math.sqrt(eigVals[1]), math.sqrt(eigVals[2])
-                            t = math.sqrt(np.prod(eigVals) / (math.pow(eg[0] * b * c, 2) + math.pow(eg[1] * a * b, 2) + math.pow(eg[2] * a * b, 2)))
-                            rg = np.linalg.norm(t * eg)
+                            rg = self.dynamics.getForceEllipsoidSizeInGravityDirection(J, spiderGravityVector)
                             potentialPinsForSingleLeg.append([pin, rg])
 
                 potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg, dtype = object)
                 potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:, 1].argsort()]
-                selectedPinsOnEachStep.append(potentialPinsForSingleLeg[-1][0])
-                # print(potentialPinsForSingleLeg[-1][1])
-            selectedPins.append(selectedPinsOnEachStep)
+                selectedPinsOnEachStep[idx] = potentialPinsForSingleLeg[-1][0]
+                selectedPinsRgValuesOnEachStep[idx] = potentialPinsForSingleLeg[-1][1]
+          
+            selectedPins[step] = selectedPinsOnEachStep
+            selectedPinsRgValues[step] = selectedPinsRgValuesOnEachStep
 
-        return selectedPins
-
-                            
-                            
-
-                                             
+        return selectedPins, selectedPinsRgValues
 
     def calculateWalkingMovesFF(self, globalStartPose, globalGoalPose):
         """(Feed-forward) calculation of spider's poses and its legs positions during walking. Spider's body is moving 

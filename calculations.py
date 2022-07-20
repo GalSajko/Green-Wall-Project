@@ -309,6 +309,11 @@ class Kinematics:
         refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
 
         return np.array(refereneceLegVelocities, dtype = np.float32)
+    
+class Dynamics:
+    def __init__(self):
+        self.spider = env.Spider()
+        self.kinematics = Kinematics()
 
     def getForceOnLegTip(self, legId, jointsValues, currentsInMotors):
         """Calculate force, applied to leg-tip, from currents in motors.
@@ -322,11 +327,34 @@ class Kinematics:
             list: 3x1 array of forces in x, y and z direction.
         """
         currentsInMotors[1] *= -1
-        J = self.spiderBaseToLegTipJacobi(legId, jointsValues)
+        J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsValues)
         K = 1 / 0.4785
         torques = K * currentsInMotors
         
         return np.dot(np.linalg.inv(np.transpose(J)), torques)
+    
+    def getForceEllipsoidSizeInGravityDirection(self, J, spiderGravityVector):
+        """Calculate size of vector from center to the surface of force manipulability ellipsoid, in gravity direction.
+
+        Args:
+            J (numpy.ndarray): 4x4 Jacobian matrix.
+            spiderGravityVector (list): 1x3 gravity vector in spider's origin.
+
+        Returns:
+            float: Length of vector from center to the surface of force ellipsoid in direction of gravity.
+        """
+        A = np.linalg.inv(np.dot(J, np.transpose(J)))
+        eigVals, eigVects = np.linalg.eig(A)
+        eigVectsRotMatrix = np.array(eigVects)
+        # Unit vector in gravity direction in ellipsoid origin.
+        eg = np.dot(eigVectsRotMatrix, spiderGravityVector)
+        eg = eg / np.linalg.norm(eg)
+        # Ellipsoid's semi-axis lengths.
+        a, b, c = math.sqrt(eigVals[0]), math.sqrt(eigVals[1]), math.sqrt(eigVals[2])
+        t = math.sqrt(np.prod(eigVals) / (math.pow(eg[0] * b * c, 2) + math.pow(eg[1] * a * b, 2) + math.pow(eg[2] * a * b, 2)))
+        rg = np.linalg.norm(t * eg)
+
+        return rg        
 
 class GeometryTools:
     """Helper class for geometry calculations.
