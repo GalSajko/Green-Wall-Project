@@ -4,6 +4,7 @@
 import math
 import numpy as np 
 import inspect
+import time
 
 import environment
 import calculations
@@ -157,8 +158,7 @@ class PathPlanner:
                         angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(rotatedIdealLegVector[:2], pinInLegLocal[:2])
                         if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
                             jointsValues = self.kinematics.legInverseKinematics(idx, pinInLegLocal)
-                            J = self.kinematics.spiderBaseToLegTipJacobi(idx, jointsValues)
-                            rg = self.dynamics.getForceEllipsoidSizeInGravityDirection(J, spiderGravityVector)
+                            rg = self.dynamics.getForceEllipsoidSizeInGravityDirection(idx, jointsValues, spiderGravityVector)
                             potentialPinsForSingleLeg.append([pin, rg])
 
                 potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg, dtype = object)
@@ -256,13 +256,7 @@ class TrajectoryPlanner:
             trajectory[idx] = trajectoryRow
             velocities[idx] = velocityRow
         return trajectory, velocities
-        """ Calculate cubic bezier trajectory between start and goal pose with fixed intermediate control points.
 
-        :param startPoint: Starting point
-        :param goalPoint: Goal point.
-        :param duration: Duration of movement between start and goal point.
-        :return: Cubic Bezier trajectory with positions, time steps and velocities in each step.
-        """
     def bezierTrajectory(self, startPosition, goalPosition, duration):
         """Calculate cubic bezier trajectory between start and goal point with fixed intermediat control points.
 

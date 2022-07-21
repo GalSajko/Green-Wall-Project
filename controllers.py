@@ -14,6 +14,7 @@ import environment as env
 import dynamixel as dmx
 import planning
 import config
+import mappers
 
 class VelocityController:
     """ Class for velocity-control of spider's movement. All legs are controlled with same controller, but can be moved separately and independently
@@ -44,6 +45,7 @@ class VelocityController:
 
         self.qA = []
         self.forces = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        self.rgValues = np.zeros(self.spider.NUMBER_OF_LEGS)
 
         self.initControllerThread()
 
@@ -70,6 +72,7 @@ class VelocityController:
 
             for leg in self.spider.LEGS_IDS:
                 self.forces[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
+                self.rgValues[leg] = self.dynamics.getForceEllipsoidSizeInGravityDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
 
             qD, qDd = self.getQdQddFromQueues()
 
@@ -128,7 +131,7 @@ class VelocityController:
 
         return qD, qDd
 
-    def moveLegAsync(self, legId, goalPosition, origin, duration, trajectoryType, spiderPose = None):
+    def moveLegAsync(self, legId, goalPosition, origin, duration, trajectoryType, spiderPose = None, offset = False):
         """Write reference positions and velocities into leg-queue.
 
         Args:
@@ -138,6 +141,7 @@ class VelocityController:
             duration (float): Desired movement duration.
             trajectoryType (str): Type of movement trajectory (bezier or minJerk).
             spiderPose (list, optional): Spider pose in global origin, used if goalPosition is given in global origin. Defaults to None.
+            offset(bool, optional): 
 
         Raises:
             ValueError: If origin is unknown.
@@ -155,11 +159,18 @@ class VelocityController:
         self.legsQueues[legId].put(self.sentinel)
 
         # If goal position is given in global origin, convert it into local.
-        if origin == 'g':
+        if origin == 'g' and offset == False:
             goalPosition = self.matrixCalculator.getLegInLocal(legId, goalPosition, spiderPose)
 
         with self.locker:
             legCurrentPosition = self.kinematics.legForwardKinematics(legId, self.qA[legId])[:,3][:3]
+
+        # If goal position is given as offset in global direction, calculate global goal position by adding offset to global current position and than convert it into local.
+        if offset:
+            legCurrentGlobalPosition = self.matrixCalculator.getLegsInGlobal([legId], [legCurrentPosition], spiderPose)
+            globalGoalPosition = legCurrentGlobalPosition + np.array(goalPosition)
+            goalPosition = self.matrixCalculator.getLegInLocal(legId, globalGoalPosition, spiderPose)
+
         try:
             positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, goalPosition, duration, trajectoryType)
         except ValueError as ve:
@@ -173,6 +184,25 @@ class VelocityController:
         self.legsQueues[legId].put(self.sentinel)
 
         return True
+    
+    def offloadSelectedLeg(self, legId, usedLegsGlobalPositions, spiderPose = None):
+        """Move other four legs in such way, that force on selected leg would decrease to 0.
+
+        Args:
+            legId (int): Leg's id.
+            usedLegsGlobalPositins (list): 4x3 array of global positions of four legs, which will be used for offloading force from selected leg.
+        """
+        usedLegs = np.delete(self.spider.LEGS_IDS, legId)
+        with self.locker:
+            offsets = mappers.mapRgValuesToOffsetsForOffloading(usedLegs, self.rgValues)
+            if spiderPose is not None:
+                spiderPose = self.motorDriver.syncReadPlatformPose(usedLegs, usedLegsGlobalPositions)
+
+        for idx, leg in enumerate(usedLegs):
+            self.moveLegAsync(leg, offsets[idx], 'g', 1, 'minJerk', spiderPose, True)
+
+        
+
     
     def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose):
         """Open gripper, move leg to the new pin and close the gripper.
@@ -208,11 +238,6 @@ class VelocityController:
 
         # Close gripper.
         self.gripperController.moveGripper(legId, self.gripperController.CLOSE_COMMAND)
-
-    # def moveLegAndGripperWrapper(self, legId, goalPosition, duration, spiderPose):
-
-    #     legThread = threading.Thread()
-
 
     # TODO: write wrapper for moving legs so that spider will reach desired pose, instead of this function.
     def movePlatformAsync(self, goalPose, duration, globalLegsPositions):
@@ -309,8 +334,6 @@ class VelocityController:
             qDd[idx] = qDdFf
 
         return qD, qDd
-    
-    def equalizeForces(self, rValues, )
 
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.

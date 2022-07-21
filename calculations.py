@@ -311,7 +311,12 @@ class Kinematics:
         return np.array(refereneceLegVelocities, dtype = np.float32)
     
 class Dynamics:
+    """Class for calculating spider's dynamics.
+    """
     def __init__(self):
+        # Constant from dynamixel's specifications (torque-current dependency).
+        self.K_TORQUE = 1 / 0.4785
+
         self.spider = env.Spider()
         self.kinematics = Kinematics()
 
@@ -320,29 +325,30 @@ class Dynamics:
 
         Args:
             legId (int): Leg id.
-            jointsValues (list): Joints values in radians.
-            currentsInMotors (list): Currents in motors in ampers.
+            jointsValues (list): 1x3 array of leg's joints values in radians.
+            currentsInMotors (list): Currents in motors in Ampers.
 
         Returns:
             list: 3x1 array of forces in x, y and z direction.
         """
         currentsInMotors[1] *= -1
         J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsValues)
-        K = 1 / 0.4785
-        torques = K * currentsInMotors
+        torques = self.K_TORQUE * currentsInMotors
         
         return np.dot(np.linalg.inv(np.transpose(J)), torques)
     
-    def getForceEllipsoidSizeInGravityDirection(self, J, spiderGravityVector):
+    def getForceEllipsoidSizeInGravityDirection(self, legId, jointsValues, spiderGravityVector):
         """Calculate size of vector from center to the surface of force manipulability ellipsoid, in gravity direction.
 
         Args:
-            J (numpy.ndarray): 4x4 Jacobian matrix.
+            legId (int): Leg's id.
+            jointsValues (list): 1x3 array of leg's joints values in radians.
             spiderGravityVector (list): 1x3 gravity vector in spider's origin.
 
         Returns:
             float: Length of vector from center to the surface of force ellipsoid in direction of gravity.
         """
+        J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsValues)
         A = np.linalg.inv(np.dot(J, np.transpose(J)))
         eigVals, eigVects = np.linalg.eig(A)
         eigVectsRotMatrix = np.array(eigVects)

@@ -40,6 +40,8 @@ class Spider:
         self.WALKING_HEIGHT = 0.25
         # Spider's height when laying on pins.
         self.LYING_HEIGHT = 0.057
+        # Gravity vector in spider's origin with assumption that spider's orientation is fixed with first leg facing in vertical direction.
+        self.SPIDER_GRAVITY_VECTOR = np.array([0, -1, 0])
 
     def getLegAnchorsInSpiderOrigin(self):
         """Calculate positions of legs-anchors in spider's origin.

@@ -237,11 +237,6 @@ class MotorDriver:
 
         return positions, currents
 
-        """Read platform pose in global.
-
-        :param legsIds: Legs used for calculating platform pose - those legs that are attached to pins.
-        :param legsGlobalPositions: Global positions (pins) of used legs.
-        """
     def syncReadPlatformPose(self, legsIds, legsGlobalPositions):
         """Wrapper function for reading spider's pose in global origin. If more than three legs are given, it calculates spider's pose from each
         combination of these three legs. Finally pose is determined as mean value of all calculations.
@@ -303,7 +298,7 @@ class MotorDriver:
         self.groupSyncWrite.clearParam()
 
     def commResultAndErrorReader(self, result, error):
-        """Helper function for reading communication result and error.
+        """Read communication result and error.
 
         :param result: Result.
         :param error: Error.

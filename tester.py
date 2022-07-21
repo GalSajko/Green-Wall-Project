@@ -6,6 +6,7 @@ import calculations
 import environment as env
 import planning
 import simulaton
+import mappers
 
 if __name__ == "__main__":    
     wall = env.Wall('squared')
@@ -15,9 +16,11 @@ if __name__ == "__main__":
     start = [0.5, 0.5, 0.2, 0.0]
     goal = [0.5, 0.5, 0.2, 0.0]
     path = pathPlanner.calculateSpiderBodyPath(start, goal)
-    pins, rValues = pathPlanner.calculateIdealLegsPositionsFF(path)
-    print(rValues)
-    plotter.plotSpiderMovement(path, pins)
+    pins, rgValues = pathPlanner.calculateIdealLegsPositionsFF(path)
+    print(rgValues)
+    offsets = mappers.mapRgValuesToOffsetsForOffloading([1, 2, 3, 4], rgValues[0])
+    print(offsets)
+    # plotter.plotSpiderMovement(path, pins)
 
 
 

@@ -2,6 +2,7 @@
 
 import math
 import numpy as np
+import time
 
 def mapModelAnglesRadiansToMotorsAnglesRadians(modelAngles):
     """Map leg-model angles to motors angles, both in radians. Each leg has three motors, 
@@ -118,4 +119,21 @@ def mapModelVelocitiesToVelocityEncoderValues(modelVelocities):
     encoderValues[1] = -encoderValues[1]
 
     return encoderValues
+
+def mapRgValuesToOffsetsForOffloading(usedLegs, rgValues, offsetDirection = np.array([0, -1, 0])):
+    """Map rg values of used legs to offsets for the purpuse of offloading one of the legs.
+
+    Args:
+        usedLegs (list): 1x4 array of ids of used legs.
+        rgValues (list): 1x5 array of rg values.
+
+    Returns:
+        numpy.ndarray: 1x4 array of offsets in meters.
+    """
+    maxOffset = 0.01
+    usedRgValues = np.array(rgValues)[usedLegs]
+    weights = usedRgValues / np.max(usedRgValues)
+    offsets = [maxOffset * weight * offsetDirection for weight in weights]
+    
+    return offsets
 
