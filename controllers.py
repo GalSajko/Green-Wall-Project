@@ -159,7 +159,7 @@ class VelocityController:
         self.legsQueues[legId].put(self.sentinel)
 
         # If goal position is given in global origin, convert it into local.
-        if origin == 'g' and offset == False:
+        if origin == 'g' and offset is False:
             goalPosition = self.matrixCalculator.getLegInLocal(legId, goalPosition, spiderPose)
 
         with self.locker:
@@ -195,13 +195,17 @@ class VelocityController:
         usedLegs = np.delete(self.spider.LEGS_IDS, legId)
         with self.locker:
             offsets = mappers.mapRgValuesToOffsetsForOffloading(usedLegs, self.rgValues)
-            if spiderPose is not None:
+            if spiderPose is None:
                 spiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
 
+        print(offsets)
         for idx, leg in enumerate(usedLegs):
             self.moveLegAsync(leg, offsets[idx], 'g', 1, 'minJerk', spiderPose, True)
 
-        
+        with self.locker:
+            newSpiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
+
+        return newSpiderPose
 
     
     def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose):
@@ -334,6 +338,9 @@ class VelocityController:
             qDd[idx] = qDdFf
 
         return qD, qDd
+    
+    def moveGripperWrapper(self, legId, command):
+        self.gripperController.moveGripper(legId, command)
 
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.

@@ -6,6 +6,7 @@ import calculations
 import environment as env
 import planning
 import simulaton
+import dynamixel
 
 import time
 import random
@@ -23,9 +24,11 @@ def initSendingThread():
     udpSendingThread.start()
     print("UDP thread is running.")
 
-if __name__ == "__main__":    
+if __name__ == "__main__":  
+    time.sleep(3)  
     controller = controllers.VelocityController()
-    udpServer = udpServer.UdpServer('192.168.1.11')
+    dyx = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]], False)
+    udpServer = udpServer.UdpServer('192.168.1.3')
     wall = env.Wall('squared')
     pins = wall.createGrid(True)
     time.sleep(1)
@@ -39,15 +42,27 @@ if __name__ == "__main__":
     # path = pathPlanner.calculateSpiderBodyPath(start, goal)
     # pins, rgValues = pathPlanner.calculateIdealLegsPositionsFF(path)
 
-    result = controller.moveLegAsync(0, pins[21], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
-    result = controller.moveLegAsync(1, pins[8], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
-    result = controller.moveLegAsync(2, pins[6], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
-    result = controller.moveLegAsync(3, pins[30], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
-    result = controller.moveLegAsync(4, pins[32], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])    
+    # time.sleep(3)
 
-    time.sleep(10)
+    # result = controller.moveLegAsync(0, pins[21], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
+    # result = controller.moveLegAsync(1, pins[8], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
+    # result = controller.moveLegAsync(2, pins[6], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
+    # result = controller.moveLegAsync(3, pins[30], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
+    # result = controller.moveLegAsync(4, pins[32], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])    
 
-    controller.offloadSelectedLeg(0, [pins[8], pins[6], pins[30], pins[32]], [0.6, 0.3, 0.3, 0.0])
+
+    time.sleep(5) 
+
+    controller.offloadSelectedLeg(0, [pins[8], pins[6], pins[30], pins[32]], None)
+
+    # time.sleep(10)
+
+    # controller.moveGripperWrapper(0, 'o')
+    # time.sleep(1)
+    # controller.moveLegAsync(0, pins[27], 'g', 4, 'bezier', newSpiderPose)
+    # time.sleep(5)
+    # controller.moveGripperWrapper(0, 'c')
+
 
     # kinematics = calculations.Kinematics()
     # wall = env.Wall('squared')

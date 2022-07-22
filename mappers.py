@@ -130,7 +130,7 @@ def mapRgValuesToOffsetsForOffloading(usedLegs, rgValues, offsetDirection = np.a
     Returns:
         numpy.ndarray: 1x4 array of offsets in meters.
     """
-    maxOffset = 0.01
+    maxOffset = 0.02
     usedRgValues = np.array(rgValues)[usedLegs]
     weights = usedRgValues / np.max(usedRgValues)
     offsets = [maxOffset * weight * offsetDirection for weight in weights]
