@@ -196,7 +196,7 @@ class VelocityController:
         with self.locker:
             offsets = mappers.mapRgValuesToOffsetsForOffloading(usedLegs, self.rgValues)
             if spiderPose is not None:
-                spiderPose = self.motorDriver.syncReadPlatformPose(usedLegs, usedLegsGlobalPositions)
+                spiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
 
         for idx, leg in enumerate(usedLegs):
             self.moveLegAsync(leg, offsets[idx], 'g', 1, 'minJerk', spiderPose, True)

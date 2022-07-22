@@ -31,12 +31,12 @@ if __name__ == "__main__":
     time.sleep(1)
     initSendingThread()
 
-    pins = wall.createGrid(True)
-    pathPlanner = planning.PathPlanner(0.05, 0.1)
-    plotter = simulaton.Plotter('squared')
-    start = [0.6, 0.3, 0.3, 0.0]
-    goal = [0.6, 0.3, 0.3, 0.0]
-    path = pathPlanner.calculateSpiderBodyPath(start, goal)
+    # pins = wall.createGrid(True)
+    # pathPlanner = planning.PathPlanner(0.05, 0.1)
+    # plotter = simulaton.Plotter('squared')
+    # start = [0.6, 0.3, 0.3, 0.0]
+    # goal = [0.6, 0.3, 0.3, 0.0]
+    # path = pathPlanner.calculateSpiderBodyPath(start, goal)
     # pins, rgValues = pathPlanner.calculateIdealLegsPositionsFF(path)
 
     result = controller.moveLegAsync(0, pins[21], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
@@ -44,6 +44,10 @@ if __name__ == "__main__":
     result = controller.moveLegAsync(2, pins[6], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
     result = controller.moveLegAsync(3, pins[30], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
     result = controller.moveLegAsync(4, pins[32], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])    
+
+    time.sleep(10)
+
+    controller.offloadSelectedLeg(0, [pins[8], pins[6], pins[30], pins[32]], [0.6, 0.3, 0.3, 0.0])
 
     # kinematics = calculations.Kinematics()
     # wall = env.Wall('squared')
