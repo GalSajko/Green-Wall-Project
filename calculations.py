@@ -351,16 +351,13 @@ class Dynamics:
         J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsValues)
         A = np.linalg.inv(np.dot(J, np.transpose(J)))
         eigVals, eigVects = np.linalg.eig(A)
-        eigVectsRotMatrix = np.array(eigVects)
         # Unit vector in gravity direction in ellipsoid origin.
-        eg = np.dot(eigVectsRotMatrix, spiderGravityVector)
-        eg = eg / np.linalg.norm(eg)
+        eg = np.dot(eigVects, spiderGravityVector)
         # Ellipsoid's semi-axis lengths.
         a, b, c = math.sqrt(eigVals[0]), math.sqrt(eigVals[1]), math.sqrt(eigVals[2])
         t = math.sqrt(np.prod(eigVals) / (math.pow(eg[0] * b * c, 2) + math.pow(eg[1] * a * b, 2) + math.pow(eg[2] * a * b, 2)))
-        rg = np.linalg.norm(t * eg)
 
-        return rg        
+        return t        
 
 class GeometryTools:
     """Helper class for geometry calculations.

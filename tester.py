@@ -34,60 +34,23 @@ if __name__ == "__main__":
     time.sleep(1)
     initSendingThread()
 
-    # pins = wall.createGrid(True)
-    # pathPlanner = planning.PathPlanner(0.05, 0.1)
-    # plotter = simulaton.Plotter('squared')
-    # start = [0.6, 0.3, 0.3, 0.0]
-    # goal = [0.6, 0.3, 0.3, 0.0]
-    # path = pathPlanner.calculateSpiderBodyPath(start, goal)
-    # pins, rgValues = pathPlanner.calculateIdealLegsPositionsFF(path)
-
-    # time.sleep(3)
-
-    # result = controller.moveLegAsync(0, pins[21], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
-    # result = controller.moveLegAsync(1, pins[8], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
-    # result = controller.moveLegAsync(2, pins[6], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
-    # result = controller.moveLegAsync(3, pins[30], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])
-    # result = controller.moveLegAsync(4, pins[32], 'g', 4, 'minJerk', [0.6, 0.3, 0.3, 0.0])    
+    pins = wall.createGrid(True)
+    pathPlanner = planning.PathPlanner(0.05, 0.1)
+    plotter = simulaton.Plotter('squared')
+    start = [0.6, 0.3, 0.3, 0.0]
+    goal = [0.6, 0.3, 0.3, 0.0]
+    path = pathPlanner.calculateSpiderBodyPath(start, goal)
+    pins, rgValues = pathPlanner.calculateIdealLegsPositionsFF(path)
+    print(pins)
 
 
-    time.sleep(5) 
+    controller.moveLegsSync([0, 1, 2, 3, 4], pins[0], 'g', 4, 'minJerk', spiderPose = [0.6, 0.3, 0.3, 0.0]) 
 
-    controller.offloadSelectedLeg(0, [pins[8], pins[6], pins[30], pins[32]], None)
+    # time.sleep(5) 
 
-    # time.sleep(10)
+    # newSpiderPose = controller.offloadSelectedLeg(0, [pins[9], pins[6], pins[30], pins[33]], None)
+    # print(newSpiderPose)
 
-    # controller.moveGripperWrapper(0, 'o')
-    # time.sleep(1)
-    # controller.moveLegAsync(0, pins[27], 'g', 4, 'bezier', newSpiderPose)
-    # time.sleep(5)
-    # controller.moveGripperWrapper(0, 'c')
-
-
-    # kinematics = calculations.Kinematics()
-    # wall = env.Wall('squared')
-    # pins = wall.createGrid(True)
-    # usedPins = [pins[21], pins[8], pins[6], pins[30], pins[32]]
-    # controller.movePlatformAsync([0.6, 0.3, 0.3, 0.0], 5, usedPins)
-    # while 1:
-    #     result = controller.moveLegAsync(0, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        # result = controller.moveLegAsync(1, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        # result = controller.moveLegAsync(2, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        # result = controller.moveLegAsync(3, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        # result = controller.moveLegAsync(4, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        # time.sleep(2.5)
-        # print(kinematics.legForwardKinematics(1, controller.qA[1])[:3][:,3])
-        # time.sleep(2)
-        
-        # result = controller.moveLegAsync(0, [0.45, 0.0, 0.25], 'l', 1, 'minJerk')
-        # result = controller.moveLegAsync(1, [0.45, 0.0, 0.25], 'l', 1, 'minJerk')
-        # result = controller.moveLegAsync(2, [0.45, 0.0, 0.25], 'l', 1, 'minJerk')
-        # result = controller.moveLegAsync(3, [0.45, 0.0, 0.25], 'l', 1, 'minJerk')
-        # result = controller.moveLegAsync(4, [0.45, 0.0, 0.25], 'l', 1, 'minJerk')
-        # time.sleep(1.1)
-        # print(kinematics.legForwardKinematics(1, controller.qA[1])[:3][:,3])
-        # time.sleep(2)
-    # controller.endControllerThread()
 
 
 

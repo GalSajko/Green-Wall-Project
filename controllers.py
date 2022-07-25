@@ -72,7 +72,8 @@ class VelocityController:
 
             for leg in self.spider.LEGS_IDS:
                 self.forces[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
-                self.rgValues[leg] = self.dynamics.getForceEllipsoidSizeInGravityDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
+                with self.locker:
+                    self.rgValues[leg] = self.dynamics.getForceEllipsoidSizeInGravityDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
 
             qD, qDd = self.getQdQddFromQueues()
 
@@ -185,6 +186,48 @@ class VelocityController:
 
         return True
     
+    def moveLegsSync(self, legsIds, goalPositions, origin, duration, trajectoryType, spiderPose = None, offset = False):
+
+        if origin not in ('l', 'g'):
+            raise ValueError(f"Unknown origin {origin}.")
+        if origin == 'g' and spiderPose is None:
+            raise TypeError("If origin is global, spider pose should be given.")
+        
+        if len(legsIds) != len(goalPositions):
+            raise ValueError("Number of legs and given goal positions should be the same.")
+        
+        # Stop all of the given legs.
+        for leg in legsIds:
+            self.legsQueues[leg] = queue.Queue()
+            self.legsQueues[leg].put(self.sentinel)
+        
+        qDs = []
+        qDds = []
+        for idx, leg in enumerate(legsIds):
+            if origin == 'g' and offset is False:
+                goalPositions[idx] = self.matrixCalculator.getLegInLocal(leg, goalPositions[idx], spiderPose)
+            with self.locker:
+                legCurrentPosition = self.kinematics.legForwardKinematics(leg, self.qA[leg])[:,3][:3]
+            if offset:
+                legCurrentGlobalPosition = self.matrixCalculator.getLegsInGlobal([leg], [legCurrentPosition], spiderPose)
+                globalGoalPosition = legCurrentGlobalPosition + np.array(goalPositions[idx])
+                goalPositions[idx] = self.matrixCalculator.getLegInLocal(leg, globalGoalPosition, spiderPose)
+            try:
+                positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, goalPositions[idx], duration, trajectoryType)
+            except ValueError as ve:
+                print(f'{ve} - {inspect.stack()[0][3]}')
+                return False
+            
+            qD, qDd = self.getQdQddLegFF(leg, positionTrajectory, velocityTrajectory)
+            qDs.append(qD)
+            qDds.append(qDd)
+        
+        for i in range(len(qDs[0])):
+            for idx, leg in enumerate(legsIds):
+                self.legsQueues[leg].put([qDs[idx][i], qDds[idx][i]])
+        for leg in legsIds:
+            self.legsQueues[leg].put(self.sentinel)
+    
     def offloadSelectedLeg(self, legId, usedLegsGlobalPositions, spiderPose = None):
         """Move other four legs in such way, that force on selected leg would decrease to 0.
 
@@ -197,11 +240,9 @@ class VelocityController:
             offsets = mappers.mapRgValuesToOffsetsForOffloading(usedLegs, self.rgValues)
             if spiderPose is None:
                 spiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
-
-        print(offsets)
-        for idx, leg in enumerate(usedLegs):
-            self.moveLegAsync(leg, offsets[idx], 'g', 1, 'minJerk', spiderPose, True)
-
+        print(spiderPose)
+        self.moveLegsSync(usedLegs, offsets, 'g', 1, 'minJerk', spiderPose, True)
+        time.sleep(1.2)
         with self.locker:
             newSpiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
 

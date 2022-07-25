@@ -17,6 +17,7 @@ class Plotter:
         # Figure for plotting.
         self.figure = plt.figure()
         self.board = plt.axes(xlim = (0, self.wall.WALL_SIZE[0]), ylim = (0, self.wall.WALL_SIZE[1]))
+        self.board.set_aspect('equal')
 
     def plotWallGrid(self, plotPins = False):
         """Plot 2-d representation of wall with pins.
