@@ -41,9 +41,8 @@ if __name__ == "__main__":
     goal = [0.6, 0.3, 0.3, 0.0]
     path = pathPlanner.calculateSpiderBodyPath(start, goal)
     pins, rgValues = pathPlanner.calculateIdealLegsPositionsFF(path)
-    print(pins)
 
-
+ 
     controller.moveLegsSync([0, 1, 2, 3, 4], pins[0], 'g', 4, 'minJerk', spiderPose = [0.6, 0.3, 0.3, 0.0]) 
 
     # time.sleep(5) 

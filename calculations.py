@@ -357,7 +357,7 @@ class Dynamics:
         a, b, c = math.sqrt(eigVals[0]), math.sqrt(eigVals[1]), math.sqrt(eigVals[2])
         t = math.sqrt(np.prod(eigVals) / (math.pow(eg[0] * b * c, 2) + math.pow(eg[1] * a * b, 2) + math.pow(eg[2] * a * b, 2)))
 
-        return t        
+        return t 
 
 class GeometryTools:
     """Helper class for geometry calculations.
