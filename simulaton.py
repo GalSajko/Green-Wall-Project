@@ -43,7 +43,7 @@ class Plotter:
             self.plotWallGrid()
             plt.show()
 
-    def plotSpiderMovement(self, path, legPositions):
+    def plotSpiderMovement(self, path, legPositions, allPotentialPins):
         """2-d animation of spider's movement between two points on the wall.
 
         Args:
@@ -58,7 +58,32 @@ class Plotter:
         for idx, pose in enumerate(path):
             # Plot spiders body on each step.
             spiderBody = plt.Circle((pose[0], pose[1]), self.spider.BODY_RADIUS, color = "blue")
-            self.board.add_patch(spiderBody)    
+            self.board.add_patch(spiderBody) 
+
+            ### PLOT POTENTIALS
+            potentialCircles = []
+            for i, potentials in enumerate(allPotentialPins[idx]):
+                if i == 0:
+                    c = 'yellow'
+                    r = 0.1
+                elif i == 1:
+                    c = 'blue'
+                    r = 0.08
+                elif i == 2:
+                    c = 'green'
+                    r = 0.06
+                elif i == 3:
+                    c = 'magenta'
+                    r = 0.04
+                elif i == 4:
+                    c = 'red'
+                    r = 0.04
+                for pin in potentials:
+                    potentialCircle = plt.Circle((pin[0], pin[1]), r, color = c)
+                    self.board.add_patch(potentialCircle)
+                    potentialCircles.append(potentialCircle)
+
+
             # Plot all legs and their tips on each step.
             legs = []
             legTips = []    
@@ -87,8 +112,12 @@ class Plotter:
             plt.draw()
             plt.pause(0.5)
 
+
+
             # Remove all drawn components from board, unless spider is at the end of the path.
             if (pose - path[-1]).any():
+                for potentialCircle in potentialCircles:
+                    potentialCircle.remove()
                 spiderBody.remove()
                 firstAnchor.remove()
                 for i in range(len(legs)):

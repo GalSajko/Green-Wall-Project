@@ -142,14 +142,17 @@ class PathPlanner:
         globalGravityVector = np.array([0, -1, 0])
         selectedPins = np.zeros([len(path), 5, 3])
         selectedPinsRgValues = np.zeros([len(path), 5])
+        allPotentialPins = []
         for step, pose in enumerate(path):
             T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
             spiderGravityVector = np.dot(T_GS[:3, :3], globalGravityVector)
             anchorsPositions = [np.dot(T_GS, t)[:,3][:3] for t in self.spider.T_ANCHORS]
             selectedPinsOnEachStep = np.zeros([5, 3])
             selectedPinsRgValuesOnEachStep = np.zeros([5])
+            allPotentialPinsStep =  []
             for idx, anchorPosition in enumerate(anchorsPositions):
                 potentialPinsForSingleLeg = []
+                allPotentialSingleLeg = []
                 for pin in pins:
                     distanceToPin = np.linalg.norm(anchorPosition - pin)
                     if self.spider.CONSTRAINS[0] < distanceToPin < self.spider.CONSTRAINS[1]:
@@ -160,16 +163,20 @@ class PathPlanner:
                             jointsValues = self.kinematics.legInverseKinematics(idx, pinInLegLocal)
                             rg = self.dynamics.getForceEllipsoidSizeInGravityDirection(idx, jointsValues, spiderGravityVector)
                             potentialPinsForSingleLeg.append([pin, rg])
-
+                            allPotentialSingleLeg.append(pin)
+                allPotentialPinsStep.append(np.array(allPotentialSingleLeg))
                 potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg, dtype = object)
                 potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:, 1].argsort()]
+                # print(f"ALL POTENTIAL PINS FOR LEG {idx}", potentialPinsForSingleLeg)
                 selectedPinsOnEachStep[idx] = potentialPinsForSingleLeg[-1][0]
+                # print(f"SELECTED PIN FOR LEG {idx}", selectedPinsOnEachStep[idx])
                 selectedPinsRgValuesOnEachStep[idx] = potentialPinsForSingleLeg[-1][1]
-          
+
+            allPotentialPins.append(allPotentialPinsStep)
             selectedPins[step] = selectedPinsOnEachStep
             selectedPinsRgValues[step] = selectedPinsRgValuesOnEachStep
 
-        return selectedPins, selectedPinsRgValues
+        return selectedPins, selectedPinsRgValues, np.array(allPotentialPins, dtype = object)
 
     def calculateWalkingMovesFF(self, globalStartPose, globalGoalPose):
         """(Feed-forward) calculation of spider's poses and its legs positions during walking. Spider's body is moving 
