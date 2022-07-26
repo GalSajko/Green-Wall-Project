@@ -163,7 +163,7 @@ class PathPlanner:
                         angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(rotatedIdealLegVector[:2], pinInLegLocal[:2])
                         if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
                             jointsValues = self.kinematics.legInverseKinematics(idx, pinInLegLocal)
-                            rg = self.dynamics.getForceEllipsoidSizeInGivenDirection(idx, jointsValues, spiderGravityVector)
+                            rg = self.dynamics.getForceEllipsoidLengthInGivenDirection(idx, jointsValues, spiderGravityVector)
                             potentialPinsForSingleLeg.append([pin, rg])
                             allPotentialSingleLeg.append(pin)
                 allPotentialPinsStep.append(np.array(allPotentialSingleLeg))
@@ -258,7 +258,7 @@ class PathPlanner:
                     jointsValues = self.kinematics.legInverseKinematics(legIdx, anchorToPinLegLocal)
                     spiderToPinGlobal = np.array(np.array(pin) - np.array(pose[:3]))
                     spiderToPinSpiderLocal = np.dot(T_GS[:3,:3], spiderToPinGlobal)
-                    rgValuesSum += self.dynamics.getForceEllipsoidSizeInGivenDirection(legIdx, jointsValues, spiderToPinSpiderLocal)
+                    rgValuesSum += self.dynamics.getForceEllipsoidLengthInGivenDirection(legIdx, jointsValues, spiderToPinSpiderLocal)
                 rgValuesSumArray[combIdx] = rgValuesSum
             selectedPins[step] = pinsCombinations[step][np.argmax(rgValuesSumArray)]
         

@@ -337,7 +337,7 @@ class Dynamics:
         
         return np.dot(np.linalg.inv(np.transpose(J)), torques)
     
-    def getForceEllipsoidSizeInGivenDirection(self, legId, jointsValues, direction):
+    def getForceEllipsoidLengthInGivenDirection(self, legId, jointsValues, direction):
         """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.
 
         Args:
