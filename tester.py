@@ -12,7 +12,7 @@ import time
 import random
 import udpServer as udpServer
 import threading
-
+import numpy as np
 
 def forceSending(frequency):
     while True:
@@ -25,32 +25,17 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":  
-    # time.sleep(3)  
-    # controller = controllers.VelocityController()
-    # dyx = dynamixel.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]], False)
-    # udpServer = udpServer.UdpServer('192.168.1.3')
     wall = env.Wall('squared')
-    # pins = wall.createGrid(True)
-    # time.sleep(1)
-    # initSendingThread()
-
-    # pins = wall.createGrid(True)
     pathPlanner = planning.PathPlanner(0.05, 0.1)
     plotter = simulaton.Plotter('squared')
-    start = [0.6, 0.3, 0.0, 0.0]
-    goal = [0.6, 0.8, 0.0, 0.0]
+    start = [0.6, 0.3, 0.03, 0.0]
+    goal = [1.3, 1.0, 0.03, 0.0]
     path = pathPlanner.calculateSpiderBodyPath(start, goal)
-    pins, rgValues, potential = pathPlanner.calculateIdealLegsPositionsFF(path)
-    plotter.plotSpiderMovement(path, pins, potential)
-    # print(potential)
 
-
-    # controller.moveLegsSync([0, 1, 2, 3, 4], pins[0], 'g', 4, 'minJerk', spiderPose = [0.6, 0.3, 0.3, 0.0]) 
-
-    # time.sleep(5) 
-
-    # newSpiderPose = controller.offloadSelectedLeg(0, [pins[9], pins[6], pins[30], pins[33]], None)
-    # print(newSpiderPose)
+    selectedPins = pathPlanner.calculateSelectedPins(path)
+    
+    plotter.plotSpiderMovement(path, selectedPins)
+    
 
 
 

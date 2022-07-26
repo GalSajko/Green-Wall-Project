@@ -66,10 +66,10 @@ class Plotter:
                 potentialCircles = []
                 for i, potentials in enumerate(allPotentialPins[idx]):
                     if i == 0:
-                        c = 'yellow'
+                        c = 'red'
                         r = 0.1
                     elif i == 1:
-                        c = 'blue'
+                        c = 'yellow'
                         r = 0.08
                     elif i == 2:
                         c = 'green'
@@ -78,7 +78,7 @@ class Plotter:
                         c = 'magenta'
                         r = 0.04
                     elif i == 4:
-                        c = 'red'
+                        c = 'blue'
                         r = 0.04
                     for pin in potentials:
                         potentialCircle = plt.Circle((pin[0], pin[1]), r, color = c)
@@ -99,7 +99,7 @@ class Plotter:
                     yVals = [pose[1] + self.spider.LEG_ANCHORS[i][1], legPositions[idx][i][1]]
                 legs.append(self.board.plot(xVals, yVals, 'g')[0])
                 # Mark 1st leg with red tip and 2nd leg with yellow (to check legs orientation)
-                color = "blue"
+                color = "orange"
                 if i == 0:
                     color = "red"
                     firstAnchor = plt.Circle((anchorPosition[0], anchorPosition[1]), 0.03, color = "red")

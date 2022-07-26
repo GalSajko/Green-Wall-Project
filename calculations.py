@@ -337,22 +337,22 @@ class Dynamics:
         
         return np.dot(np.linalg.inv(np.transpose(J)), torques)
     
-    def getForceEllipsoidSizeInGravityDirection(self, legId, jointsValues, spiderGravityVector):
-        """Calculate size of vector from center to the surface of force manipulability ellipsoid, in gravity direction.
+    def getForceEllipsoidSizeInGivenDirection(self, legId, jointsValues, direction):
+        """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.
 
         Args:
             legId (int): Leg's id.
             jointsValues (list): 1x3 array of leg's joints values in radians.
-            spiderGravityVector (list): 1x3 gravity vector in spider's origin.
+            direction (list): 1x3 vector of direction in spider's origin.
 
         Returns:
-            float: Length of vector from center to the surface of force ellipsoid in direction of gravity.
+            float: Length of vector from center to the surface of force ellipsoid in given direction.
         """
         J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsValues)
         A = np.linalg.inv(np.dot(J, np.transpose(J)))
         eigVals, eigVects = np.linalg.eig(A)
-        # Unit vector in gravity direction in ellipsoid origin.
-        eg = np.dot(eigVects, spiderGravityVector)
+        # Unit vector in given direction in ellipsoid origin.
+        eg = np.dot(eigVects, direction)
         # Ellipsoid's semi-axis lengths.
         a, b, c = math.sqrt(eigVals[0]), math.sqrt(eigVals[1]), math.sqrt(eigVals[2])
         t = math.sqrt(np.prod(eigVals) / (math.pow(eg[0] * b * c, 2) + math.pow(eg[1] * a * b, 2) + math.pow(eg[2] * a * b, 2)))

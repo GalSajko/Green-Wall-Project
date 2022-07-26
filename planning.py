@@ -5,6 +5,7 @@ import math
 import numpy as np 
 import inspect
 import time
+import itertools
 
 import environment
 import calculations
@@ -146,7 +147,7 @@ class PathPlanner:
         allPotentialPins = []
         for step, pose in enumerate(path):
             T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
-            spiderGravityVector = np.dot(T_GS[:3, :3], globalGravityVector)
+            spiderGravityVector = np.dot(T_GS[:3,:3], globalGravityVector)
             anchorsPositions = [np.dot(T_GS, t)[:,3][:3] for t in self.spider.T_ANCHORS]
             selectedPinsOnEachStep = np.zeros([5, 3])
             selectedPinsRgValuesOnEachStep = np.zeros([5])
@@ -162,7 +163,7 @@ class PathPlanner:
                         angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(rotatedIdealLegVector[:2], pinInLegLocal[:2])
                         if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
                             jointsValues = self.kinematics.legInverseKinematics(idx, pinInLegLocal)
-                            rg = self.dynamics.getForceEllipsoidSizeInGravityDirection(idx, jointsValues, spiderGravityVector)
+                            rg = self.dynamics.getForceEllipsoidSizeInGivenDirection(idx, jointsValues, spiderGravityVector)
                             potentialPinsForSingleLeg.append([pin, rg])
                             allPotentialSingleLeg.append(pin)
                 allPotentialPinsStep.append(np.array(allPotentialSingleLeg))
@@ -176,7 +177,108 @@ class PathPlanner:
             selectedPinsRgValues[step] = selectedPinsRgValuesOnEachStep
 
         return selectedPins, selectedPinsRgValues, np.array(allPotentialPins, dtype = object)
+    
+    def calculatePotentialPins(self, path):
+        """Calculate all potential pins for each leg on each step of the path.
 
+        Args:
+            path (list): nx6 array of spider's poses on each step of the path.
+
+        Returns:
+            list: nx5xm array of all potential pins for each leg on each step of the path, where n is number of steps on the path and m is a variable, representing
+            number of potential pins for each leg on single step and cannot be determined in advance (it can also be different for each leg).
+        """
+        pins = self.wall.createGrid(True)
+        potentialPins = []
+        for step, pose in enumerate(path):
+            T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
+            anchorsPositions = [np.dot(T_GS, t)[:,3][:3] for t in self.spider.T_ANCHORS]
+            potentialPinsStep = []
+            for idx, anchorPosition in enumerate(anchorsPositions):
+                potentialPinsLeg = []
+                for pin in pins:
+                    distanceToPin = np.linalg.norm(anchorPosition - pin)
+                    if self.spider.CONSTRAINS[0] < distanceToPin < self.spider.CONSTRAINS[1]:
+                        rotatedIdealLegVector = np.dot(T_GS[:3,:3], np.append(self.spider.IDEAL_LEG_VECTORS[idx], 0))
+                        pinInLegLocal = np.array(np.array(pin) - np.array(anchorPosition))
+                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(rotatedIdealLegVector[:2], pinInLegLocal[:2])
+                        if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
+                            potentialPinsLeg.append(pin.tolist())
+
+                if len(potentialPinsLeg) == 0:
+                    print(f"Cannot find any potential pins for leg {idx} on spider's pose {pose}")
+                    return False
+                potentialPinsStep.append(potentialPinsLeg)
+            potentialPins.append(potentialPinsStep)
+        
+        return potentialPins
+
+    def calculateValidCombinationOfPotentialPins(self, potentialPins):
+        """Calculate all valid combinations of potential pins for each step of the path. Combination is valid, if two (or more) legs do not
+        share same pins.
+
+        Args:
+            potentialPins (list): nx5xm array of all potential pins for each leg on each step of the path, where n is number of steps on the path and m is a variable, 
+            representing number of potential pins for each leg on single step and cannot be determined in advance.
+
+        Returns:
+            list: nxmx5 array of all possible valid combinations of pins for each step of the path, where n is number of steps on the path.
+        """
+        combinations = []
+        for potentialPinsOnStep in potentialPins:
+            combinationsOnStep = list(itertools.product(*potentialPinsOnStep))
+            approvedCombinationOnStep = []
+            for combination in combinationsOnStep:
+                if len(set(tuple(c) for c in combination)) == self.spider.NUMBER_OF_LEGS:
+                    approvedCombinationOnStep.append(combination)
+            combinations.append(approvedCombinationOnStep)
+        
+        return combinations
+    
+    def calculateIdealPinsFromValidCombinations(self, pinsCombinations, path):
+        """Calculate selected pins for each step of the path, from given valid combinations of possible pins.
+
+        Args:
+            pinsCombinations (list): Array of possible pins combinations for each step of the path.
+            path (list): nx6 array of spider's poses for each step of the path.
+
+        Returns:
+            numpy.ndarray: nx5x3 array of positions of selected pins for each step of the path, where n is number of steps of the path.
+        """
+        selectedPins = np.zeros([len(path), self.spider.NUMBER_OF_LEGS, 3])
+        for step, pose in enumerate(path):
+            T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
+            anchorsPoses = [np.dot(T_GS, t) for t in self.spider.T_ANCHORS]
+            rgValuesSumArray = np.zeros(len(pinsCombinations[step]))
+            for combIdx, pins in enumerate(pinsCombinations[step]):
+                rgValuesSum = 0
+                for legIdx, pin in enumerate(pins):
+                    anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legIdx][:,3][:3]))
+                    anchorToPinLegLocal = np.dot(anchorsPoses[legIdx][:3,:3], anchorToPinGlobal)
+                    jointsValues = self.kinematics.legInverseKinematics(legIdx, anchorToPinLegLocal)
+                    spiderToPinGlobal = np.array(np.array(pin) - np.array(pose[:3]))
+                    spiderToPinSpiderLocal = np.dot(T_GS[:3,:3], spiderToPinGlobal)
+                    rgValuesSum += self.dynamics.getForceEllipsoidSizeInGivenDirection(legIdx, jointsValues, spiderToPinSpiderLocal)
+                rgValuesSumArray[combIdx] = rgValuesSum
+            selectedPins[step] = pinsCombinations[step][np.argmax(rgValuesSumArray)]
+        
+        return selectedPins
+    
+    def calculateSelectedPins(self, path):
+        """Wrapper function for calculating selected pins from spider's path, using force-manipulability ellipsoids.
+
+        Args:
+            path (list): nx6 array of spider's poses for each step of the path.
+
+        Returns:
+            numpy.ndarray: nx5x3 array of positions of selected pins for each step of the path, where n is number of steps of the path.
+        """
+        potentialPins = self.calculatePotentialPins(path)
+        validCombinations = self.calculateValidCombinationOfPotentialPins(potentialPins)
+        selectedPins = self.calculateIdealPinsFromValidCombinations(validCombinations, path)
+
+        return selectedPins
+        
     def calculateWalkingMovesFF(self, globalStartPose, globalGoalPose):
         """(Feed-forward) calculation of spider's poses and its legs positions during walking. Spider's body is moving 
         continuously untily one of the leg has to change its position.

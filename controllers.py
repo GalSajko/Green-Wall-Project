@@ -73,7 +73,7 @@ class VelocityController:
             for leg in self.spider.LEGS_IDS:
                 self.forces[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
                 with self.locker:
-                    self.rgValues[leg] = self.dynamics.getForceEllipsoidSizeInGravityDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
+                    self.rgValues[leg] = self.dynamics.getForceEllipsoidSizeInGivenDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
 
             qD, qDd = self.getQdQddFromQueues()
 
