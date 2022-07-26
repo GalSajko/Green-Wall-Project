@@ -167,9 +167,7 @@ class PathPlanner:
                 allPotentialPinsStep.append(np.array(allPotentialSingleLeg))
                 potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg, dtype = object)
                 potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:, 1].argsort()]
-                # print(f"ALL POTENTIAL PINS FOR LEG {idx}", potentialPinsForSingleLeg)
                 selectedPinsOnEachStep[idx] = potentialPinsForSingleLeg[-1][0]
-                # print(f"SELECTED PIN FOR LEG {idx}", selectedPinsOnEachStep[idx])
                 selectedPinsRgValuesOnEachStep[idx] = potentialPinsForSingleLeg[-1][1]
 
             allPotentialPins.append(allPotentialPinsStep)
