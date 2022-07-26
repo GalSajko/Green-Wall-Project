@@ -135,8 +135,9 @@ class PathPlanner:
             path (list): nx4 array of poses on each step of the path, where n is number of steps.
 
         Returns:
-            tuple: Two numpy.ndarrays, first a nx5x3 array of positions of selected pins on each step of spider's path, and second a nx5 array of
-            sizes of force ellipsoids in gravity directions for each selected pins, where n is number of steps of spider's path. 
+            tuple: Three numpy.ndarrays, first a nx5x3 array of positions of selected pins on each step of spider's path, and second a nx5 array of
+            sizes of force ellipsoids in gravity directions for each selected pins, where n is number of steps of spider's path. Third is an array of 
+            all potential pins for each leg on each step, size cannot be determined in advanced. 
         """
         pins = self.wall.createGrid(True)
         globalGravityVector = np.array([0, -1, 0])
