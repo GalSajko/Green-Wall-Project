@@ -40,19 +40,12 @@ if __name__ == "__main__":
     start = [0.6, 0.3, 0.0, 0.0]
     goal = [0.6, 0.8, 0.0, 0.0]
     path = pathPlanner.calculateSpiderBodyPath(start, goal)
-<<<<<<< Updated upstream
-    pins, rgValues = pathPlanner.calculateIdealLegsPositionsFF(path)
-
- 
-    controller.moveLegsSync([0, 1, 2, 3, 4], pins[0], 'g', 4, 'minJerk', spiderPose = [0.6, 0.3, 0.3, 0.0]) 
-=======
     pins, rgValues, potential = pathPlanner.calculateIdealLegsPositionsFF(path)
     plotter.plotSpiderMovement(path, pins, potential)
     # print(potential)
 
 
     # controller.moveLegsSync([0, 1, 2, 3, 4], pins[0], 'g', 4, 'minJerk', spiderPose = [0.6, 0.3, 0.3, 0.0]) 
->>>>>>> Stashed changes
 
     # time.sleep(5) 
 
