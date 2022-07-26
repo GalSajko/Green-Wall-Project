@@ -142,7 +142,7 @@ class VelocityController:
             duration (float): Desired movement duration.
             trajectoryType (str): Type of movement trajectory (bezier or minJerk).
             spiderPose (list, optional): Spider pose in global origin, used if goalPosition is given in global origin. Defaults to None.
-            offset(bool, optional): 
+            offset(bool, optional): If true, move leg relatively on current position, goalPosition should be given as desired offset. Defaults to False.
 
         Raises:
             ValueError: If origin is unknown.
@@ -187,12 +187,30 @@ class VelocityController:
         return True
     
     def moveLegsSync(self, legsIds, goalPositions, origin, duration, trajectoryType, spiderPose = None, offset = False):
+        """Write reference positions and velocities in any number (within 5) of leg-queues. Legs start to move at the same time. 
+        Meant for moving a platform.
 
+        Args:
+            legsIds (list): Legs ids.
+            goalPositions (list): nx3x1 array of goal positions, where n is number of legs.
+            origin (str): Origin that goal positions are given in, 'g' for global or 'l' for local.
+            duration (float): Desired duration of movements.
+            trajectoryType (str): Type of movement trajectory (bezier or minJerk).
+            spiderPose (list, optional): Spider pose in global origin, used if goalPositions are given in global. Defaults to None.
+            offset (bool, optional): If true, move legs relatively on current positions, goalPositions should be given as desired offsets. Defaults to False.. Defaults to False.
+
+        Raises:
+            ValueError: If origin is unknown.
+            TypeError: If origin is global and spider pose is not given.
+            ValueError: If number of used legs and given goal positions are not the same.
+
+        Returns:
+            bool: False if ValueError is catched during trajectory calculations, True otherwise.
+        """
         if origin not in ('l', 'g'):
             raise ValueError(f"Unknown origin {origin}.")
         if origin == 'g' and spiderPose is None:
-            raise TypeError("If origin is global, spider pose should be given.")
-        
+            raise TypeError("If origin is global, spider pose should be given.")  
         if len(legsIds) != len(goalPositions):
             raise ValueError("Number of legs and given goal positions should be the same.")
         
@@ -227,6 +245,8 @@ class VelocityController:
                 self.legsQueues[leg].put([qDs[idx][i], qDds[idx][i]])
         for leg in legsIds:
             self.legsQueues[leg].put(self.sentinel)
+        
+        return True
     
     def offloadSelectedLeg(self, legId, usedLegsGlobalPositions, spiderPose = None):
         """Move other four legs in such way, that force on selected leg would decrease to 0.
