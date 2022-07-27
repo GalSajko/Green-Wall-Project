@@ -192,24 +192,25 @@ class PathPlanner:
         potentialPins = []
         for step, pose in enumerate(path):
             T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
-            anchorsPositions = [np.dot(T_GS, t)[:,3][:3] for t in self.spider.T_ANCHORS]
-            potentialPinsStep = []
-            for idx, anchorPosition in enumerate(anchorsPositions):
-                potentialPinsLeg = []
+            anchorsPoses = [np.dot(T_GS, t) for t in self.spider.T_ANCHORS]
+            potentialPinsOnStep = []
+            for idx, anchorPose in enumerate(anchorsPoses):
+                potentialPinsForLeg = []
+                anchorPosition = anchorPose[:,3][:3]
                 for pin in pins:
                     distanceToPin = np.linalg.norm(anchorPosition - pin)
                     if self.spider.CONSTRAINS[0] < distanceToPin < self.spider.CONSTRAINS[1]:
                         rotatedIdealLegVector = np.dot(T_GS[:3,:3], np.append(self.spider.IDEAL_LEG_VECTORS[idx], 0))
-                        pinInLegLocal = np.array(np.array(pin) - np.array(anchorPosition))
-                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(rotatedIdealLegVector[:2], pinInLegLocal[:2])
+                        anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorPosition))
+                        angleBetweenIdealVectorAndPin = self.geometryTools.calculateSignedAngleBetweenTwoVectors(rotatedIdealLegVector[:2], anchorToPinGlobal[:2])
                         if abs(angleBetweenIdealVectorAndPin) < self.spider.CONSTRAINS[2]:
-                            potentialPinsLeg.append(pin.tolist())
+                            potentialPinsForLeg.append(pin.tolist())
 
-                if len(potentialPinsLeg) == 0:
+                if len(potentialPinsForLeg) == 0:
                     print(f"Cannot find any potential pins for leg {idx} on spider's pose {pose}")
                     return False
-                potentialPinsStep.append(potentialPinsLeg)
-            potentialPins.append(potentialPinsStep)
+                potentialPinsOnStep.append(potentialPinsForLeg)
+            potentialPins.append(potentialPinsOnStep)
         
         return potentialPins
 
@@ -254,7 +255,7 @@ class PathPlanner:
                 rgValuesSum = 0
                 for legIdx, pin in enumerate(pins):
                     anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legIdx][:,3][:3]))
-                    anchorToPinLegLocal = np.dot(anchorsPoses[legIdx][:3,:3], anchorToPinGlobal)
+                    anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[legIdx][:3,:3]), anchorToPinGlobal)
                     jointsValues = self.kinematics.legInverseKinematics(legIdx, anchorToPinLegLocal)
                     spiderToPinGlobal = np.array(np.array(pin) - np.array(pose[:3]))
                     spiderToPinSpiderLocal = np.dot(T_GS[:3,:3], spiderToPinGlobal)

@@ -197,7 +197,7 @@ class VelocityController:
             duration (float): Desired duration of movements.
             trajectoryType (str): Type of movement trajectory (bezier or minJerk).
             spiderPose (list, optional): Spider pose in global origin, used if goalPositions are given in global. Defaults to None.
-            offset (bool, optional): If true, move legs relatively on current positions, goalPositions should be given as desired offsets. Defaults to False.. Defaults to False.
+            offset (bool, optional): If true, move legs relatively to current positions, goalPositions should be given as desired offsets in global origin. Defaults to False.
 
         Raises:
             ValueError: If origin is unknown.
@@ -248,7 +248,7 @@ class VelocityController:
         
         return True
     
-    def offloadSelectedLeg(self, legId, usedLegsGlobalPositions, spiderPose = None):
+    def offloadSelectedLeg(self, legId, usedLegsGlobalPositions, duration = 1, spiderPose = None):
         """Move other four legs in such way, that force on selected leg would decrease to 0.
 
         Args:
@@ -260,15 +260,14 @@ class VelocityController:
             offsets = mappers.mapRgValuesToOffsetsForOffloading(usedLegs, self.rgValues)
             if spiderPose is None:
                 spiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
-        print(spiderPose)
+
         self.moveLegsSync(usedLegs, offsets, 'g', 1, 'minJerk', spiderPose, True)
-        time.sleep(1.2)
+        time.sleep(duration + 0.2)
         with self.locker:
             newSpiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
 
         return newSpiderPose
-
-    
+   
     def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose):
         """Open gripper, move leg to the new pin and close the gripper.
 

@@ -33,7 +33,7 @@ class Spider:
         # Unit vectors pointing in radial directions (looking from center of body).
         self.IDEAL_LEG_VECTORS = self.getIdealLegVectors()
         # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
-        self.CONSTRAINS = [0.25, 0.55, np.radians(60)]
+        self.CONSTRAINS = [0.25, 0.55, np.radians(40)]
         # Array of transformation matrices for transformations from spider base to anchors in base origin.
         self.T_ANCHORS = self.getTransformMatricesToAnchors()
         # Spider's walking height.
@@ -86,10 +86,6 @@ class Spider:
         legAngles = [np.radians(90) - leg * self.ANGLE_BETWEEN_LEGS for leg in range(self.NUMBER_OF_LEGS)]
         return np.array(legAngles)
 
-        """Calculate transformation matrices for transformation between base and leg-anchors origin, in base origin.
-
-        :return: Array of transformation matrices
-        """
     def getTransformMatricesToAnchors(self):
         """Calculate transformation matrices for transformation from spider's base to anchor.
 
@@ -121,7 +117,7 @@ class Wall:
         # Pin raster - distances between pins in (x, y).
         self.WALL_RASTER = [0.2, 0.25]
         self.PIN_HEIGHT = 0.02
-        if (gridPattern != 'squared' and gridPattern != 'rhombus'):
+        if gridPattern not in ('squared', 'rhombus'):
             raise ValueError("Invalid value of gridPatter parameter!")
         self.gridPattern = gridPattern
 
