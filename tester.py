@@ -29,7 +29,7 @@ if __name__ == "__main__":
     pathPlanner = planning.PathPlanner(0.05, 0.1)
     plotter = simulaton.Plotter('squared')
     start = [0.6, 0.3, 0.2, 0.0]
-    goal = [0.6, 1.3, 0.2, 0.0]
+    goal = [0.6, 1.5, 0.2, 0.0]
     path = pathPlanner.calculateSpiderBodyPath(start, goal)
 
 

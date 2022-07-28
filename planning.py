@@ -228,10 +228,7 @@ class PathPlanner:
         combinations = []
         for potentialPinsOnStep in potentialPins:
             combinationsOnStep = list(itertools.product(*potentialPinsOnStep))
-            approvedCombinationOnStep = []
-            for combination in combinationsOnStep:
-                if len(set(tuple(c) for c in combination)) == self.spider.NUMBER_OF_LEGS:
-                    approvedCombinationOnStep.append(combination)
+            approvedCombinationOnStep = [combination for combination in combinationsOnStep if len(set(tuple(c) for c in combination)) == self.spider.NUMBER_OF_LEGS]
             combinations.append(approvedCombinationOnStep)
         
         return combinations
