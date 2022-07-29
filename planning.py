@@ -247,6 +247,8 @@ class PathPlanner:
         for step, pose in enumerate(path):
             T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
             anchorsPoses = [np.dot(T_GS, t) for t in self.spider.T_ANCHORS]
+            gravityVectorInSpider = np.dot(T_GS[:3,:3], self.spider.SPIDER_GRAVITY_VECTOR)
+            zVectorInSpider = np.dot(T_GS[:3,:3], np.array([0, 0, 1]))
             rgValuesSumArray = np.zeros(len(pinsCombinations[step]))
             for combIdx, pins in enumerate(pinsCombinations[step]):
                 rgValuesSum = 0
@@ -254,11 +256,9 @@ class PathPlanner:
                     anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legIdx][:,3][:3]))
                     anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[legIdx][:3,:3]), anchorToPinGlobal)
                     jointsValues = self.kinematics.legInverseKinematics(legIdx, anchorToPinLegLocal)
-                    spiderToPinGlobal = np.array(np.array(pin) - np.array(pose[:3]))
-                    spiderToPinSpiderLocal = np.dot(T_GS[:3,:3], spiderToPinGlobal)
-                    direction = np.array([0, -1, 0])
-                    rgValuesSum += self.dynamics.getForceEllipsoidLengthInGivenDirection(legIdx, jointsValues, spiderToPinSpiderLocal)
+                    rgValuesSum += self.dynamics.getForceEllipsoidLengthInGivenDirection(legIdx, jointsValues, [gravityVectorInSpider, zVectorInSpider])
                 rgValuesSumArray[combIdx] = rgValuesSum
+
             selectedPins[step] = pinsCombinations[step][np.argmax(rgValuesSumArray)]
         
         return selectedPins
