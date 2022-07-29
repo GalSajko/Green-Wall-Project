@@ -256,6 +256,7 @@ class PathPlanner:
                     jointsValues = self.kinematics.legInverseKinematics(legIdx, anchorToPinLegLocal)
                     spiderToPinGlobal = np.array(np.array(pin) - np.array(pose[:3]))
                     spiderToPinSpiderLocal = np.dot(T_GS[:3,:3], spiderToPinGlobal)
+                    direction = np.array([0, -1, 0])
                     rgValuesSum += self.dynamics.getForceEllipsoidLengthInGivenDirection(legIdx, jointsValues, spiderToPinSpiderLocal)
                 rgValuesSumArray[combIdx] = rgValuesSum
             selectedPins[step] = pinsCombinations[step][np.argmax(rgValuesSumArray)]

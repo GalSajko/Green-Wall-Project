@@ -352,11 +352,9 @@ class Dynamics:
         A = np.linalg.inv(np.dot(J, np.transpose(J)))
         eigVals, eigVects = np.linalg.eig(A)
         # Unit vector in given direction in ellipsoid origin.
-        eg = np.dot(eigVects, direction)
-        eg = eg / np.linalg.norm(eg)
+        eg = np.dot(eigVects, direction / np.linalg.norm(direction))
         # Ellipsoid's semi-axis lengths.
-        a, b, c = math.sqrt(eigVals[0]), math.sqrt(eigVals[1]), math.sqrt(eigVals[2])
-        t = math.sqrt(np.prod(eigVals) / (math.pow(eg[0] * b * c, 2) + math.pow(eg[1] * a * b, 2) + math.pow(eg[2] * a * b, 2)))
+        t = math.sqrt(np.prod(eigVals) / (math.pow(eg[0], 2) * eigVals[1] * eigVals[2] + math.pow(eg[1], 2) * eigVals[0] * eigVals[2] + math.pow(eg[2], 2) * eigVals[0] * eigVals[1]))
 
         return t 
 
