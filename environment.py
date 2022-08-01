@@ -8,7 +8,7 @@ import numpy as np
 import math
 
 class Spider:
-    """ Spider class. 
+    """ Spider class.
     """
     def __init__(self):
         # Number of spiders legs.
@@ -81,7 +81,7 @@ class Spider:
         """Calculate angles between vectors between anchor and spider's origin and spider's x axis.
 
         Returns:
-            numpy.ndarray: 1x5 array of angles in radians. 
+            numpy.ndarray: 1x5 array of angles in radians.
         """
         legAngles = [np.radians(90) - leg * self.ANGLE_BETWEEN_LEGS for leg in range(self.NUMBER_OF_LEGS)]
         return np.array(legAngles)
@@ -104,7 +104,7 @@ class Spider:
                 [0, 0, 1, 0],
                 [0, 0, 0, 1]
             ]))
-        
+
         return np.array(T)
 
 class Wall:
@@ -112,8 +112,8 @@ class Wall:
     """
     def __init__(self, gridPattern):
         # Wall size given in meters - (x, y).
-        # self.WALL_SIZE = [1.25, 1.3]
-        self.WALL_SIZE = [6.0, 4.0]
+        self.WALL_SIZE = [1.25, 1.3]
+        # self.WALL_SIZE = [6.0, 4.0]
         # Pin raster - distances between pins in (x, y).
         self.WALL_RASTER = [0.2, 0.25]
         self.PIN_HEIGHT = 0.02
@@ -122,7 +122,7 @@ class Wall:
         self.gridPattern = gridPattern
 
     def createRhombusGrid(self, threeDim):
-        """Calculate pins positions. Pins are placed in rhombus pattern. 
+        """Calculate pins positions. Pins are placed in rhombus pattern.
 
         Args:
             threeDim (bool): If True, calculate pins positions in 3d space, otherwise in 2d space.
@@ -147,23 +147,23 @@ class Wall:
         for x in xFirstGrid:
             for y in yFirstGrid:
                 if (edgeOffset <= x < self.WALL_SIZE[0]) and (edgeOffset <= y < self.WALL_SIZE[1]):
-                    if not threeDim:  
-                        pins.append([x ,y])  
+                    if not threeDim:
+                        pins.append([x ,y])
                     else:
                         pins.append([x, y, self.PIN_HEIGHT])
 
         for x in xSecondGrid:
             for y in ySecondGrid:
                 if (edgeOffset <= x < self.WALL_SIZE[0]) and (edgeOffset <= y < self.WALL_SIZE[1]):
-                    if not threeDim:  
-                        pins.append([x ,y])  
+                    if not threeDim:
+                        pins.append([x ,y])
                     else:
                         pins.append([x, y, self.PIN_HEIGHT])
 
         return np.array(pins)
-    
+
     def createSquaredGrid(self, threeDim):
-        """Calculate pins positions. Pins are placed in squared pattern. 
+        """Calculate pins positions. Pins are placed in squared pattern.
 
         Args:
             threeDim (bool): If True, calculate pins positions in 3d space, otherwise in 2d space.
@@ -180,11 +180,11 @@ class Wall:
         pins = []
         for x in xGrid:
             for y in yGrid:
-                if not threeDim:  
-                    pins.append([x ,y])  
+                if not threeDim:
+                    pins.append([x ,y])
                 else:
                     pins.append([x, y, self.PIN_HEIGHT])
-            
+
         return np.array(pins)
 
     def createGrid(self, threeDim = False):

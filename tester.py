@@ -16,7 +16,7 @@ import numpy as np
 
 def forceSending(frequency):
     while True:
-        udpServer.send(controller.forces)
+        udpServer.send(controller.fA)
         time.sleep(1.0 / frequency)
 
 def initSendingThread():
@@ -33,12 +33,14 @@ if __name__ == "__main__":
     start = [0.6, 0.3, 0.25, 0.0]
     goal = [0.6, 0.3, 0.25, 0.0]
     pins = wall.createGrid(True)
+    initSendingThread()
     
-    controller.moveLegsSync([0, 1, 2, 3, 4], [pins[21], pins[8], pins[6], pins[30], pins[32]], 'g', 5, 'minJerk', goal)
+    controller.moveLegsSync([0, 1, 2, 3, 4], [pins[21], pins[8], pins[12], pins[24], pins[32]], 'g', 5, 'minJerk', goal)
 
-    time.sleep()
+    # time.sleep(10)
 
-    controller.offloadSelectedLeg(0)
+    # print("START OFFLOAIDNG")
+    # controller.offloadSelectedLeg(0)
     
     
 

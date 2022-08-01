@@ -45,7 +45,6 @@ class VelocityController:
 
         self.qA = []
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
-        self.fD = np.empty([self.spider.NUMBER_OF_LEGS, 3])
         self.rgValues = np.zeros(self.spider.NUMBER_OF_LEGS)
         self.doOffload = False
 
@@ -87,16 +86,16 @@ class VelocityController:
             lastQErrors = qErrors
 
             # Force PD controller.
-            with self.locker:
-                startForceController = self.doOffload
-            if startForceController:
-                legId = 0
-                fD = np.zeros(3)
-                forceErrors = np.array(fD - self.fA[legId], dtype = np.float32)
-                dFe = (forceErrors - lastFErrors) / self.period
-                dXOff = self.Kfp * forceErrors + self.Kfd * dFe
-                dQOff = np.linalg.inv(self.kinematics.legJacobi(legId, self.qA[legId])) * dXOff
-                qCds[legId] += dQOff
+            # with self.locker:
+            #     startForceController = self.doOffload
+            # if startForceController:
+            #     legId = 0
+            #     fD = np.zeros(3)
+            #     forceErrors = np.array(fD - self.fA[legId], dtype = np.float32)
+            #     # dFe = (forceErrors - lastFErrors) / self.period
+            #     dXOff = 0.1 * forceErrors
+            #     dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legId, self.qA[legId])), dXOff)
+            #     qCds[legId] += dQOff
 
             # Send new commands to motors.
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
