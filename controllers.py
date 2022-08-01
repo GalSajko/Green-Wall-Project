@@ -44,15 +44,18 @@ class VelocityController:
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
 
         self.qA = []
-        self.forces = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        self.fD = np.empty([self.spider.NUMBER_OF_LEGS, 3])
         self.rgValues = np.zeros(self.spider.NUMBER_OF_LEGS)
+        self.doOffload = False
 
         self.initControllerThread()
 
     def controller(self):
         """Velocity controller to controll all five legs continuously. Runs in separate thread.
         """
-        lastErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        lastQErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
+        lastFErrors = np.zeros(3)
         init = True
 
         while 1:
@@ -71,17 +74,29 @@ class VelocityController:
                 init = False
 
             for leg in self.spider.LEGS_IDS:
-                self.forces[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
-                with self.locker:
-                    self.rgValues[leg] = self.dynamics.getForceEllipsoidLengthInGivenDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
+                self.fA[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
+                # with self.locker:
+                #     self.rgValues[leg] = self.dynamics.getForceEllipsoidLengthInGivenDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
 
-            qD, qDd = self.getQdQddFromQueues()
+            qD, qDd = self.getQdQddFromQueues()            
 
-            # PD controller.
-            errors = np.array(qD - self.qA, dtype = np.float32)
-            dE = (errors - lastErrors) / self.period
-            qCds = self.Kp * errors + self.Kd * dE + qDd
-            lastErrors = errors
+            # Position PD controller.
+            qErrors = np.array(qD - self.qA, dtype = np.float32)
+            dQe = (qErrors - lastQErrors) / self.period
+            qCds = self.Kp * qErrors + self.Kd * dQe + qDd
+            lastQErrors = qErrors
+
+            # Force PD controller.
+            with self.locker:
+                startForceController = self.doOffload
+            if startForceController:
+                legId = 0
+                fD = np.zeros(3)
+                forceErrors = np.array(fD - self.fA[legId], dtype = np.float32)
+                dFe = (forceErrors - lastFErrors) / self.period
+                dXOff = self.Kfp * forceErrors + self.Kfd * dFe
+                dQOff = np.linalg.inv(self.kinematics.legJacobi(legId, self.qA[legId])) * dXOff
+                qCds[legId] += dQOff
 
             # Send new commands to motors.
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
@@ -248,25 +263,9 @@ class VelocityController:
         
         return True
     
-    def offloadSelectedLeg(self, legId, usedLegsGlobalPositions, duration = 1, spiderPose = None):
-        """Move other four legs in such way, that force on selected leg would decrease to 0.
-
-        Args:
-            legId (int): Leg's id.
-            usedLegsGlobalPositins (list): 4x3 array of global positions of four legs, which will be used for offloading force from selected leg.
-        """
-        usedLegs = np.delete(self.spider.LEGS_IDS, legId)
+    def offloadSelectedLeg(self, legId):
         with self.locker:
-            offsets = mappers.mapRgValuesToOffsetsForOffloading(usedLegs, self.rgValues)
-            if spiderPose is None:
-                spiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
-
-        self.moveLegsSync(usedLegs, offsets, 'g', 1, 'minJerk', spiderPose, True)
-        time.sleep(duration + 0.2)
-        with self.locker:
-            newSpiderPose = self.motorDriver.syncReadPlatformPose(usedLegs.tolist(), usedLegsGlobalPositions)
-
-        return newSpiderPose
+            self.doOffload = True
    
     def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose):
         """Open gripper, move leg to the new pin and close the gripper.

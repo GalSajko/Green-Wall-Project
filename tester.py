@@ -28,14 +28,18 @@ if __name__ == "__main__":
     wall = env.Wall('squared')
     pathPlanner = planning.PathPlanner(0.05, 0.1)
     plotter = simulaton.Plotter('squared')
-    start = [0.6, 0.3, 0.2, 0.0]
-    goal = [0.6, 0.3, 0.2, 0.0]
-    path = pathPlanner.calculateSpiderBodyPath(start, goal)
-
-
-    selectedPins = pathPlanner.calculateSelectedPins(path)
+    udpServer = udpServer.UdpServer('192.168.1.3')
+    controller = controllers.VelocityController()
+    start = [0.6, 0.3, 0.25, 0.0]
+    goal = [0.6, 0.3, 0.25, 0.0]
+    pins = wall.createGrid(True)
     
-    plotter.plotSpiderMovement(path, selectedPins)
+    controller.moveLegsSync([0, 1, 2, 3, 4], [pins[21], pins[8], pins[6], pins[30], pins[32]], 'g', 5, 'minJerk', goal)
+
+    time.sleep()
+
+    controller.offloadSelectedLeg(0)
+    
     
 
 

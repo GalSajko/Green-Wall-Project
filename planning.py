@@ -211,7 +211,6 @@ class PathPlanner:
                     return False
                 potentialPinsOnStep.append(potentialPinsForLeg)
             potentialPins.append(potentialPinsOnStep)
-        
         return potentialPins
 
     def calculateValidCombinationOfPotentialPins(self, potentialPins):
@@ -230,7 +229,7 @@ class PathPlanner:
             combinationsOnStep = list(itertools.product(*potentialPinsOnStep))
             approvedCombinationOnStep = [combination for combination in combinationsOnStep if len(set(tuple(c) for c in combination)) == self.spider.NUMBER_OF_LEGS]
             combinations.append(approvedCombinationOnStep)
-        
+
         return combinations
     
     def calculateIdealPinsFromValidCombinations(self, pinsCombinations, path):
@@ -247,7 +246,7 @@ class PathPlanner:
         for step, pose in enumerate(path):
             T_GS = self.matrixCalculator.xyzRpyToMatrix(pose)
             anchorsPoses = [np.dot(T_GS, t) for t in self.spider.T_ANCHORS]
-            gravityVectorInSpider = np.dot(T_GS[:3,:3], self.spider.SPIDER_GRAVITY_VECTOR)
+            gravityVectorInSpider = np.dot(T_GS[:3,:3], np.array([0, -1, 0]))
             zVectorInSpider = np.dot(T_GS[:3,:3], np.array([0, 0, 1]))
             rgValuesSumArray = np.zeros(len(pinsCombinations[step]))
             for combIdx, pins in enumerate(pinsCombinations[step]):
@@ -264,7 +263,7 @@ class PathPlanner:
         
         return selectedPins
     
-    def calculateSelectedPins(self, path):
+    def calculateSelectedPins(self, path, returnPotentialPins = False):
         """Wrapper function for calculating selected pins from spider's path, using force-manipulability ellipsoids.
 
         Args:
@@ -277,7 +276,9 @@ class PathPlanner:
         validCombinations = self.calculateValidCombinationOfPotentialPins(potentialPins)
         selectedPins = self.calculateIdealPinsFromValidCombinations(validCombinations, path)
 
-        return selectedPins
+        if not returnPotentialPins:
+            return selectedPins
+        return potentialPins, selectedPins
         
     def calculateWalkingMovesFF(self, globalStartPose, globalGoalPose):
         """(Feed-forward) calculation of spider's poses and its legs positions during walking. Spider's body is moving 
