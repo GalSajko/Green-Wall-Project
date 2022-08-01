@@ -256,7 +256,8 @@ class PathPlanner:
                     anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legIdx][:,3][:3]))
                     anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[legIdx][:3,:3]), anchorToPinGlobal)
                     jointsValues = self.kinematics.legInverseKinematics(legIdx, anchorToPinLegLocal)
-                    rgValuesSum += self.dynamics.getForceEllipsoidLengthInGivenDirection(legIdx, jointsValues, [gravityVectorInSpider, zVectorInSpider])
+                    rgValue = self.dynamics.getForceEllipsoidLengthInGivenDirection(legIdx, jointsValues, [gravityVectorInSpider, zVectorInSpider])
+                    rgValuesSum += rgValue
                 rgValuesSumArray[combIdx] = rgValuesSum
 
             selectedPins[step] = pinsCombinations[step][np.argmax(rgValuesSumArray)]
