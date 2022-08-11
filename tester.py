@@ -28,7 +28,7 @@ if __name__ == "__main__":
     wall = env.Wall('squared')
     pathPlanner = planning.PathPlanner(0.05, 0.1)
     plotter = simulaton.Plotter('squared')
-    udpServer = udpServer.UdpServer('192.168.1.3')
+    udpServer = udpServer.UdpServer('192.168.1.8')
     controller = controllers.VelocityController()
     start = [0.6, 0.3, 0.25, 0.0]
     goal = [0.6, 0.3, 0.25, 0.0]
@@ -37,10 +37,9 @@ if __name__ == "__main__":
     
     controller.moveLegsSync([0, 1, 2, 3, 4], [pins[21], pins[8], pins[12], pins[24], pins[32]], 'g', 5, 'minJerk', goal)
 
-    # time.sleep(10)
+    time.sleep(10)
 
-    # print("START OFFLOAIDNG")
-    # controller.offloadSelectedLeg(0)
+    controller.moveLegAsync(0, [0.0, 0.01, 0.0], 'g', 3, 'minJerk', goal, True)
     
     
 

@@ -86,16 +86,16 @@ class VelocityController:
             lastQErrors = qErrors
 
             # Force PD controller.
-            # with self.locker:
-            #     startForceController = self.doOffload
-            # if startForceController:
-            #     legId = 0
-            #     fD = np.zeros(3)
-            #     forceErrors = np.array(fD - self.fA[legId], dtype = np.float32)
-            #     # dFe = (forceErrors - lastFErrors) / self.period
-            #     dXOff = 0.1 * forceErrors
-            #     dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legId, self.qA[legId])), dXOff)
-            #     qCds[legId] += dQOff
+            with self.locker:
+                startForceController = self.doOffload
+            if startForceController:
+                legId = 0
+                fD = np.zeros(3)
+                forceErrors = np.array(fD - self.fA[legId], dtype = np.float32)
+                # dFe = (forceErrors - lastFErrors) / self.period
+                dXOff = 0.1 * forceErrors
+                dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legId, self.qA[legId])), dXOff)
+                qCds[legId] += dQOff
 
             # Send new commands to motors.
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
