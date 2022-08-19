@@ -34,7 +34,7 @@ void pumpControl(char command, int pumpId)
   int value;
   if (command == ON_COMMAND)
   {
-    value = 255;
+    value = 250;
   }
   else if (command == OFF_COMMAND)
   {
