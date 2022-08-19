@@ -7,8 +7,6 @@ String INIT_RESPONSE = "OK";
 char ON_COMMAND = '1';
 char OFF_COMMAND = '0';
 
-int commands[NUMBER_OF_PUMPS] = {0, 0, 0};
-
 struct Commands
 {
   char command;
@@ -43,7 +41,7 @@ void pumpControl(char command, int pumpId)
     value = 0;
   }
 
-  analogWrite(PWM_PINS[pumpId], value)
+  analogWrite(PWM_PINS[pumpId], value);
 }
 
 void setup() {
@@ -67,7 +65,7 @@ void loop() {
     {
       struct Commands commands = parseData(data);
 
-      pumpControl(commands.command, commands.pumpId)
+      pumpControl(commands.command, commands.pumpId);
     }
   }
 }

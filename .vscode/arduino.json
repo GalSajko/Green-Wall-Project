@@ -1,5 +1,5 @@
 {
     "board": "arduino:avr:uno",
-    "sketch": "Arduino/test_rpi_comm/test_rpi_comm.ino",
+    "sketch": "Arduino/water_pump_controll/water_pump_controll.ino",
     "port": "/dev/ttyUSB0"
 }
