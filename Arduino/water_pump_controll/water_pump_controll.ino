@@ -1,13 +1,13 @@
 int DIRECTION_CONTROL_PINS[2] = {2, 4};
 int PWM_PINS[3] = {3, 5, 6};
+int NUMBER_OF_PUMPS = 3;
 
 String INIT_MESSAGE = "init";
 String INIT_RESPONSE = "OK";
 char ON_COMMAND = '1';
 char OFF_COMMAND = '0';
 
-char lastCommand;
-int lastPumpId;
+int commands[NUMBER_OF_PUMPS] = {0, 0, 0};
 
 struct Commands
 {
@@ -33,15 +33,17 @@ struct Commands parseData(String data)
 
 void pumpControl(char command, int pumpId)
 {
+  int value;
   if (command == ON_COMMAND)
   {
-    analogWrite(PWM_PINS[pumpId], 255);
+    value = 255;
   }
   else if (command == OFF_COMMAND)
   {
-    analogWrite(PWM_PINS[pumpId], 0);
+    value = 0;
   }
-  
+
+  analogWrite(PWM_PINS[pumpId], value)
 }
 
 void setup() {
@@ -64,10 +66,8 @@ void loop() {
     else
     {
       struct Commands commands = parseData(data);
-      lastCommand = commands.command;
-      lastPumpId = commands.pumpId;
+
+      pumpControl(commands.command, commands.pumpId)
     }
   }
-
-  pumpControl(lastCommand, lastPumpId);
 }

@@ -418,7 +418,7 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
@@ -430,7 +430,7 @@ class GripperController:
     def initReadingThread(self):
         """Initialize reading data thread.
         """
-        readingThread = threading.Thread(target = self.readData, name = "serial_reading_thread", daemon = True)
+        readingThread = threading.Thread(target = self.readData, name = "gripper_serial_reading_thread", daemon = True)
         readingThread.start()
 
     def readData(self):
@@ -546,10 +546,8 @@ class WaterPumpController:
         self.INIT_RESPONSE = "OK"
         self.INIT_MESSAGE = "init"
 
-        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
-        self.receivedMessage = ""
-
-        self.handshake()
+        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
+        self.comm.reset_input_buffer()
 
     def sendData(self, msg):
         """Send data to Arduino.
@@ -560,7 +558,7 @@ class WaterPumpController:
         if msg[-1] != '\n':
             msg += '\n'
         msg = msg.encode("utf-8")
-        self.com.write(msg)
+        self.comm.write(msg)
     
     def pumpControll(self, command, pumpId):
         """Controll water pump - turn it on of off.
@@ -580,5 +578,7 @@ class WaterPumpController:
         time.sleep(0.01)
         while not self.receivedMessage == self.INIT_RESPONSE:
             self.sendData(self.INIT_MESSAGE)
-        print("Handhsake with water-pump Arduino succesfull.")
+            time.sleep(0.01)
+
+        print("Handshake with water-pump Arduino successfull.")
     
