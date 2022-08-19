@@ -49,6 +49,10 @@ void setup() {
   
   digitalWrite(DIRECTION_CONTROL_PINS[0], HIGH);
   digitalWrite(DIRECTION_CONTROL_PINS[1], LOW);
+
+  analogWrite(PWM_PINS[0], 255);
+  analogWrite(PWM_PINS[1], 255);
+  analogWrite(PWM_PINS[2], 255);
 }
 
 void loop() {
