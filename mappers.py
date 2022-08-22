@@ -77,7 +77,7 @@ def mapPositionEncoderValuesToModelAnglesRadians(encodersValues):
     """
     encodersValues = np.array(encodersValues)
     k = np.array([math.pi / 2048, -math.pi / 2048, math.pi / 2048])
-    n = np.array([-math.pi, math.pi, -3*math.pi / 2])
+    n = np.array([-math.pi, math.pi, -math.pi])
 
     return np.array(k * encodersValues + n)
 

@@ -31,7 +31,7 @@ class MotorDriver:
         self.PRESENT_CURRENT_ADDR = 126
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
-        self.USB_DEVICE_NAME = "/dev/ttyUSB2"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.PRESENT_CURRENT_DATA_LENGTH = 2
         self.GOAL_VELOCITY_DATA_LENGTH = 4

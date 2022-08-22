@@ -179,6 +179,7 @@ class VelocityController:
 
         with self.locker:
             legCurrentPosition = self.kinematics.legForwardKinematics(legId, self.qA[legId])[:,3][:3]
+            print(legCurrentPosition)
 
         # If goal position is given as offset in global direction, calculate global goal position by adding offset to global current position and than convert it into local.
         if offset:
@@ -418,7 +419,7 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
@@ -546,7 +547,7 @@ class WaterPumpController:
         self.INIT_RESPONSE = "OK"
         self.INIT_MESSAGE = "init"
 
-        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB2', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
     def sendData(self, msg):
