@@ -17,12 +17,11 @@ def mapModelAnglesRadiansToMotorsAnglesRadians(modelAngles):
     q1, q2, q3 = modelAngles
     q1 = q1 + math.pi
     q2 = math.pi - q2
-    q3 = 1.5 * math.pi + q3
 
     return q1, q2, q3
 
 def mapMotorsAnglesRadiansToModelAnglesRadians(motorsAngles):
-    """Map motors angles to leg-model angles, both in radians. For all three motos in leg.
+    """Map motors angles to leg-model angles, both in radians, for all three motos in leg.
 
     Args:
         motorsAngles (list): 1x3 array of motors angles in radians
@@ -34,7 +33,6 @@ def mapMotorsAnglesRadiansToModelAnglesRadians(motorsAngles):
 
     q1 = q1 - math.pi
     q2 = -(q2 - math.pi)
-    q3 = q3 - 1.5 * math.pi
 
     return q1, q2, q3
 

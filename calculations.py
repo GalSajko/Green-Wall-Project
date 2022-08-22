@@ -28,14 +28,13 @@ class Kinematics:
         """
         q1, q2, q3 = jointsValues
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
-        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
-        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
-        L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
-            [math.cos(q1)*math.cos(q2+q3), -math.cos(q1)*math.sin(q2+q3), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
-            [math.cos(q2+q3)*math.sin(q1), -math.sin(q1)+math.sin(q2+q3), -math.cos(q1), math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
-            [math.sin(q2+q3), math.cos(q2+q3), 0, -L3*math.cos(q2) + L2*math.sin(q2) + L4*math.sin(q2+q3)],
+            [math.cos(q1) * math.cos(q2 + q3), -math.cos(q1) * math.sin(q2 + q3), -math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3))],
+            [math.cos(q2 + q3) * math.sin(q1), -math.sin(q1) * math.sin(q2 + q3), math.cos(q1), (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1)],
+            [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
             [0, 0, 0, 1]
         ])
     
@@ -51,18 +50,18 @@ class Kinematics:
         """
         q1, q2, _ = jointValues
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
-        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
-        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
-            [math.cos(q1)*math.cos(q2), -math.cos(q1)*math.cos(q2), math.sin(q1), math.cos(q1)*(L1 + L2*math.cos(q2) + L3 * math.cos(q2))],
-            [math.cos(q2)*math.sin(q1), -math.sin(q1)*math.sin(q2), -math.cos(q1), math.sin(q1)*(L1 + L2*math.cos(q2) + L3*math.sin(q2))],
-            [math.sin(q2), math.cos(q2), 0, -L3*math.cos(q2) + L2*math.sin(q2)],
+            [math.cos(q1) * math.cos(q2), -math.cos(q1) * math.sin(q2), -math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2))],
+            [math.cos(q2) * math.sin(q1), -math.sin(q1) * math.sin(q2), math.cos(q1), (L1 + L2 * math.cos(q2)) * math.sin(q1)],
+            [math.sin(q2), math.cos(q2), 0, L2 * math.sin(q2)],
             [0, 0, 0, 1]
         ])
 
     def legInverseKinematics(self, legIdx, endEffectorPosition):
-        """Calculate inverse kinematics for leg, using geometry - considering L shape of second link.
+        """Calculate inverse kinematics for leg, using geometry.
 
         Args:
             legIdx (int): Leg id.
@@ -72,35 +71,31 @@ class Kinematics:
             tuple: Angles in radians in first, second and third joint.
         """
         endEffectorPosition = np.array(endEffectorPosition)
-        endEffectorPosition[2] = -endEffectorPosition[2]
 
-        firstLink = self.spider.LEGS_DIMENSIONS[legIdx][0]
-        virtualSecondLink = np.hypot(self.spider.LEGS_DIMENSIONS[legIdx][1][0], self.spider.LEGS_DIMENSIONS[legIdx][1][1])
-        thirdLink = self.spider.LEGS_DIMENSIONS[legIdx][2]
+        L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         # Angle in first joint.
         q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
 
         # Position of second joint in leg-base origin.
         secondJointPosition = np.array([
-            firstLink * math.cos(q1), 
-            firstLink * math.sin(q1), 
+            L1 * math.cos(q1),
+            L1 * math.sin(q1),
             0])
 
         # Vector from second joint to end effector.
         secondJointToEndVector = np.array(endEffectorPosition - secondJointPosition)
 
         # Distance between second joint and end effector.
-        r = np.linalg.norm(np.array(secondJointPosition - endEffectorPosition))
+        r = np.linalg.norm(secondJointToEndVector)
         # Angle in third joint.
-        q3 = -math.acos(np.round((r**2 - virtualSecondLink**2 - thirdLink**2) / (2 * virtualSecondLink * thirdLink), 4))
+        q3 =  -(math.pi - math.acos(np.round((math.pow(L2, 2) + math.pow(L3, 2) - math.pow(r, 2)) / (2 * L2 * L3), 4)))
         # Angle in second joint.
-        q2 = math.atan2(secondJointToEndVector[2], np.linalg.norm(secondJointToEndVector[0:2])) + \
-            math.atan2(thirdLink * math.sin(q3), virtualSecondLink + thirdLink * math.cos(q3))
-        
-        # Add offset because 2nd and 3rd joints are not aligned.
-        q2 = -(q2 - self.spider.SECOND_JOINTS_OFFSETS[legIdx])
-        q3 = q3 - self.spider.SECOND_JOINTS_OFFSETS[legIdx]
+        alpha = abs(math.atan2(L3 * math.sin(q3), L2 + L3 * math.cos(q3)))
+        gamma = math.atan2(secondJointToEndVector[2], np.linalg.norm(secondJointToEndVector[0:2]))
+        q2 = alpha + gamma
 
         return q1, q2, q3
 
@@ -220,15 +215,14 @@ class Kinematics:
         """
         q1, q2, q3 = jointValues
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
-        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
-        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
-        L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
-            [-math.sin(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.cos(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1)*math.sin(q2+q3)],
-            [math.cos(q1)*(L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.sin(q1)*(L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.sin(q1)*math.sin(q2+q3)],
-            [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)]
-            ], dtype = np.float32)
+            [-((L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1)), -math.cos(q1) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1) * math.sin(q2 + q3)],
+            [math.cos(q1) * (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)), -math.sin(q1) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.sin(q1) * math.sin(q2 + q3)],
+            [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
+            ])
 
     def spiderBaseToLegTipForwardKinematics(self, legIdx, jointsValues):
         """Calculate forward kinematics from spider base to leg-tip.
@@ -244,16 +238,15 @@ class Kinematics:
         q1, q2, q3 = jointsValues
         r = self.spider.BODY_RADIUS
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
-        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
-        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
-        L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         Hb3 = np.array([
-            [math.cos(q2+q3) * math.cos(q1+qb), -math.cos(q1+qb) * math.sin(q2+q3), math.sin(q1+qb), r*math.cos(qb) + math.cos(q1+qb) * (L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2))],
-            [math.cos(q2+q3) * math.sin(q1+qb), -math.sin(q2+q3) * math.sin(q1+qb), -math.cos(q1+qb), L1*math.cos(qb)*math.sin(q1) + (r + L1*math.cos(q1)) * math.sin(qb) + (L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)],
-            [math.sin(q2+q3), math.cos(q2+q3), 0, -L3*math.cos(q2) + L2*math.sin(q2) + L4*math.sin(q2+q3)],
+            [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), -math.sin(q1 + qb), r * math.cos(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb)],
+            [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), math.cos(q1 + qb), r * math.sin(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)],
+            [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
             [0, 0, 0, 1]
-        ], dtype = np.float32)
+        ])
 
         return Hb3
 
@@ -271,15 +264,14 @@ class Kinematics:
         q1, q2, q3 = jointValues
         r = self.spider.BODY_RADIUS
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
-        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1][0]
-        L3 = self.spider.LEGS_DIMENSIONS[legIdx][1][1]
-        L4 = self.spider.LEGS_DIMENSIONS[legIdx][2]
+        L2 = self.spider.LEGS_DIMENSIONS[legIdx][1]
+        L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
-            [-((L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)) * math.sin(q1+qb)), math.cos(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.cos(q1+qb) * math.sin(q2+q3)],
-            [math.cos(q1+qb) * (L1 + L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2)), math.sin(q1+qb) * (L3*math.cos(q2) - L2*math.sin(q2) - L4*math.sin(q2+q3)), -L4*math.sin(q2+q3) * math.sin(q1+qb)],
-            [0, L2*math.cos(q2) + L4*math.cos(q2+q3) + L3*math.sin(q2), L4*math.cos(q2+q3)]
-        ], dtype = np.float32)
+            [-((L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)), -math.cos(q1 + qb) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1 + qb) * math.sin(q2 + q3)],
+            [(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb), -((L2 * math.sin(q2) + L3 * math.sin(q2 + q3)) * math.sin(q1 + qb)), -L3 * math.sin(q2 + q3) * math.sin(q1 + qb)],
+            [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
+        ])
 
     def getSpiderToLegReferenceVelocities(self, legsIds, spiderVelocity):
         """Calculate needed legs velocities to match given spider velocity.
@@ -305,10 +297,10 @@ class Kinematics:
                 anchorsVelocities[0],
                 anchorsVelocities[1] + self.spider.BODY_RADIUS * wz,
                 anchorsVelocities[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
-            ], dtype = np.float32)
+            ])
         refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
 
-        return np.array(refereneceLegVelocities, dtype = np.float32)
+        return np.array(refereneceLegVelocities)
     
 class Dynamics:
     """Class for calculating spider's dynamics.
