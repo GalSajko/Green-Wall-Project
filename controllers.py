@@ -419,7 +419,7 @@ class GripperController:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB_ARDUINO_GRIPPERS', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
@@ -547,7 +547,7 @@ class WaterPumpController:
         self.INIT_RESPONSE = "OK"
         self.INIT_MESSAGE = "init"
 
-        self.comm = serial.Serial('/dev/ttyUSB2', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB_ARDUINO_WATER_PUMP', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
     def sendData(self, msg):
