@@ -54,10 +54,10 @@ class VelocityController:
         """Velocity controller to controll all five legs continuously. Runs in separate thread.
         """
         lastQErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        lastFErrors = np.zeros(3)
+        # lastFErrors = np.zeros(3)
         init = True
 
-        while 1:
+        while True:
             if self.killControllerThread:
                 break
  
@@ -72,8 +72,8 @@ class VelocityController:
                 self.lastMotorsPositions = self.qA
                 init = False
 
-            for leg in self.spider.LEGS_IDS:
-                self.fA[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
+            # for leg in self.spider.LEGS_IDS:
+            #     self.fA[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
                 # with self.locker:
                 #     self.rgValues[leg] = self.dynamics.getForceEllipsoidLengthInGivenDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
 
@@ -86,16 +86,16 @@ class VelocityController:
             lastQErrors = qErrors
 
             # Force PD controller.
-            with self.locker:
-                startForceController = self.doOffload
-            if startForceController:
-                legId = 0
-                fD = np.zeros(3)
-                forceErrors = np.array(fD - self.fA[legId], dtype = np.float32)
-                # dFe = (forceErrors - lastFErrors) / self.period
-                dXOff = 0.1 * forceErrors
-                dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legId, self.qA[legId])), dXOff)
-                qCds[legId] += dQOff
+            # with self.locker:
+            #     startForceController = self.doOffload
+            # if startForceController:
+            #     legId = 0
+            #     fD = np.zeros(3)
+            #     forceErrors = np.array(fD - self.fA[legId], dtype = np.float32)
+            #     # dFe = (forceErrors - lastFErrors) / self.period
+            #     dXOff = 0.1 * forceErrors
+            #     dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legId, self.qA[legId])), dXOff)
+            #     qCds[legId] += dQOff
 
             # Send new commands to motors.
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
@@ -238,15 +238,16 @@ class VelocityController:
         qDds = []
         for idx, leg in enumerate(legsIds):
             if origin == 'g' and offset is False:
-                goalPositions[idx] = self.matrixCalculator.getLegInLocal(leg, goalPositions[idx], spiderPose)
+                # goalPositions[idx] = self.matrixCalculator.getLegInLocal(leg, goalPositions[idx], spiderPose)
+                localGoalPosition = self.matrixCalculator.getLegInLocal(leg, goalPositions[idx], spiderPose)
             with self.locker:
                 legCurrentPosition = self.kinematics.legForwardKinematics(leg, self.qA[leg])[:,3][:3]
             if offset:
                 legCurrentGlobalPosition = self.matrixCalculator.getLegsInGlobal([leg], [legCurrentPosition], spiderPose)
                 globalGoalPosition = legCurrentGlobalPosition + np.array(goalPositions[idx])
-                goalPositions[idx] = self.matrixCalculator.getLegInLocal(leg, globalGoalPosition, spiderPose)
+                localGoalPosition = self.matrixCalculator.getLegInLocal(leg, globalGoalPosition, spiderPose)
             try:
-                positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, goalPositions[idx], duration, trajectoryType)
+                positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
             except ValueError as ve:
                 print(f'{ve} - {inspect.stack()[0][3]}')
                 return False

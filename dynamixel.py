@@ -156,14 +156,6 @@ class MotorDriver:
                 return False
         return True
 
-        """Read motors positions in given legs with sync reader.
-
-        :param legsIds: Legs ids.
-        :param calculateLegPositions: If true, calculate legs positions from joints values.
-        :param base: Origin in which to calculate legs positions.
-        :return: nx3 matrix with motors positions in radians, if calculateLegPositions is False, nx3 matrix with legs positions.
-        otherwise.
-        """
     def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False, base = 'l'):
         """Read motors positions in given legs with sync reader. Optionally calculate legs positions.
 
@@ -194,11 +186,7 @@ class MotorDriver:
                     mappedPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3]
 
         return mappedPositions
-        """Read motors positions in given legs with sync reader.
 
-        :param legsIds: Legs ids.
-        :return: nx3 matrix with currents in motors in Ampers.
-        """
     def syncReadMotorsCurrent(self, legsIds):
         """Read current in motors in given legs with sync reader.
 

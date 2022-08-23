@@ -44,10 +44,10 @@ class PathPlanner:
         path = [startPose]
 
         # If spider is lying on the pins first lift it up on the walking height.
-        if startPose[2] == self.spider.LYING_HEIGHT:
-            startWalkingPose = np.copy(startPose)
-            startWalkingPose[2] = self.spider.WALKING_HEIGHT
-            path.append(startWalkingPose)
+        # if startPose[2] == self.spider.LYING_HEIGHT:
+        #     startWalkingPose = np.copy(startPose)
+        #     startWalkingPose[2] = self.spider.WALKING_HEIGHT
+        #     path.append(startWalkingPose)
 
         # Rotate towards goal point.
         # refAngle = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1]) * (-1)

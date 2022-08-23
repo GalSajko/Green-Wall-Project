@@ -25,17 +25,34 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":  
-    kinematics = calculations.Kinematics()
+    # kinematics = calculations.Kinematics()
     controller = controllers.VelocityController()
     planner = planning.PathPlanner(0.05, 0.1)
 
     startPose = [0.6, 0.4, 0.3, 0.0]
+    rightPose = [0.65, 0.4, 0.3, 0.0]
+    bottomPose = [0.6, 0.35, 0.3, 0.0]
+    leftPose = [0.55, 0.4, 0.3, 0.0]
+    topPose = [0.6, 0.45, 0.3, 0.0]
     path = planner.calculateSpiderBodyPath(startPose, startPose)
+    startPins = planner.calculateSelectedPins(path)[0]
 
-    # goalPosition = [0.065 + 0.3, 0.0, -0.275]
+    print(startPins)
 
-    # [controller.moveLegAsync(leg, goalPosition, 'l', 5, 'minJerk') for leg in range(5)]
-    # time.sleep(6)
+    _ = input("CONFIRM STARTING PINS AND PRESS ANY KEY:")
+
+    controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', startPose)
+    time.sleep(7)
+
+    while True:
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', topPose)
+        time.sleep(4)
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', rightPose)
+        time.sleep(4)
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', bottomPose)
+        time.sleep(4)
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', leftPose)
+        time.sleep(4)
 
     # while True:
     #     legIdInput = input("Enter leg ID: ")

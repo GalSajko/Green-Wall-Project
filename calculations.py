@@ -90,8 +90,13 @@ class Kinematics:
 
         # Distance between second joint and end effector.
         r = np.linalg.norm(secondJointToEndVector)
-        # Angle in third joint.
-        q3 =  -(math.pi - math.acos(np.round((math.pow(L2, 2) + math.pow(L3, 2) - math.pow(r, 2)) / (2 * L2 * L3), 4)))
+        # Angle in third joint, note Pi - acos(x) = acos(-x).
+        # try:
+        q3 =  -math.acos(np.round((r**2 - L2**2 - L3**2) / (2 * L2 * L3), 4))
+        # except ValueError:
+        #     print(r)
+        #     print(np.round((r**2 - L2**2 - L3**2) / (2 * L2 * L3), 4))
+        #     return
         # Angle in second joint.
         alpha = abs(math.atan2(L3 * math.sin(q3), L2 + L3 * math.cos(q3)))
         gamma = math.atan2(secondJointToEndVector[2], np.linalg.norm(secondJointToEndVector[0:2]))
