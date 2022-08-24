@@ -45,8 +45,11 @@ class VelocityController:
 
         self.qA = []
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        self.fD = np.zeros(3)
         self.rgValues = np.zeros(self.spider.NUMBER_OF_LEGS)
         self.doOffload = False
+        self.offloadLegId = None
+        self.forceThreshold = 1
 
         self.initControllerThread()
 
@@ -54,7 +57,7 @@ class VelocityController:
         """Velocity controller to controll all five legs continuously. Runs in separate thread.
         """
         lastQErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        # lastFErrors = np.zeros(3)
+        lastFErrors = np.zeros(3)
         init = True
 
         while True:
@@ -64,16 +67,16 @@ class VelocityController:
             startTime = time.perf_counter()
 
             # Get current data.
-            with self.locker:
-                self.qA, currents = self.motorDriver.syncReadPositionCurrentWrapper()
+            with self.locker: 
+                self.qA, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
 
             # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
             if init:
                 self.lastMotorsPositions = self.qA
                 init = False
 
-            # for leg in self.spider.LEGS_IDS:
-            #     self.fA[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
+            for leg in self.spider.LEGS_IDS:
+                self.fA[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
                 # with self.locker:
                 #     self.rgValues[leg] = self.dynamics.getForceEllipsoidLengthInGivenDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
 
@@ -86,16 +89,28 @@ class VelocityController:
             lastQErrors = qErrors
 
             # Force PD controller.
-            # with self.locker:
-            #     startForceController = self.doOffload
-            # if startForceController:
-            #     legId = 0
-            #     fD = np.zeros(3)
-            #     forceErrors = np.array(fD - self.fA[legId], dtype = np.float32)
-            #     # dFe = (forceErrors - lastFErrors) / self.period
-            #     dXOff = 0.1 * forceErrors
-            #     dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legId, self.qA[legId])), dXOff)
-            #     qCds[legId] += dQOff
+            with self.locker:
+                startForceController = self.doOffload
+                legToOffload = self.offloadLegId
+            if startForceController:
+                forceErrors = np.array(self.fD - self.fA[legToOffload])
+                # if (forceErrors <= self.forceThreshold).all():
+                #     print("STOP OFFLOADING")
+                #     with self.locker:
+                #         self.doOffload = False
+                    
+                dFe = (forceErrors - lastFErrors) / self.period
+                dXOff = 1 * forceErrors
+                dXOff[0] = 0.0
+                lastFErrors = forceErrors
+                dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legToOffload, self.qA[legToOffload])), dXOff)
+                # for value in dQOff:
+                #     if value > 0.8:
+                #         value = 0.8
+                #     elif value < -0.8:
+                #         value = -0.8
+
+                qCds[legToOffload] += dQOff
 
             # Send new commands to motors.
             if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
@@ -179,7 +194,6 @@ class VelocityController:
 
         with self.locker:
             legCurrentPosition = self.kinematics.legForwardKinematics(legId, self.qA[legId])[:,3][:3]
-            print(legCurrentPosition)
 
         # If goal position is given as offset in global direction, calculate global goal position by adding offset to global current position and than convert it into local.
         if offset:
@@ -267,6 +281,7 @@ class VelocityController:
     def offloadSelectedLeg(self, legId):
         with self.locker:
             self.doOffload = True
+            self.offloadLegId = legId
    
     def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose):
         """Open gripper, move leg to the new pin and close the gripper.
@@ -282,15 +297,15 @@ class VelocityController:
         detachTime = 1
 
         with self.locker:
-            legPosition = self.motorDriver.syncReadMotorsPositionsInLegs(legId, True, 'g')
-
-        detachPosition = np.copy(legPosition)
+            legPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'l')
+        globalLegPosition = self.matrixCalculator.getLegsInGlobal([legId], legPosition, spiderPose)[0]
+        detachPosition = np.copy(globalLegPosition)
         detachPosition[2] += detachOffset
         attachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], spiderPose, [goalPosition])
 
         # If leg is attached, open a gripper.
         if legId in self.gripperController.getIdsOfAttachedLegs():
-            self.gripperController.openGrippersAndWait(legId)
+            self.gripperController.openGrippersAndWait([legId])
 
         # Move from pin to detach position, to attach position and finally to new pin.
         self.moveLegAsync(legId, detachPosition, 'g', detachTime, 'minJerk', spiderPose)
@@ -398,9 +413,6 @@ class VelocityController:
             qDd[idx] = qDdFf
 
         return qD, qDd
-    
-    def moveGripperWrapper(self, legId, command):
-        self.gripperController.moveGripper(legId, command)
 
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.

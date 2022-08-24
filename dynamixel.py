@@ -44,6 +44,7 @@ class MotorDriver:
 
         self.kinematics = calculations.Kinematics()
         self.spider = environment.Spider()
+        self.matrixCalculator = calculations.MatrixCalculator()
 
         self.motorsIds = np.array(motorsIds)
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
@@ -156,7 +157,7 @@ class MotorDriver:
                 return False
         return True
 
-    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False, base = 'l'):
+    def syncReadMotorsPositionsInLegs(self, legsIds, calculateLegPositions = False, origin = 'l'):
         """Read motors positions in given legs with sync reader. Optionally calculate legs positions.
 
         Args:
@@ -167,22 +168,22 @@ class MotorDriver:
         Returns:
             numpy.ndarray: nx3 array with either values in joints or legs positions in given origin, where n is number of given legs.
         """
-        if base is not None and base != 'l' and base != 's':
+        if origin is not None and origin not in ('l', 's'):
             print("Invalid value of base parameter.")
             return False
 
         _ = self.groupSyncReadPosition.fastSyncRead()
 
-        mappedPositions = np.zeros([len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+        mappedPositions = np.zeros([len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
         for idx, leg in enumerate(legsIds):
             positions = [self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
             jointsValues = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions)
             if not calculateLegPositions:
                 mappedPositions[idx] = jointsValues
             else:
-                if base == 'l':
+                if origin == 'l':
                     mappedPositions[idx] = self.kinematics.legForwardKinematics(leg, jointsValues)[:,3][:3]
-                elif base == 's':
+                elif origin == 's':
                     mappedPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues)[:,3][:3]
 
         return mappedPositions
@@ -204,7 +205,7 @@ class MotorDriver:
 
         return currents
 
-    def syncReadPositionCurrentWrapper(self):
+    def syncReadAnglesAndCurrentsWrapper(self):
         """Read positions and currents from all connected motors.
 
         Returns:

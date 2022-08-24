@@ -26,8 +26,11 @@ def initSendingThread():
 
 if __name__ == "__main__":  
     # kinematics = calculations.Kinematics()
-    controller = controllers.VelocityController()
+    time.sleep(2)
     planner = planning.PathPlanner(0.05, 0.1)
+    udpServer = udpServer.UdpServer('192.168.1.8')
+    controller = controllers.VelocityController()
+    initSendingThread()
 
     startPose = [0.6, 0.4, 0.3, 0.0]
     rightPose = [0.65, 0.4, 0.3, 0.0]
@@ -35,24 +38,31 @@ if __name__ == "__main__":
     leftPose = [0.55, 0.4, 0.3, 0.0]
     topPose = [0.6, 0.45, 0.3, 0.0]
     path = planner.calculateSpiderBodyPath(startPose, startPose)
-    startPins = planner.calculateSelectedPins(path)[0]
+    pathPins = planner.calculateSelectedPins(path)
+    pins = env.Wall('squared').createGrid(True)
+    startPins = pathPins[0]
 
-    print(startPins)
+    print("STARTING PINS:\n ", startPins)
 
-    _ = input("CONFIRM STARTING PINS AND PRESS ANY KEY:")
+    _ = input("CONFIRM STARTING PINS AND PRESS ENTER:")
 
     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', startPose)
-    time.sleep(7)
+    time.sleep(5.5)
+    _ = input("PRESS ENTER TO OFFLOAD: ")
+    controller.offloadSelectedLeg(0)
+    # controller.moveLegAsync(0, [0.0, 0.02, -0.02], 'g', 1, 'minJerk', spiderPose = startPose, offset = True)
 
-    while True:
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', topPose)
-        time.sleep(4)
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', rightPose)
-        time.sleep(4)
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', bottomPose)
-        time.sleep(4)
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', leftPose)
-        time.sleep(4)
+
+    # _ = input("PRESS ENTER TO START: ")
+    # while True:
+    #     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 1.5, 'minJerk', topPose)
+    #     time.sleep(2)
+    #     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 1.5, 'minJerk', rightPose)
+    #     time.sleep(2)
+    #     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 1.5, 'minJerk', bottomPose)
+    #     time.sleep(2)
+    #     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 1.5, 'minJerk', leftPose)
+    #     time.sleep(2)
 
     # while True:
     #     legIdInput = input("Enter leg ID: ")

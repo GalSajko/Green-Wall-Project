@@ -3,7 +3,7 @@ import socket
 class UdpServer:
 
     def __init__(self, addressToSend):
-        self.LOCAL_IP = '192.168.1.67'
+        self.LOCAL_IP = '192.168.1.46'
         self.LOCAL_PORT = 20000
         self.REMOTE_PORT = 6565
         
