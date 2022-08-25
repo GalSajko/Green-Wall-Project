@@ -16,10 +16,10 @@ class Spider:
         # Number of motors in leg.
         self.NUMBER_OF_MOTORS_IN_LEG = 3
         # Radius of spiders platform, in meters.
-        self.BODY_RADIUS = 0.1315
+        self.BODY_RADIUS = 0.13145
         self.LEGS_IDS = [0, 1, 2, 3, 4]
         # Spiders legs, given as lengths of all three links in one leg.
-        self.LEGS_DIMENSIONS = [[0.065, 0.3, 0.275]] * 5
+        self.LEGS_DIMENSIONS = [[0.064, 0.3, 0.276]] * 5
         # Angles between legs, looking from spiders origin.
         self.ANGLE_BETWEEN_LEGS = np.radians(360.0 / self.NUMBER_OF_LEGS)
         # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.

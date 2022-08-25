@@ -121,27 +121,41 @@ class MotorDriver:
             if comm:
                 print("Motor %d has been successfully disabled" % motorId)
 
-    def disableLegs(self, legIds = 5):
+    def disableLegs(self, legsIds = 5):
         """Disable all of the motors in given legs.
 
         Args:
             legId (list, optional): Ids of legs, which are to be disabled, if value is 5 all legs will be disabled. Defaults to 5.
         """
-        if legIds == 5:
+        if legsIds == 5:
             motorsArray = self.motorsIds.flatten()
-            for motorId in motorsArray:
-                # Disable torque.
-                result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
-                comm = self.commResultAndErrorReader(result, error)
-                if comm:
-                    print("Motor %d has been successfully disabled" % motorId)
-            return
+        else:
+            motorsArray = self.motorsIds[legsIds]
 
-        for motorId in self.motorsIds[legIds]:
+        for motorId in motorsArray:
+            # Disable torque.
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
-            comm = self.commResultAndErrorReader(result, error)
-            if comm:
-                print("Motor %d has been successfully disabled" % motorId)
+            # comm = self.commResultAndErrorReader(result, error)
+            # if comm:
+            #     print("Motor %d has been successfully disabled" % motorId)
+
+    def enableLegs(self, legsIds = 5):
+        """Enable all of the motors in given legs.
+
+        Args:
+            legId (list, optional): Ids of legs, which are to be enabled, if value is 5 all legs will be enabled. Defaults to 5.
+        """
+        if legsIds == 5:
+            motorsArray = self.motorsIds.flatten()
+        else:
+            motorsArray = self.motorsIds[legsIds]
+
+        for motorId in motorsArray:
+            # Enable torque.
+            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
+            # comm = self.commResultAndErrorReader(result, error)
+            # if comm:
+            #     print("Motor %d has been successfully disabled" % motorId)
 
     def addGroupSyncReadParams(self):
         """Add parameters (motors ids) to group sync reader parameters storages - for position and current reading.
@@ -226,7 +240,7 @@ class MotorDriver:
 
         return positions, currents
 
-    def syncReadPlatformPose(self, legsIds, legsGlobalPositions):
+    def syncReadPlatformPose(self, legsIds, legsGlobalPositions, qA):
         """Wrapper function for reading spider's pose in global origin. If more than three legs are given, it calculates spider's pose from each
         combination of these three legs. Finally pose is determined as mean value of all calculations.
 
@@ -242,7 +256,7 @@ class MotorDriver:
         for legsSubset in itt.combinations(legsIds, 3):
             legsSubset = np.array(legsSubset)
             subsetIdxs = [legsIds.index(leg) for leg in legsSubset]
-            jointsValues = self.syncReadMotorsPositionsInLegs(legsSubset)
+            jointsValues = qA[legsSubset]
             legsPoses = [self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx]) for idx, leg in enumerate(legsSubset)]
             spiderXyz.append(self.kinematics.platformForwardKinematics(legsSubset, legsGlobalPositions[(subsetIdxs)], legsPoses))
         spiderXyz = np.mean(np.array(spiderXyz), axis = 0)
@@ -261,9 +275,9 @@ class MotorDriver:
         """
         for idx, leg in enumerate(legIds):
             motorsInLeg = self.motorsIds[leg]
-            encoderVelocoties = mappers.mapModelVelocitiesToVelocityEncoderValues(qCd[idx]).astype(int)
+            encoderVelocities = mappers.mapModelVelocitiesToVelocityEncoderValues(qCd[idx]).astype(int)
             for i, motor in enumerate(motorsInLeg):
-                qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocoties[i]))]
+                qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocities[i]))]
                 with self.locker:
                     result = self.groupSyncWrite.changeParam(motor, qCdBytes)
                 if not result:
@@ -271,10 +285,10 @@ class MotorDriver:
                     return False
         # Write velocities to motors.
         result = self.groupSyncWrite.txPacket()
-        if result != COMM_SUCCESS:
-            print("Failed to write velocities to motors.")
-            return False
-        return True
+        # if result != COMM_SUCCESS:
+        #     print("Failed to write velocities to motors.")
+        #     return False
+        # return True
 
     def clearGroupSyncReadParams(self):
         """Clear group sync reader parameters storage.

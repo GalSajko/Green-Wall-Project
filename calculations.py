@@ -51,7 +51,6 @@ class Kinematics:
         q1, q2, _ = jointValues
         L1 = self.spider.LEGS_DIMENSIONS[legIdx][0]
         L2 = self.spider.LEGS_DIMENSIONS[legIdx][1]
-        L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
             [math.cos(q1) * math.cos(q2), -math.cos(q1) * math.sin(q2), -math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2))],
@@ -91,12 +90,7 @@ class Kinematics:
         # Distance between second joint and end effector.
         r = np.linalg.norm(secondJointToEndVector)
         # Angle in third joint, note Pi - acos(x) = acos(-x).
-        # try:
         q3 =  -math.acos(np.round((r**2 - L2**2 - L3**2) / (2 * L2 * L3), 4))
-        # except ValueError:
-        #     print(r)
-        #     print(np.round((r**2 - L2**2 - L3**2) / (2 * L2 * L3), 4))
-        #     return
         # Angle in second joint.
         alpha = abs(math.atan2(L3 * math.sin(q3), L2 + L3 * math.cos(q3)))
         gamma = math.atan2(secondJointToEndVector[2], np.linalg.norm(secondJointToEndVector[0:2]))
