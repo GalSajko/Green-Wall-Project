@@ -135,9 +135,6 @@ class MotorDriver:
         for motorId in motorsArray:
             # Disable torque.
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
-            # comm = self.commResultAndErrorReader(result, error)
-            # if comm:
-            #     print("Motor %d has been successfully disabled" % motorId)
 
     def enableLegs(self, legsIds = 5):
         """Enable all of the motors in given legs.
@@ -153,9 +150,6 @@ class MotorDriver:
         for motorId in motorsArray:
             # Enable torque.
             result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
-            # comm = self.commResultAndErrorReader(result, error)
-            # if comm:
-            #     print("Motor %d has been successfully disabled" % motorId)
 
     def addGroupSyncReadParams(self):
         """Add parameters (motors ids) to group sync reader parameters storages - for position and current reading.
@@ -257,7 +251,9 @@ class MotorDriver:
             legsSubset = np.array(legsSubset)
             subsetIdxs = [legsIds.index(leg) for leg in legsSubset]
             jointsValues = qA[legsSubset]
-            legsPoses = [self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx]) for idx, leg in enumerate(legsSubset)]
+            legsPoses = np.zeros([3, 4, 4])
+            for idx, leg in enumerate(legsSubset):
+                legsPoses[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx])
             spiderXyz.append(self.kinematics.platformForwardKinematics(legsSubset, legsGlobalPositions[(subsetIdxs)], legsPoses))
         spiderXyz = np.mean(np.array(spiderXyz), axis = 0)
 
@@ -285,10 +281,10 @@ class MotorDriver:
                     return False
         # Write velocities to motors.
         result = self.groupSyncWrite.txPacket()
-        # if result != COMM_SUCCESS:
-        #     print("Failed to write velocities to motors.")
-        #     return False
-        # return True
+        if result != COMM_SUCCESS:
+            print("Failed to write velocities to motors.")
+            return False
+        return True
 
     def clearGroupSyncReadParams(self):
         """Clear group sync reader parameters storage.

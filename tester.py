@@ -28,36 +28,43 @@ if __name__ == "__main__":
     # kinematics = calculations.Kinematics()
     # time.sleep(2)
     planner = planning.PathPlanner(0.05, 0.1)
-    udpServer = udpServer.UdpServer('192.168.1.8')
+    # udpServer = udpServer.UdpServer('192.168.1.8')
     controller = controllers.VelocityController()
-    initSendingThread() 
+    # initSendingThread() 
 
-    startPose = [0.6, 0.4, 0.3, 0.0]
+    startPose = [0.6, 0.45, 0.3, 0.0]
     # rightPose = [0.65, 0.4, 0.3, 0.0]
     # bottomPose = [0.6, 0.35, 0.3, 0.0]
     # leftPose = [0.55, 0.4, 0.3, 0.0]
     # topPose = [0.6, 0.45, 0.3, 0.0]
-    # path = planner.calculateSpiderBodyPath(startPose, startPose)
-    # pathPins = planner.calculateSelectedPins(path)
+    path = planner.calculateSpiderBodyPath(startPose, startPose)
+    pathPins = planner.calculateSelectedPins(path)
     pins = env.Wall('squared').createGrid(True)
-    # startPins = pathPins[0]
-    testPins = [pins[22], pins[9], pins[7], pins[31], pins[33]]
+    startPins = pathPins[0]
+    testPins = np.array([pins[22], pins[9], pins[7], pins[31], pins[33]])
     
     print("STARTING PINS:\n ", testPins)
 
-    # _ = input("CONFIRM STARTING PINS AND PRESS ENTER:")
+    _ = input("CONFIRM STARTING PINS AND PRESS ENTER:")
 
-    controller.moveLegsSync([0, 1, 2, 3, 4], [[0.35, 0.0, 0.15]] * 5, 'l', 5, 'minJerk')
-    _ = input("PRESS TO MEASURE LEGS POSITIONS: ")
-    legsPositions = controller.readLegsPositions([0, 1, 2, 3, 4], 'l')
-    print(legsPositions)
-
-
+    # controller.moveLegsSync([0, 1, 2, 3, 4], testPins, 'g', 5, 'minJerk', startPose)
+    # _ = input("OPEN GRIPPERS: ")
+    # controller.moveGripperWrapper([0, 1, 2, 3, 4], 'o')
+    _ = input("MOVE LEGS")
+    controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', startPose)
+    _ = input("MOVE LEGS")
+    controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', startPose)
     # _ = input("PRESS ENTER TO OFFLOAD: ")
     # newPose = controller.offloadSelectedLeg(1, testPins)
-    # print("POSE AFTER OFFSET: ", newPose)
     # _ = input("PRESS ENTER TO MOVE THE LEG: ")
     # controller.moveLegAndGripper(1, pins[8], 5, startPose, testPins)
+    while True:
+        legs = input("ENTER LEGS IDS: ")
+        legs = legs.split(',')
+        legsIds = [int(leg) for leg in legs]
+        legsGlobalPositions = startPins[legsIds]
+        pose = controller.readSpiderPose(legsIds, legsGlobalPositions)
+
 
 
     # _ = input("PRESS ENTER TO START: ")

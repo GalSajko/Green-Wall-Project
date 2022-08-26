@@ -218,7 +218,7 @@ class Kinematics:
         L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
-            [-((L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1)), -math.cos(q1) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1) * math.sin(q2 + q3)],
+            [-(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1), -math.cos(q1) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1) * math.sin(q2 + q3)],
             [math.cos(q1) * (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)), -math.sin(q1) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.sin(q1) * math.sin(q2 + q3)],
             [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
             ])
@@ -267,8 +267,8 @@ class Kinematics:
         L3 = self.spider.LEGS_DIMENSIONS[legIdx][2]
 
         return np.array([
-            [-((L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)), -math.cos(q1 + qb) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1 + qb) * math.sin(q2 + q3)],
-            [(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb), -((L2 * math.sin(q2) + L3 * math.sin(q2 + q3)) * math.sin(q1 + qb)), -L3 * math.sin(q2 + q3) * math.sin(q1 + qb)],
+            [-(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb), -math.cos(q1 + qb) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1 + qb) * math.sin(q2 + q3)],
+            [(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb), -(L2 * math.sin(q2) + L3 * math.sin(q2 + q3)) * math.sin(q1 + qb), -L3 * math.sin(q2 + q3) * math.sin(q1 + qb)],
             [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
         ])
 

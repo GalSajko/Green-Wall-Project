@@ -38,9 +38,8 @@ class VelocityController:
         self.killControllerThread = False
         self.queuesReadyFlags = [False] * self.spider.NUMBER_OF_LEGS
 
-        self.Kp = np.array([[10, 10, 10]] * self.spider.NUMBER_OF_LEGS)
-        # self.Kp = np.array([[5, 5, 5]] * self.spider.NUMBER_OF_LEGS)
-        self.Kd = np.array([[0.5, 0.5, 0.5]] * self.spider.NUMBER_OF_LEGS)
+        self.Kp = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS) * 20.0
+        self.Kd = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS) * 0.25
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
 
         self.qA = []
@@ -196,7 +195,8 @@ class VelocityController:
             goalPosition = self.matrixCalculator.getLegInLocal(legId, goalPosition, spiderPose)
 
         with self.locker:
-            legCurrentPosition = self.kinematics.legForwardKinematics(legId, self.qA[legId])[:,3][:3]
+            currentAngles = self.qA[legId]
+        legCurrentPosition = self.kinematics.legForwardKinematics(legId, self.qA[legId])[:,3][:3]
 
         # If goal position is given as offset in global direction, calculate global goal position by adding offset to global current position and than convert it into local.
         if offset:
@@ -253,20 +253,25 @@ class VelocityController:
         
         qDs = []
         qDds = []
-        if origin == 'g' and offset is False:
-            localGoalPosition = self.matrixCalculator.getLegInLocal(leg, goalPositions, spiderPose)
-        elif origin == 'l':
-            localGoalPosition = goalPositions
 
         for idx, leg in enumerate(legsIds):
             with self.locker:
-                legCurrentPosition = self.kinematics.legForwardKinematics(leg, self.qA[leg])[:,3][:3]
-            if offset:
-                legCurrentGlobalPosition = self.matrixCalculator.getLegsInGlobal([leg], [legCurrentPosition], spiderPose)
-                globalGoalPosition = legCurrentGlobalPosition + np.array(goalPositions[idx])
-                localGoalPosition = self.matrixCalculator.getLegInLocal(leg, globalGoalPosition, spiderPose)
+                currentAngles = self.qA[leg]
+            # Get current leg position in local.
+            legCurrentPosition = self.kinematics.legForwardKinematics(leg, currentAngles)[:,3][:3]
+            # If goal positions are given in global origin, convert them into local.
+            if origin == 'g':
+                globalGoalPosition = goalPositions[idx]
+                # If goal positions are given as offset in global origin, calculate new global goal positions and than convert it into local.
+                if offset:
+                    legCurrentGlobalPosition = self.matrixCalculator.getLegsInGlobal([leg], [legCurrentPosition], spiderPose)
+                    globalGoalPosition = legCurrentGlobalPosition + np.array(goalPositions[idx]) 
+                localGoalPosition = self.matrixCalculator.getLegInLocal(leg, globalGoalPosition, spiderPose)                  
+            elif origin == 'l':
+                localGoalPosition = goalPositions[idx]
+
             try:
-                positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, localGoalPosition[idx], duration, trajectoryType)
+                positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
             except ValueError as ve:
                 print(f'{ve} - {inspect.stack()[0][3]}')
                 return False
@@ -283,17 +288,29 @@ class VelocityController:
         
         return True
     
-    def offloadSelectedLeg(self, legId, legsGlobalPositions):
+    def offloadSelectedLeg(self, legId, legsGlobalPositions = None):
         with self.locker:
-            oldPose = self.motorDriver.syncReadPlatformPose([0, 1, 2, 3, 4], legsGlobalPositions, self.qA)
+            currentAngles = self.qA
+
+        if legsGlobalPositions is not None:
+            oldPose = self.motorDriver.syncReadPlatformPose([0, 1, 2, 3, 4], legsGlobalPositions, currentAngles)
+            print("POSE BEFORE OFFLOADING: ", oldPose)
+
+        otherLegs = self.spider.LEGS_IDS.copy()
+        otherLegs.remove(legId)
+        with self.locker:
             self.motorDriver.disableLegs(legId)
+            self.lastMotorsPositions[otherLegs] = self.qA[otherLegs]
         time.sleep(1)
         with self.locker:
             self.lastMotorsPositions[legId] = self.qA[legId]
             self.motorDriver.enableLegs(legId)   
         time.sleep(1)
-        with self.locker:
-            newPose = self.motorDriver.syncReadPlatformPose([0, 1, 2, 3, 4], legsGlobalPositions, self.qA)       
+        if legsGlobalPositions is not None:
+            with self.locker:
+                currentAngles = self.qA
+            newPose = self.motorDriver.syncReadPlatformPose([0, 1, 2, 3, 4], legsGlobalPositions, currentAngles)  
+            print("POSE AFTER OFFLOAD: ", newPose)     
         return newPose
    
     def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose, legsGlobalPositions):
@@ -313,22 +330,26 @@ class VelocityController:
             legPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'l')
         globalLegPosition = self.matrixCalculator.getLegsInGlobal([legId], legPosition, spiderPose)[0]
         detachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], spiderPose, [globalLegPosition])
-        attachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], spiderPose, [goalPosition])
 
         # If leg is attached, open a gripper.
         if legId in self.gripperController.getIdsOfAttachedLegs():
             self.gripperController.openGrippersAndWait([legId])
 
-        # Move from pin to detach position, to attach position and finally to new pin.
+        # Move leg on detach position.
         self.moveLegAsync(legId, detachPosition, 'g', detachTime, 'minJerk', spiderPose)
-        time.sleep(detachTime + 2)
+        time.sleep(detachTime + 3)
 
+        # Measure new spider pose after detaching the leg.
         usedLegs = self.spider.LEGS_IDS.copy()
         usedLegs.remove(legId)
         legsGlobalPositions = np.delete(legsGlobalPositions, legId, 0)
         with self.locker:
-            newPose = self.motorDriver.syncReadPlatformPose(usedLegs, legsGlobalPositions, self.qA)
+            currentAngles = self.qA
+        newPose = self.motorDriver.syncReadPlatformPose(usedLegs, legsGlobalPositions, currentAngles)
         print("POSE AFTER DETACH: ", newPose)
+
+        # Move leg on attach position.
+        attachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], newPose, [goalPosition])
         self.moveLegAsync(legId, attachPosition, 'g', duration, 'bezier', newPose)
         time.sleep(duration + 0.5)
 
@@ -448,16 +469,24 @@ class VelocityController:
         if origin == 'g' and spiderPose is None:
             raise ValueError("Spider pose should be given, if selected origin is global.")
 
-        localLegsPositions = np.zeros([len(legsIds), 3])
+        legsPositions = np.zeros([len(legsIds), 3])
         for idx, leg in enumerate(legsIds):
             with self.locker:
-                localLegsPositions[idx] = self.kinematics.legForwardKinematics(leg, self.qA[leg])[:3][:,3]
+                currentAngles = self.qA[leg]
+            if origin == 'l': 
+                legsPositions[idx] = self.kinematics.legForwardKinematics(leg, currentAngles)[:3][:,3]
+            elif origin == 's':
+                legsPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles)[:3][:,3]
         if origin == 'g':
-            globalLegsPositions = self.matrixCalculator.getLegsInGlobal(legsIds, localLegsPositions, spiderPose)
+            globalLegsPositions = self.matrixCalculator.getLegsInGlobal(legsIds, legsPositions, spiderPose)
             return globalLegsPositions
-        return localLegsPositions
+        return legsPositions
 
-
+    def readSpiderPose(self, legsIds, legsGlobalPositions):
+        with self.locker:
+            currentAngles = self.qA
+        pose = self.motorDriver.syncReadPlatformPose(legsIds, legsGlobalPositions, currentAngles)
+        return pose
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.
     """
