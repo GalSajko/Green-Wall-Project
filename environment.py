@@ -104,7 +104,7 @@ class Wall:
         # self.WALL_SIZE = [6.0, 4.0]
         # Pin raster - distances between pins in (x, y).
         self.WALL_RASTER = [0.2, 0.25]
-        self.PIN_HEIGHT = 0.02
+        self.PIN_HEIGHT = 0.0
         if gridPattern not in ('squared', 'rhombus'):
             raise ValueError("Invalid value of gridPatter parameter!")
         self.gridPattern = gridPattern

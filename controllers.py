@@ -465,7 +465,20 @@ class VelocityController:
         for leg in legsIds:
             self.gripperController.moveGripper(leg, command)
         
-    def readLegsPositions(self, legsIds, origin = 'l', spiderPose = None):
+    def readLegsPositionsWrapper(self, legsIds, origin = 'l', spiderPose = None):
+        """Wrapper function for reading legs positions.
+
+        Args:
+            legsIds (list): List of legs ids.
+            origin (str, optional): Origin in which to read legs positions, 'l' for local, 's' for spider's and 'g' for global. Defaults to 'l'.
+            spiderPose (list, optional): Spider's pose given as xyzr or xyzrpy in global origin. Defaults to None.
+
+        Raises:
+            ValueError: If given origin is global and spider's pose is not given.
+
+        Returns:
+            list: nx3 list of x, y, z positions of legs, where n is number of legs.
+        """
         if origin == 'g' and spiderPose is None:
             raise ValueError("Spider pose should be given, if selected origin is global.")
 
@@ -473,7 +486,7 @@ class VelocityController:
         for idx, leg in enumerate(legsIds):
             with self.locker:
                 currentAngles = self.qA[leg]
-            if origin == 'l': 
+            if origin == 'l' or origin == 'g': 
                 legsPositions[idx] = self.kinematics.legForwardKinematics(leg, currentAngles)[:3][:,3]
             elif origin == 's':
                 legsPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles)[:3][:,3]
@@ -482,11 +495,28 @@ class VelocityController:
             return globalLegsPositions
         return legsPositions
 
-    def readSpiderPose(self, legsIds, legsGlobalPositions):
+    def readSpiderPoseWrapper(self, legsIds, legsGlobalPositions):
+        """Wrapper function for reading spider's pose.
+
+        Args:
+            legsIds (list): List of legs ids, used for reading spider's pose.
+            legsGlobalPositions (list): Global positions of used legs.
+
+        Raises:
+            ValueError: If number of given legs is less than 3.
+            ValueError: If number of used legs and given legs positions is not the same.
+
+        Returns:
+            list: 1x6 list of spider's pose, given as xyzrpy in global origin.
+        """
+        if len(legsIds) < 3:
+            raise ValueError("At least three legs are needed to read spider's pose.")
+
         with self.locker:
             currentAngles = self.qA
         pose = self.motorDriver.syncReadPlatformPose(legsIds, legsGlobalPositions, currentAngles)
         return pose
+
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.
     """
