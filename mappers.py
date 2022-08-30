@@ -81,7 +81,7 @@ def mapPositionEncoderValuesToModelAnglesRadians(encodersValues):
 
     return np.array(k * encodersValues + n)
 
-def mapCurrentEncoderToMotorsCurrentsAmpers(encoderValues):
+def mapCurrentEncoderValuesToMotorsCurrentsAmpers(encoderValues):
     """Map encoded current values of each motor in leg to currents in motors in Ampers.
 
     Args:

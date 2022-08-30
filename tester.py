@@ -25,8 +25,6 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":
-    # kinematics = calculations.Kinematics()
-    # time.sleep(2)
     planner = planning.PathPlanner(0.05, 0.1)
     # udpServer = udpServer.UdpServer('192.168.1.8')
     controller = controllers.VelocityController()
@@ -41,11 +39,13 @@ if __name__ == "__main__":
     pathPins = planner.calculateSelectedPins(path)
     pins = env.Wall('squared').createGrid(True)
     startPins = pathPins[0]
-    # testPins = np.array([pins[16], pins[8], pins[6], pins[30], pins[33]])
     testPins = np.array([pins[22], pins[9], pins[7], pins[31], pins[33]])
 
     # for idx, pin in enumerate(testPins):
     #     print(calculations.MatrixCalculator().getLegInLocal(idx, pin, startPose))
+
+    testLeg = 3
+    newPin = pins[30]
 
     print("STARTING PINS:\n ", testPins)
 
@@ -59,14 +59,21 @@ if __name__ == "__main__":
     # controller.moveLegAsync(4, [0.45, 0.0, 0.0], 'l', 5, 'minJerk')
     # for leg in [4, 3, 2, 1, 0]:
     #     controller.moveLegAsync(leg, testPins[leg], 'g', 5, 'minJerk', startPose)
+    
     #     time.sleep(5)
     # _ = input("CLOSE GRIPPERS: ")
     # controller.moveGripperWrapper([4], 'c')
     _ = input("PRESS ENTER TO OFFLOAD: ")
-    newPose = controller.offloadSelectedLeg(1, testPins)
+    newPose = controller.offloadSelectedLeg(testLeg, testPins)
+    # _ = input("PRESS ENTER TO OPEN THE GRIPPER: ")
+    # controller.moveGripperWrapper([testLeg], 'o')
+    # _ = input("PRESS ENTER TO OPEN THE GRIPPER: ")
+    controller.moveLegAsync(testLeg, [0.0, -0.25, 0.0], 'g', 5, 'bezier', newPose, True)
     _ = input("PRESS ENTER TO MOVE THE LEG: ")
-    controller.moveLegAndGripper(1, pins[8], 5, startPose, testPins)
+    # controller.moveLegAndGripper(testLeg, newPin, 5, newPose, testPins)
 
+
+    testPins[3] = newPin
     while True:
         legs = input("ENTER LEGS IDS: ")
         legs = legs.split(',')

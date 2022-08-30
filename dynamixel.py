@@ -134,7 +134,7 @@ class MotorDriver:
 
         for motorId in motorsArray:
             # Disable torque.
-            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
+            _, _ = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
 
     def enableLegs(self, legsIds = 5):
         """Enable all of the motors in given legs.
@@ -149,7 +149,7 @@ class MotorDriver:
 
         for motorId in motorsArray:
             # Enable torque.
-            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
+            _, _ = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
 
     def addGroupSyncReadParams(self):
         """Add parameters (motors ids) to group sync reader parameters storages - for position and current reading.
@@ -209,7 +209,7 @@ class MotorDriver:
         currents = np.zeros([len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
         for idx, leg in enumerate(legsIds):
             currents[idx] = [self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH) for motorInLeg in self.motorsIds[leg]]
-            currents[idx] = mappers.mapCurrentEncoderToMotorsCurrentsAmpers(currents[idx])
+            currents[idx] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[idx])
 
         return currents
 
@@ -230,7 +230,7 @@ class MotorDriver:
                 positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
                 currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
             positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
-            currents[leg] = mappers.mapCurrentEncoderToMotorsCurrentsAmpers(currents[leg])
+            currents[leg] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[leg])
 
         return positions, currents
 

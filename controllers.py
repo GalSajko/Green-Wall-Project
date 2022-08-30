@@ -196,13 +196,15 @@ class VelocityController:
 
         with self.locker:
             currentAngles = self.qA[legId]
-        legCurrentPosition = self.kinematics.legForwardKinematics(legId, self.qA[legId])[:,3][:3]
+        legCurrentPosition = self.kinematics.legForwardKinematics(legId, currentAngles)[:,3][:3]
 
         # If goal position is given as offset in global direction, calculate global goal position by adding offset to global current position and than convert it into local.
         if offset:
-            legCurrentGlobalPosition = self.matrixCalculator.getLegsInGlobal([legId], [legCurrentPosition], spiderPose)
-            globalGoalPosition = legCurrentGlobalPosition + np.array(goalPosition)
-            goalPosition = self.matrixCalculator.getLegInLocal(legId, globalGoalPosition, spiderPose)
+            # legCurrentGlobalPosition = self.matrixCalculator.getLegsInGlobal([legId], [legCurrentPosition], spiderPose)
+            # globalGoalPosition = legCurrentGlobalPosition + np.array(goalPosition)
+            # goalPosition = self.matrixCalculator.getLegInLocal(legId, globalGoalPosition, spiderPose)
+            goalPosition = legCurrentPosition + self.matrixCalculator.getGlobalDirectionInLocal(legId, spiderPose, goalPosition)
+            print(goalPosition)
 
         try:
             positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, goalPosition, duration, trajectoryType)
@@ -292,25 +294,37 @@ class VelocityController:
         with self.locker:
             currentAngles = self.qA
 
-        if legsGlobalPositions is not None:
-            oldPose = self.motorDriver.syncReadPlatformPose([0, 1, 2, 3, 4], legsGlobalPositions, currentAngles)
-            print("POSE BEFORE OFFLOADING: ", oldPose)
+        # if legsGlobalPositions is not None:
+        #     oldPose = self.matrixCalculator.getSpiderPose([0, 1, 2, 3, 4], legsGlobalPositions, currentAngles)
+            # print("POSE BEFORE OFFLOADING: ", oldPose)
+
+        # print("ANGLES BEFORE OFFLOADING: ", currentAngles)
 
         otherLegs = self.spider.LEGS_IDS.copy()
         otherLegs.remove(legId)
         with self.locker:
             self.motorDriver.disableLegs(legId)
-            self.lastMotorsPositions[otherLegs] = self.qA[otherLegs]
-        time.sleep(1)
+            # self.lastMotorsPositions[otherLegs] = self.qA[otherLegs]
+        # time.sleep(0.5)
+
+        _ = input("PRESS ENTER TO OPEN THE GRIPPER: ")
+        self.moveGripperWrapper([3], 'o')
+        _ = input("PRESS ENTER TO RE-ENABLE THE LEG: ")
+
         with self.locker:
+            # self.lastMotorsPositions[otherLegs] = self.qA[otherLegs]
+            # self.lastMotorsPositions = self.qA
+            self.motorDriver.enableLegs(legId)  
             self.lastMotorsPositions[legId] = self.qA[legId]
-            self.motorDriver.enableLegs(legId)   
+            # print("ANGLES AFTER OFFLOADING: ", currentAngles)  
         time.sleep(1)
+
         if legsGlobalPositions is not None:
             with self.locker:
                 currentAngles = self.qA
-            newPose = self.motorDriver.syncReadPlatformPose([0, 1, 2, 3, 4], legsGlobalPositions, currentAngles)  
-            print("POSE AFTER OFFLOAD: ", newPose)     
+            newPose = self.matrixCalculator.getSpiderPose([0, 1, 2, 3, 4], legsGlobalPositions, currentAngles)  
+            # print("POSE AFTER OFFLOAD: ", newPose) 
+            # print("ANGLES AFTER OFFLOADING: ", currentAngles)    
         return newPose
    
     def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose, legsGlobalPositions):
@@ -322,14 +336,14 @@ class VelocityController:
             duration (float): Duration of movement.
             spiderPose (list): 1x4 array of global x, y, z and rotZ pose of spider's body.
         """
-        detachOffset = 0.02
         attachTime = 1
         detachTime = 1
 
         with self.locker:
             legPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'l')
+            print("ANGLES  BEFORE DETACHING: ", self.qA)
         globalLegPosition = self.matrixCalculator.getLegsInGlobal([legId], legPosition, spiderPose)[0]
-        detachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], spiderPose, [globalLegPosition])
+        detachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], spiderPose, [globalLegPosition], offset = 0.1)
 
         # If leg is attached, open a gripper.
         if legId in self.gripperController.getIdsOfAttachedLegs():
@@ -337,7 +351,7 @@ class VelocityController:
 
         # Move leg on detach position.
         self.moveLegAsync(legId, detachPosition, 'g', detachTime, 'minJerk', spiderPose)
-        time.sleep(detachTime + 3)
+        time.sleep(detachTime + 0.5)
 
         # Measure new spider pose after detaching the leg.
         usedLegs = self.spider.LEGS_IDS.copy()
@@ -345,9 +359,12 @@ class VelocityController:
         legsGlobalPositions = np.delete(legsGlobalPositions, legId, 0)
         with self.locker:
             currentAngles = self.qA
-        newPose = self.motorDriver.syncReadPlatformPose(usedLegs, legsGlobalPositions, currentAngles)
-        print("POSE AFTER DETACH: ", newPose)
-
+        print("ANGLES AFTER DETACHING: ", currentAngles)
+        newPose = self.matrixCalculator.getSpiderPose(usedLegs, legsGlobalPositions, currentAngles)
+        # print("POSE AFTER DETACH: ", newPose)
+        # newPose[1] -= 0.007
+        # print("POSE AFTER DETACH WITH Y OFFSET: ", newPose)
+        
         # Move leg on attach position.
         attachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], newPose, [goalPosition])
         self.moveLegAsync(legId, attachPosition, 'g', duration, 'bezier', newPose)
@@ -358,57 +375,6 @@ class VelocityController:
 
         # Close gripper.
         self.gripperController.moveGripper(legId, self.gripperController.CLOSE_COMMAND)
-
-    # TODO: write wrapper for moving legs so that spider will reach desired pose, instead of this function.
-    def movePlatformAsync(self, goalPose, duration, globalLegsPositions):
-        """Write reference positions and velocities into leg-queues to achieve platform movement. Note that platform cannot be moved
-        with less than 4 legs attached to the pins.
-
-        Args:
-            goalPose (list): Desired global goal pose of the spider on the wall. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
-            duration (float): Duration of platform movement.
-            globalLegsPositions (list): nx3 array of global positions of legs, which are to be used for platform movement, where n should not be smaller than 4.
-
-        Raises:
-            ValueError: If number of attached legs is less than 4 or does not match the length of globalLegsPositions parameter.
-
-        Returns:
-            bool: False if ValueError is catched during trajectory calculation, True otherwise.
-        """
-        usedLegs = self.gripperController.getIdsOfAttachedLegs()
-        if len(usedLegs) < 4:
-            raise ValueError("Number of attached legs is insufficient to move the platform. Should be at least 4.")
-        if len(usedLegs) != len(globalLegsPositions):
-            raise ValueError("Number of given global legs positions is not the same as number of attached legs!")
-
-        for leg in usedLegs:
-            self.legsQueues[leg] = queue.Queue()
-            self.legsQueues[leg].put(self.sentinel)
-
-        localLegsPositions = np.empty([len(usedLegs), 3])
-        for leg in usedLegs:
-            with self.locker:
-                localLegsPositions[leg] = self.kinematics.legForwardKinematics(leg, self.qA[leg])[:3][:,3]
-
-        startPose = self.motorDriver.syncReadPlatformPose(usedLegs, globalLegsPositions)
-
-        try:
-            positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(startPose, goalPose, duration, 'minJerk')
-        except ValueError as ve:
-            print(ve)
-            return False
-
-        qDs, qDds = self.getQdQddPlatformFF(usedLegs, globalLegsPositions, positionTrajectory, velocityTrajectory)
-
-        # Write new values.
-        for idx, qD in enumerate(qDs):
-            for leg in usedLegs:
-                self.legsQueues[leg].put([qD[leg], qDds[idx][leg]])
-        # Put a sentinel objects at the end of each leg-queue, to notify when trajectory ends.
-        for leg in usedLegs:
-            self.legsQueues[leg].put(self.sentinel)
-
-        return True
 
     def getQdQddLegFF(self, legId, xD, xDd):
         """(Feed-forward) calculate and write reference joints positions and velocities for single leg movement into leg-queue.
@@ -430,30 +396,6 @@ class VelocityController:
             qDds[idx] = np.dot(np.linalg.inv(J), xDd[idx][:3])
 
         return qDs, qDds
-
-    # TODO: with wrapper for moving separate legs, this function will not be needed.
-    def getQdQddPlatformFF(self, legsIds, globalLegsPositions, xD, xDd):
-        """Feed forward calculations of reference joints positions and velocities for parallel platform movement.
-
-        :param xD: Platform referenece positions.
-        :param xDd: Platform reference velocities.
-        :param globalLegsPositions: Legs positions during parallel movement in global origin.
-        :return: Matrices of reference joints positions and velocities.
-        """
-        qD = np.zeros([len(xD), len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        qDd = np.zeros([len(xD), len(legsIds), self.spider.NUMBER_OF_MOTORS_IN_LEG])
-
-        for idx, pose in enumerate(xD):
-            qDFf = self.kinematics.platformInverseKinematics(legsIds, globalLegsPositions, pose[:-1])
-            referenceLegsVelocities = self.kinematics.getSpiderToLegReferenceVelocities(legsIds, xDd[idx])
-            qDdFf = np.zeros_like(qDFf)
-            for idx, leg in enumerate(legsIds):
-                J = self.kinematics.legJacobi(leg, qDFf[idx])
-                qDdFf[idx] = np.dot(np.linalg.inv(J), referenceLegsVelocities[idx])
-            qD[idx] = qDFf
-            qDd[idx] = qDdFf
-
-        return qD, qDd
 
     def moveGripperWrapper(self, legsIds, command):
         """Wrapper function for moving the grippers on selected legs.
@@ -514,7 +456,7 @@ class VelocityController:
 
         with self.locker:
             currentAngles = self.qA
-        pose = self.motorDriver.syncReadPlatformPose(legsIds, legsGlobalPositions, currentAngles)
+        pose = self.matrixCalculator.getSpiderPose(legsIds, legsGlobalPositions, currentAngles)
         return pose
 
 class GripperController:

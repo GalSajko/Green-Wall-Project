@@ -3,6 +3,7 @@
 
 import numpy as np
 import math
+import itertools as itt
 
 import environment as env
 
@@ -456,6 +457,13 @@ class MatrixCalculator:
         globalLegPosition = np.append(globalLegPosition, 1)
 
         return np.dot(np.linalg.inv(T_GA), globalLegPosition)[:3]
+    
+    def getGlobalDirectionInLocal(cls, legId, spiderPose, globalDirection):
+        T_GS = cls.xyzRpyToMatrix(spiderPose)
+        T_GA = np.dot(T_GS, env.Spider().T_ANCHORS[legId])[:3,:3]
+        localDirection = np.dot(np.linalg.inv(T_GA), globalDirection)
+
+        return localDirection
 
     def getLegsInGlobal(cls, legsIds, localLegsPositions, spiderPose):
         """Calculate global positions of legs from given local positions.
@@ -507,3 +515,29 @@ class MatrixCalculator:
             approachPointsInGlobal[idx] = globalPinsPositions[idx] + pinToThirdJoint
 
         return approachPointsInGlobal
+
+    def getSpiderPose(self, legsIds, legsGlobalPositions, qA):
+        """Calculate spider's pose in global origin. If more than three legs are given, it calculates spider's pose from each
+        combination of these three legs. Finally pose is determined as mean value of all calculations.
+
+        Args:
+            legsIds (list): Ids of legs to use for calculating spider's pose. Should not use less than three legs.
+            legsGlobalPositions (list): nx3 array of x, y, z positions of used legs in global origin, where n should be the same as length of legsIds.
+
+        Returns:
+            list: 1x6 array of xyzrpy positions.
+        """
+        legsGlobalPositions = np.array(legsGlobalPositions)
+        spiderXyz = []
+        for legsSubset in itt.combinations(legsIds, 3):
+            legsSubset = np.array(legsSubset)
+            subsetIdxs = [legsIds.index(leg) for leg in legsSubset]
+            jointsValues = qA[legsSubset]
+            legsPoses = np.zeros([3, 4, 4])
+            for idx, leg in enumerate(legsSubset):
+                legsPoses[idx] = Kinematics().spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx])
+            spiderXyz.append(Kinematics().platformForwardKinematics(legsSubset, legsGlobalPositions[(subsetIdxs)], legsPoses))
+        spiderXyz = np.mean(np.array(spiderXyz), axis = 0)
+
+        return spiderXyz
+    
