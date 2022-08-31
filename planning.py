@@ -335,23 +335,22 @@ class TrajectoryPlanner:
         """
         if len(startPose) == 3:
             startPose = [startPose[0], startPose[1], startPose[2], 0.0 , 0.0, 0.0]
+        elif len(startPose) == 4:
+            startPose = [startPose[0], startPose[1], startPose[2], 0.0, 0.0, startPose[3]]
         
         if len(goalPose) == 3:
             goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, 0.0]
-
-        if len(startPose) == 4:
-            startPose = [startPose[0], startPose[1], startPose[2], 0.0, 0.0, startPose[3]]
-
-        if len(goalPose) == 4:
+        elif len(goalPose) == 4:
             goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, goalPose[3]]
 
         if (len(startPose) != len(goalPose)):
             raise ValueError("Lengths of startPose and goalPose do not match.")
         if duration <= 0:
-            raise ValueError("Movement duration cannot be shorter thatn 0 seconds.")
+            raise ValueError("Movement duration cannot be shorter than 0 seconds.")
 
         timeStep = 1 / config.CONTROLLER_FREQUENCY
-        timeVector = np.linspace(0, duration, int(duration / timeStep))
+        numberOfSteps = int(duration / timeStep)
+        timeVector = np.linspace(0, duration, numberOfSteps)
 
         trajectory = np.empty([len(timeVector), len(startPose) + 1], dtype = np.float32)
         velocities = np.empty([len(timeVector), len(startPose)], dtype = np.float32)
@@ -359,7 +358,7 @@ class TrajectoryPlanner:
             trajectoryRow = np.empty([len(startPose) + 1], dtype = np.float32)
             velocityRow = np.empty([len(startPose)], dtype = np.float32)
             for i in range(len(startPose)):
-                trajectoryRow[i] = startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(t/duration, 5) - 15 * math.pow(t/duration, 4) + 10 * math.pow(t/duration, 3))
+                trajectoryRow[i] = startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(t / duration, 5) - 15 * math.pow(t / duration, 4) + 10 * math.pow(t / duration, 3))
                 velocityRow[i] = (30 * math.pow(t, 2) * math.pow(duration - t, 2) * (goalPose[i] - startPose[i])) / math.pow(duration, 5)
             trajectoryRow[-1] = t
             trajectory[idx] = trajectoryRow
@@ -386,55 +385,69 @@ class TrajectoryPlanner:
         if len(startPosition) != 3 or len(goalPosition) != 3:
             raise ValueError("Start and/or goal position were not given correctly.")
         if duration <= 0:
-            raise ValueError("Movement duration cannot be shorter thatn 0 seconds.")
-
-        timeStep = 1 / config.CONTROLLER_FREQUENCY
-        numberOfSteps = math.floor(duration / timeStep)
-
-        heightPercent = 0.6
+            raise ValueError("Movement duration cannot be shorter than 0 seconds.")
 
         startPosition, goalPosition = np.array(startPosition), np.array(goalPosition)
-        firstInterPoint = np.array([startPosition[0], startPosition[1], startPosition[2] + heightPercent * np.linalg.norm(goalPosition - startPosition)])
-        secondInterPoint = np.array([goalPosition[0], goalPosition[1], goalPosition[2] + heightPercent * np.linalg.norm(goalPosition - startPosition)])
+
+        timeStep = 1 / config.CONTROLLER_FREQUENCY
+        numberOfSteps = int(duration / timeStep)
+        timeVector = np.linspace(0, duration, numberOfSteps)
+
+        # Ratio beween height of trajectory and distance between start and goal points.
+        heightPercent = 0.6
+ 
+        startToGoalDirection = np.array(goalPosition - startPosition)
+        midPoint = np.array(startToGoalDirection / 2.0)
+        startToGoalDirectionUnit = startToGoalDirection / np.linalg.norm(startToGoalDirection)
+
+        if startToGoalDirectionUnit[2] > 0.0:
+            orthogonalDirection = np.array([-startToGoalDirectionUnit[0], -startToGoalDirectionUnit[1], (math.pow(startToGoalDirectionUnit[0], 2) + math.pow(startToGoalDirectionUnit[1], 2)) / startToGoalDirectionUnit[2]])
+        elif startToGoalDirectionUnit[2] < 0.0:
+            orthogonalDirection = np.array([startToGoalDirectionUnit[0], startToGoalDirectionUnit[1], (-math.pow(startToGoalDirectionUnit[0], 2) - math.pow(startToGoalDirectionUnit[1], 2)) / startToGoalDirectionUnit[2]])
+        else:
+            orthogonalDirection = np.array([0, 0, 1])
+        orthogonalDirectionUnit = orthogonalDirection / np.linalg.norm(orthogonalDirection)
+     
+        firstInterPoint = np.copy(startPosition)
+        firstInterPoint[2] += heightPercent * np.linalg.norm(startToGoalDirection)
+        secondInterPoint = np.copy(goalPosition)
+        secondInterPoint[2] += heightPercent * np.linalg.norm(startToGoalDirection)
         controlPoints =  np.array([startPosition, firstInterPoint, secondInterPoint, goalPosition])
 
-        timeVector = np.linspace(0, duration, numberOfSteps)
-        trajectory = np.empty([len(timeVector), len(startPosition) + 1], dtype = np.float32)
-
-        for idx, time in enumerate(timeVector):
-            param = time / duration
-            trajectoryPoint = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
-            trajectory[idx] = [trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], time]
-
         d = np.array([
-            trajectory[:,0][-1] - trajectory[:,0][0],
-            trajectory[:,1][-1] - trajectory[:,1][0],
-            max(trajectory[:,2]) - trajectory[:,2][0] + max(trajectory[:,2]) - trajectory[:,2][-1]])
+            startToGoalDirection[0],
+            startToGoalDirection[1],
+            (midPoint + orthogonalDirectionUnit * heightPercent)[2]
+        ], dtype = np.float32)
 
         vMax = 2 * (d / duration)
         a = 3 * vMax / duration
         t1 = duration / 3.0
-        t2 = 2 * duration / 3.0
+        t2 = 2 * t1
 
+        trajectory = np.empty([len(timeVector), len(startPosition) + 1], dtype = np.float32)
         velocity = np.empty([len(timeVector), len(startPosition)], dtype = np.float32)
         for idx, time in enumerate(timeVector):
+            param = time / duration
+            trajectoryPoint = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
+            trajectory[idx] = [trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], time]
             if 0 <= time <= t1:
                 velocity[idx] = a * time
             elif t1 < time < t2:
                 velocity[idx] = vMax
             elif t2 <= time <= duration:
-                velocity[idx] = vMax - a * (time- t2)
-        
+                velocity[idx] = vMax - a * (time - t2)
+
         return trajectory, velocity
 
-    def calculateTrajectory(self, start, goal, duration, type):
+    def calculateTrajectory(self, start, goal, duration, trajectoryType):
         """Wrapper for calcuating trajectories of desired type.
 
         Args:
             start: Start pose or position.
             goal: Goal pose or position.
             duration: Desired duration of movement.
-            type: Desired trajectory type (bezier or minJerk).
+            trajectoryType: Desired trajectory type (bezier or minJerk).
 
         Raises:
             ValueError: If trajectory type is unknown.      
@@ -442,9 +455,9 @@ class TrajectoryPlanner:
         Returns:
             Position and velocity trajectory if trajectory calculation was succesfull.
         """
-        if type == 'bezier':
+        if trajectoryType == 'bezier':
             return self.bezierTrajectory(start, goal, duration)
-        elif type == 'minJerk':
+        elif trajectoryType == 'minJerk':
             return self.minJerkTrajectory(start, goal, duration)
         else:
             raise ValueError("Unknown trajectory type!")

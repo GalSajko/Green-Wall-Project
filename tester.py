@@ -25,7 +25,7 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":
-    planner = planning.PathPlanner(0.05, 0.1)
+    # planner = planning.PathPlanner(0.05, 0.1)
     # udpServer = udpServer.UdpServer('192.168.1.8')
     controller = controllers.VelocityController()
     # initSendingThread()
@@ -35,91 +35,35 @@ if __name__ == "__main__":
     # bottomPose = [0.6, 0.35, 0.3, 0.0]
     # leftPose = [0.55, 0.4, 0.3, 0.0]
     # topPose = [0.6, 0.45, 0.3, 0.0]
-    path = planner.calculateSpiderBodyPath(startPose, startPose)
-    pathPins = planner.calculateSelectedPins(path)
+    # path = planner.calculateSpiderBodyPath(startPose, startPose)
+    # pathPins = planner.calculateSelectedPins(path)
     pins = env.Wall('squared').createGrid(True)
-    startPins = pathPins[0]
+    # startPins = pathPins[0]
     testPins = np.array([pins[22], pins[9], pins[7], pins[31], pins[33]])
-
-    # for idx, pin in enumerate(testPins):
-    #     print(calculations.MatrixCalculator().getLegInLocal(idx, pin, startPose))
 
     testLeg = 3
     newPin = pins[30]
 
-    print("STARTING PINS:\n ", testPins)
-
-    # _ = input("OPEN GRIPPERS: ")
-    # controller.moveGripperWrapper([0, 1, 2, 3, 4], 'o')
-    _ = input("MOVE LEGS")
+    input("PRESS ENTER TO MOVE SPIDER: ")
     controller.moveLegsSync([0, 1, 2, 3, 4], testPins, 'g', 5, 'minJerk', startPose)
-    # _ = input("CLOSE GRIPPERS: ")
-    # controller.moveGripperWrapper([0, 1, 2, 3, 4], 'c')
-    # _ = input("MOVE 5th LEG")
-    # controller.moveLegAsync(4, [0.45, 0.0, 0.0], 'l', 5, 'minJerk')
-    # for leg in [4, 3, 2, 1, 0]:
-    #     controller.moveLegAsync(leg, testPins[leg], 'g', 5, 'minJerk', startPose)
-    
-    #     time.sleep(5)
-    # _ = input("CLOSE GRIPPERS: ")
-    # controller.moveGripperWrapper([4], 'c')
-    _ = input("PRESS ENTER TO OFFLOAD: ")
-    newPose = controller.offloadSelectedLeg(testLeg, testPins)
-    # _ = input("PRESS ENTER TO OPEN THE GRIPPER: ")
-    # controller.moveGripperWrapper([testLeg], 'o')
-    # _ = input("PRESS ENTER TO OPEN THE GRIPPER: ")
-    controller.moveLegAsync(testLeg, [0.0, -0.25, 0.0], 'g', 5, 'bezier', newPose, True)
-    _ = input("PRESS ENTER TO MOVE THE LEG: ")
-    # controller.moveLegAndGripper(testLeg, newPin, 5, newPose, testPins)
 
+    input("PRESS ENTER TO OFFLOAD THE LEG: ")
+    controller.offloadSelectedLeg(testLeg, testPins)
 
-    testPins[3] = newPin
-    while True:
-        legs = input("ENTER LEGS IDS: ")
-        legs = legs.split(',')
-        legsIds = [int(leg) for leg in legs]
-        pose = controller.readSpiderPoseWrapper(legsIds, testPins)
-        print("SPIDER POSE: ", pose)
-        legsPositions = controller.readLegsPositionsWrapper([0,1,2,3,4], 'l')
-        legsGlobalPositions = calculations.MatrixCalculator().getLegsInGlobal([0, 1, 2, 3, 4], legsPositions, pose)
-        print("LOCAL LEGS: ", np.array(legsPositions))
-        print("GLOBAL LEGS: ", np.array(legsGlobalPositions))
+    # angles = controller.readLegsPositionsWrapper([3], 'l', returnAngles = True)[1]
+    # print(angles)
+    # input("PRESS ENTER TO MOVE THE LEG: ")
+    # controller.moveGrippersWrapper([testLeg], 'o')
+    # controller.moveLegAsync(testLeg, [0.0, 0.0, 0.05], 'g', 2, 'minJerk', startPose, True)
+    # time.sleep(2.2)
+    # angles = controller.readLegsPositionsWrapper([3], 'l', returnAngles = True)[1]
+    # print(angles)
+    # controller.moveLegAsync(testLeg, [0.0, -0.25, 0.0], 'g', 5, 'minJerk', startPose, True)
+    # time.sleep(5.2)
+    # controller.moveLegAsync(testLeg, [0.0, 0.0, -0.05], 'g', 2, 'minJerk', startPose, True)
+    # time.sleep(2.2)
+    # controller.moveGrippersWrapper([testLeg], 'c')
 
-
-
-    # _ = input("PRESS ENTER TO START: ")
-    # while True:
-    #     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 1.5, 'minJerk', topPose)
-    #     time.sleep(2)
-    #     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 1.5, 'minJerk', rightPose)
-    #     time.sleep(2)
-    #     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 1.5, 'minJerk', bottomPose)
-    #     time.sleep(2)
-    #     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 1.5, 'minJerk', leftPose)
-    #     time.sleep(2)
-
-    # while True:
-    #     legIdInput = input("Enter leg ID: ")
-    #     while legIdInput not in ['0', '1', '2', '3', '4']:
-    #         legIdInput = input("Invalid leg ID, enter again: ")
-    #     legIdInput = int(legIdInput)
-    #     localGoalPositionInputString = input("Enter XYZ goal position in local origin, separated by comma: ")
-    #     localGoalPositionInputStringArray = localGoalPositionInputString.split(',')
-    #     localGoalPosition = []
-    #     for value in localGoalPositionInputStringArray:
-    #         try:
-    #             localGoalPosition.append(float(value))
-    #         except:
-    #             print(f"Cannot convert {value} to float.")
-    #     while True:
-    #         durationInput = input("Enter movement duration in seconds: ")
-    #         try:
-    #             durationInput = float(durationInput)
-    #             break
-    #         except:
-    #             print("Cannot convert given duration to float.")
-    #     controller.moveLegAsync(legIdInput, localGoalPosition, 'l', durationInput, 'minJerk')
-    #     time.sleep(durationInput)
 
 
 
