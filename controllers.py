@@ -304,26 +304,28 @@ class VelocityController:
         otherLegs.remove(legId)
 
         with self.locker:
+            print("BEFORE OFFLOAD:\n ", self.qA)
             self.motorDriver.disableLegs(legId)
-        time.sleep(0.5)
-        with self.locker:
-            self.lastMotorsPositions[otherLegs] = self.qA[otherLegs]
+        # time.sleep(1)
+        # with self.locker:
+        #     self.lastMotorsPositions[otherLegs] = self.qA[otherLegs]
+        #     print("AFTER OFFLOAD:\n ", self.qA)
 
-        _ = input("PRESS ENTER TO OPEN THE GRIPPER: ")
-        self.moveGrippersWrapper([legId], 'o')
-        _ = input("PRESS ENTER TO RE-ENABLE THE LEG: ")
+        # _ = input("PRESS ENTER TO OPEN THE GRIPPER: ")
+        # self.moveGrippersWrapper([legId], 'o')
+        # _ = input("PRESS ENTER TO RE-ENABLE THE LEG: ")
+        
         time.sleep(1)
-
+        print("RE-ENABLING")
         with self.locker:
-            currentAngles = self.motorDriver.syncReadAnglesAndCurrentsWrapper()[0]
             self.lastMotorsPositions[legId] = self.qA[legId]
             self.motorDriver.enableLegs(legId)
-        print(currentAngles)
+            print("AFTER RE-ENABLE:\n ", self.qA)
 
-        input("RELEASE THE LEG: ")
-        with self.locker:
-            currentAngles = self.motorDriver.syncReadAnglesAndCurrentsWrapper()[0]
-        print(currentAngles)     
+        # input("RELEASE THE LEG: ")
+        # with self.locker:
+        #     currentAngles = self.motorDriver.syncReadAnglesAndCurrentsWrapper()[0]
+        # print(currentAngles)     
             
         if legsGlobalPositions is not None:
             with self.locker:
@@ -425,13 +427,14 @@ class VelocityController:
             raise ValueError("Spider pose should be given, if selected origin is global.")
 
         legsPositions = np.zeros([len(legsIds), 3])
+        currentAngles = np.zeros([len(legsIds), 3])
         for idx, leg in enumerate(legsIds):
             with self.locker:
-                currentAngles = self.qA[leg]
+                currentAngles[idx] = self.qA[leg]
             if origin == 'l' or origin == 'g': 
-                legsPositions[idx] = self.kinematics.legForwardKinematics(leg, currentAngles)[:3][:,3]
+                legsPositions[idx] = self.kinematics.legForwardKinematics(leg, currentAngles[idx])[:3][:,3]
             elif origin == 's':
-                legsPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles)[:3][:,3]
+                legsPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[idx])[:3][:,3]
         if origin == 'g':
             globalLegsPositions = self.matrixCalculator.getLegsInGlobal(legsIds, legsPositions, spiderPose)
             return globalLegsPositions
