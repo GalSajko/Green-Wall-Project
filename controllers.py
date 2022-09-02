@@ -88,33 +88,31 @@ class VelocityController:
             lastQErrors = qErrors
 
             # Force PD controller.
-            # with self.locker:
-            #     startForceController = self.doOffload
-            #     legToOffload = self.offloadLegId
-            # if startForceController:
-            #     forceErrors = np.array(self.fD - self.fA[legToOffload])
-            #     # if (forceErrors <= self.forceThreshold).all():
-            #     #     print("STOP OFFLOADING")
-            #     #     with self.locker:
-            #     #         self.doOffload = False
+            with self.locker:
+                startForceController = self.doOffload
+                legToOffload = self.offloadLegId
+            if startForceController:
+                forceErrors = np.array(self.fD - self.fA[legToOffload])
+                # if (forceErrors <= self.forceThreshold).all():
+                #     print("STOP OFFLOADING")
+                #     with self.locker:
+                #         self.doOffload = False
                     
-            #     dFe = (forceErrors - lastFErrors) / self.period
-            #     dXOff = 1 * forceErrors
-            #     dXOff[0] = 0.0
-            #     lastFErrors = forceErrors
-            #     dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legToOffload, self.qA[legToOffload])), dXOff)
-            #     # for value in dQOff:
-            #     #     if value > 0.8:
-            #     #         value = 0.8
-            #     #     elif value < -0.8:
-            #     #         value = -0.8
+                dFe = (forceErrors - lastFErrors) / self.period
+                dXOff = 1 * forceErrors
+                dXOff[0] = 0.0
+                lastFErrors = forceErrors
+                dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legToOffload, self.qA[legToOffload])), dXOff)
+                # for value in dQOff:
+                #     if value > 0.8:
+                #         value = 0.8
+                #     elif value < -0.8:
+                #         value = -0.8
 
-            #     qCds[legToOffload] += dQOff
+                qCds[legToOffload] += dQOff
 
             # Send new commands to motors.
             with self.locker:
-                # if not self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds):
-                #     return False
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
 
 
