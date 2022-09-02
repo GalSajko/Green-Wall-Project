@@ -16,7 +16,7 @@ import numpy as np
 
 def forceSending(frequency):
     while True:
-        udpServer.send(controller.fA)
+        udpServer.send(controller.qCds[4])
         time.sleep(1.0 / frequency)
 
 def initSendingThread():
@@ -25,59 +25,17 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":
-    planner = planning.PathPlanner(0.05, 0.1)
-    # # udpServer = udpServer.UdpServer('192.168.1.8')
     controller = controllers.VelocityController()
-    # # initSendingThread()
-
-    startPose = [0.6, 0.45, 0.35, 0.0]
-    # # rightPose = [0.65, 0.4, 0.3, 0.0]
-    # # bottomPose = [0.6, 0.35, 0.3, 0.0]
-    # # leftPose = [0.55, 0.4, 0.3, 0.0]
-    # # topPose = [0.6, 0.45, 0.3, 0.0]
-    path = planner.calculateSpiderBodyPath(startPose, startPose)
-    pathPins = planner.calculateSelectedPins(path)
-    pins = env.Wall('squared').createGrid(True)
-    testPins = pathPins[0]
-    # testPins = np.array([pins[22], pins[9], pins[7], pins[31], pins[33]])
-
-    testLeg = 3
-    # newPin = pins[30]
-
-    # newPose = controller.readSpiderPoseWrapper([0,1,2,4], testPins)
-
-    # print(newPose)
-    print("STARTING PINS: ", testPins)
-    input("CONFIRM PINS: ")
-
-    input("PRESS ENTER TO MOVE SPIDER: ")
-    controller.moveLegsSync([0, 1, 2, 3, 4], testPins, 'g', 5, 'minJerk', startPose)
-
-    input("PRESS ENTER TO OFFLOAD: ")
-    newPose = controller.offloadSelectedLeg(testLeg, testPins)
-    input("PRESS ENTER TO MOVE THE LEG: ")
-    controller.moveGrippersWrapper([testLeg], 'o')
+    udpServer = udpServer.UdpServer('192.168.1.8')
+    initSendingThread()
     time.sleep(2)
-    controller.moveLegAsync(testLeg, [0.0, 0.0, 0.05], 'g', 2, 'minJerk', newPose, True)
-    time.sleep(2.2)
-    controller.moveLegAsync(testLeg, [0.0, -0.24, 0.0], 'g', 5, 'minJerk', newPose, True)
-    time.sleep(5.2)
-    controller.moveLegAsync(testLeg, [0.0, 0.0, -0.05], 'g', 2, 'minJerk', newPose, True)
-    time.sleep(2.2)
-    controller.moveGrippersWrapper([testLeg], 'c')
+    for leg in [0, 1, 2, 3]:
+        controller.disableEnableLegsWrapper(leg, 'd')
 
-    input("PRESS ENTER TO OFFLOAD: ")
-    newPose = controller.offloadSelectedLeg(testLeg, testPins)
-    input("PRESS ENTER TO MOVE THE LEG: ")
-    controller.moveGrippersWrapper([testLeg], 'o')
-    time.sleep(2)
-    controller.moveLegAsync(testLeg, [0.0, 0.0, 0.05], 'g', 2, 'minJerk', newPose, True)
-    time.sleep(2.2)
-    controller.moveLegAsync(testLeg, [0.0, 0.25, 0.0], 'g', 5, 'minJerk', newPose, True)
-    time.sleep(5.2)
-    controller.moveLegAsync(testLeg, [0.0, 0.0, -0.05], 'g', 2, 'minJerk', newPose, True)
-    time.sleep(2.2)
-    controller.moveGrippersWrapper([testLeg], 'c')
+    controller.moveLegAsync(4, [0.4, 0.0, 0.1], 'l', 3, 'minJerk')
+    input("PRESS ENTER TO START FORCE REGULATOR:")
+    controller.startForceControl()
+    
       
 
 

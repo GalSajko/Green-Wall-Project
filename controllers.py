@@ -46,9 +46,13 @@ class VelocityController:
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         self.fD = np.zeros(3)
         self.rgValues = np.zeros(self.spider.NUMBER_OF_LEGS)
-        self.doOffload = False
-        self.offloadLegId = None
-        self.forceThreshold = 1
+
+        self.startForceController = False
+        self.offloadLegId = 4
+        self.KpForce = 0.03
+        self.KdForce = 0.0
+
+        self.qCds = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
 
         self.initControllerThread()
 
@@ -76,44 +80,34 @@ class VelocityController:
 
             for leg in self.spider.LEGS_IDS:
                 self.fA[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
-                # with self.locker:
-                #     self.rgValues[leg] = self.dynamics.getForceEllipsoidLengthInGivenDirection(leg, self.qA[leg], self.spider.SPIDER_GRAVITY_VECTOR)
 
             qD, qDd = self.getQdQddFromQueues()            
 
             # Position PD controller.
             qErrors = np.array(qD - self.qA, dtype = np.float32)
             dQe = (qErrors - lastQErrors) / self.period
-            qCds = self.Kp * qErrors + self.Kd * dQe + qDd
+            self.qCds = self.Kp * qErrors + self.Kd * dQe + qDd
             lastQErrors = qErrors
 
             # Force PD controller.
             with self.locker:
-                startForceController = self.doOffload
-                legToOffload = self.offloadLegId
-            if startForceController:
-                forceErrors = np.array(self.fD - self.fA[legToOffload])
-                # if (forceErrors <= self.forceThreshold).all():
-                #     print("STOP OFFLOADING")
-                #     with self.locker:
-                #         self.doOffload = False
-                    
-                dFe = (forceErrors - lastFErrors) / self.period
-                dXOff = 1 * forceErrors
-                dXOff[0] = 0.0
-                lastFErrors = forceErrors
-                dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(legToOffload, self.qA[legToOffload])), dXOff)
-                # for value in dQOff:
-                #     if value > 0.8:
-                #         value = 0.8
-                #     elif value < -0.8:
-                #         value = -0.8
+                startForceController = self.startForceController
 
-                qCds[legToOffload] += dQOff
+            if startForceController:
+                forceErrors = np.array(self.fD - self.fA[self.offloadLegId])
+                dFe = (forceErrors - lastFErrors) / self.period
+                dXOff = self.KpForce * forceErrors
+                lastFErrors = forceErrors
+                dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(self.offloadLegId, self.qA[self.offloadLegId])), dXOff)
+                for value in dQOff:
+                    if abs(value) > 0.2:
+                        value = np.sign(value) * 0.2
+
+                self.qCds[self.offloadLegId] += dQOff
 
             # Send new commands to motors.
             with self.locker:
-                self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
+                self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, self.qCds)
 
 
             elapsedTime = time.perf_counter() - startTime
@@ -397,6 +391,12 @@ class VelocityController:
 
         return qDs, qDds
 
+    def startForceControl(self):
+        """Start force controller inside main velocity controller loop.
+        """
+        with self.locker:
+            self.startForceController = True
+
     def moveGrippersWrapper(self, legsIds, command):
         """Wrapper function for moving the grippers on selected legs.
 
@@ -463,6 +463,14 @@ class VelocityController:
             currentAngles = self.qA
         pose = self.matrixCalculator.getSpiderPose(legsIds, legsGlobalPositions, currentAngles)
         return pose
+
+    def disableEnableLegsWrapper(self, legId, action):
+        if action == 'd':
+            with self.locker:
+                self.motorDriver.disableLegs(legId)
+        elif action == 'e':
+            with self.locker:
+                self.motorDriver.enableLegs(legId)
 
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.
