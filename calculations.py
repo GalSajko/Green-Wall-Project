@@ -306,9 +306,6 @@ class Dynamics:
     """Class for calculating spider's dynamics.
     """
     def __init__(self):
-        # Constant from dynamixel's specifications (torque-current dependency).
-        self.K_TORQUE = 1 / 0.4785
-
         self.spider = env.Spider()
         self.kinematics = Kinematics()
 
@@ -323,9 +320,14 @@ class Dynamics:
         Returns:
             list: 3x1 array of forces in x, y and z direction.
         """
+        currentsInMotors = np.array(currentsInMotors)
         currentsInMotors[1] *= -1
         J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsValues)
-        torques = self.K_TORQUE * currentsInMotors
+        # Parabola fitting constants (derived from least squares method).
+        a = -0.3282
+        b = 2.9326
+        c = -0.1779
+        torques = a + b * currentsInMotors + c * currentsInMotors**2
         
         return np.dot(np.linalg.inv(np.transpose(J)), torques)
     

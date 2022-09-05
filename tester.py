@@ -16,7 +16,7 @@ import numpy as np
 
 def forceSending(frequency):
     while True:
-        udpServer.send(controller.qCds[4])
+        udpServer.send(controller.fA[4])
         time.sleep(1.0 / frequency)
 
 def initSendingThread():
@@ -29,12 +29,9 @@ if __name__ == "__main__":
     udpServer = udpServer.UdpServer('192.168.1.8')
     initSendingThread()
     time.sleep(2)
-    for leg in [0, 1, 2, 3]:
+    for leg in [1, 2, 3, 4]:
         controller.disableEnableLegsWrapper(leg, 'd')
 
-    controller.moveLegAsync(4, [0.4, 0.0, 0.1], 'l', 3, 'minJerk')
-    input("PRESS ENTER TO START FORCE REGULATOR:")
-    controller.startForceControl()
     
       
 

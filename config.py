@@ -1,4 +1,4 @@
 """File for storing global variables.
 """
 
-CONTROLLER_FREQUENCY = 40.0
+CONTROLLER_FREQUENCY = 80.0

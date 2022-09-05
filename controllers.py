@@ -49,10 +49,10 @@ class VelocityController:
 
         self.startForceController = False
         self.offloadLegId = 4
-        self.KpForce = 0.03
+        self.KpForce = 50
         self.KdForce = 0.0
 
-        self.qCds = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        
 
         self.initControllerThread()
 
@@ -61,6 +61,7 @@ class VelocityController:
         """
         lastQErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         lastFErrors = np.zeros(3)
+        qD = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         init = True
 
         while True:
@@ -71,43 +72,38 @@ class VelocityController:
 
             # Get current data.
             with self.locker: 
-                self.qA, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                self.qA = currentAngles
 
             # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
             if init:
-                self.lastMotorsPositions = self.qA
+                self.lastMotorsPositions = currentAngles
                 init = False
 
             for leg in self.spider.LEGS_IDS:
-                self.fA[leg] = self.dynamics.getForceOnLegTip(leg, self.qA[leg], currents[leg])
+                self.fA[leg] = self.dynamics.getForceOnLegTip(leg, currentAngles[leg], currents[leg])
+                 # Current leg position in spider's origin.
+                if leg == 0:
+                    xASpider = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
+                    dXSpider = -(self.fA[leg] / self.KpForce)
+                    xDSpider = xASpider
+                    xDSpider[:3][:,3] += dXSpider
+                    xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[leg]), xDSpider)[:3][:,3]
+                    qD[leg] = self.kinematics.legInverseKinematics(leg, xD)
+            
+            qDFf, qDd = self.getQdQddFromQueues() 
 
-            qD, qDd = self.getQdQddFromQueues()            
+            qD += qDFf     
 
             # Position PD controller.
-            qErrors = np.array(qD - self.qA, dtype = np.float32)
+            qErrors = np.array(qD - currentAngles, dtype = np.float32)
             dQe = (qErrors - lastQErrors) / self.period
-            self.qCds = self.Kp * qErrors + self.Kd * dQe + qDd
+            qCds = self.Kp * qErrors + self.Kd * dQe + qDd
             lastQErrors = qErrors
 
-            # Force PD controller.
-            with self.locker:
-                startForceController = self.startForceController
-
-            if startForceController:
-                forceErrors = np.array(self.fD - self.fA[self.offloadLegId])
-                dFe = (forceErrors - lastFErrors) / self.period
-                dXOff = self.KpForce * forceErrors
-                lastFErrors = forceErrors
-                dQOff = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(self.offloadLegId, self.qA[self.offloadLegId])), dXOff)
-                for value in dQOff:
-                    if abs(value) > 0.2:
-                        value = np.sign(value) * 0.2
-
-                self.qCds[self.offloadLegId] += dQOff
-
             # Send new commands to motors.
-            with self.locker:
-                self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, self.qCds)
+            # with self.locker:
+            #     self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
 
 
             elapsedTime = time.perf_counter() - startTime
@@ -296,28 +292,12 @@ class VelocityController:
         otherLegs.remove(legId)
 
         with self.locker:
-            print("BEFORE OFFLOAD:\n ", self.qA)
             self.motorDriver.disableLegs(legId)
-        # time.sleep(1)
-        # with self.locker:
-        #     self.lastMotorsPositions[otherLegs] = self.qA[otherLegs]
-        #     print("AFTER OFFLOAD:\n ", self.qA)
-
-        # _ = input("PRESS ENTER TO OPEN THE GRIPPER: ")
-        # self.moveGrippersWrapper([legId], 'o')
-        # _ = input("PRESS ENTER TO RE-ENABLE THE LEG: ")
         
         time.sleep(1)
-        print("RE-ENABLING")
         with self.locker:
             self.lastMotorsPositions[legId] = self.qA[legId]
             self.motorDriver.enableLegs(legId)
-            print("AFTER RE-ENABLE:\n ", self.qA)
-
-        # input("RELEASE THE LEG: ")
-        # with self.locker:
-        #     currentAngles = self.motorDriver.syncReadAnglesAndCurrentsWrapper()[0]
-        # print(currentAngles)     
             
         if legsGlobalPositions is not None:
             with self.locker:
