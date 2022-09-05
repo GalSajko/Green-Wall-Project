@@ -16,7 +16,7 @@ import numpy as np
 
 def forceSending(frequency):
     while True:
-        udpServer.send(controller.fA[4])
+        udpServer.send(controller.fA)
         time.sleep(1.0 / frequency)
 
 def initSendingThread():

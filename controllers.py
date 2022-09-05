@@ -49,10 +49,9 @@ class VelocityController:
 
         self.startForceController = False
         self.offloadLegId = 4
-        self.KpForce = 50
-        self.KdForce = 0.0
+        self.KpForce = 1200
+        self.KdForce = 1200
 
-        
 
         self.initControllerThread()
 
@@ -61,6 +60,7 @@ class VelocityController:
         """
         lastQErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         lastFErrors = np.zeros(3)
+        qDd = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         qD = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         init = True
 
@@ -82,18 +82,33 @@ class VelocityController:
 
             for leg in self.spider.LEGS_IDS:
                 self.fA[leg] = self.dynamics.getForceOnLegTip(leg, currentAngles[leg], currents[leg])
-                 # Current leg position in spider's origin.
+                fError = -self.fA[leg]
+                # fError[:2] = 0.0
+                # Current leg position in spider's origin.
+
                 if leg == 0:
                     xASpider = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
-                    dXSpider = -(self.fA[leg] / self.KpForce)
+                    dXSpider = fError / self.KpForce
+                    ddXSpider = fError / self.KdForce
+
+                    if abs(np.linalg.norm(dXSpider)) > 0.01:
+                        dXSpiderUnit = dXSpider / np.linalg.norm(dXSpider)
+                        dXSpider = dXSpiderUnit * 0.01
+                    
+                    if abs(np.linalg.norm(ddXSpider)) > 0.05:
+                        ddXSpiderUnit = ddXSpider / np.linalg.norm(ddXSpider)
+                        ddXSpider = ddXSpiderUnit * 0.05
+
+                    qDd[leg] = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(leg, currentAngles[leg])), ddXSpider)
+
                     xDSpider = xASpider
                     xDSpider[:3][:,3] += dXSpider
                     xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[leg]), xDSpider)[:3][:,3]
                     qD[leg] = self.kinematics.legInverseKinematics(leg, xD)
             
-            qDFf, qDd = self.getQdQddFromQueues() 
+            _, _ = self.getQdQddFromQueues() 
 
-            qD += qDFf     
+            # qD = qDFf     
 
             # Position PD controller.
             qErrors = np.array(qD - currentAngles, dtype = np.float32)
@@ -102,8 +117,8 @@ class VelocityController:
             lastQErrors = qErrors
 
             # Send new commands to motors.
-            # with self.locker:
-            #     self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
+            with self.locker:
+                self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
 
 
             elapsedTime = time.perf_counter() - startTime
