@@ -49,8 +49,8 @@ class VelocityController:
 
         self.startForceController = False
         self.offloadLegId = 4
-        self.KpForce = 1200
-        self.KdForce = 1200
+        self.KpForce = 2000
+        self.KdForce = 1000
 
 
         self.initControllerThread()
@@ -83,8 +83,7 @@ class VelocityController:
             for leg in self.spider.LEGS_IDS:
                 self.fA[leg] = self.dynamics.getForceOnLegTip(leg, currentAngles[leg], currents[leg])
                 fError = -self.fA[leg]
-                # fError[:2] = 0.0
-                # Current leg position in spider's origin.
+                fError[:2] = 0.0
 
                 if leg == 0:
                     xASpider = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
@@ -110,7 +109,7 @@ class VelocityController:
 
             # qD = qDFf     
 
-            # Position PD controller.
+            # Position-velocity PD controller.
             qErrors = np.array(qD - currentAngles, dtype = np.float32)
             dQe = (qErrors - lastQErrors) / self.period
             qCds = self.Kp * qErrors + self.Kd * dQe + qDd
@@ -119,7 +118,6 @@ class VelocityController:
             # Send new commands to motors.
             with self.locker:
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
-
 
             elapsedTime = time.perf_counter() - startTime
             while elapsedTime < self.period:
