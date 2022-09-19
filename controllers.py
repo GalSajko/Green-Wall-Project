@@ -52,7 +52,6 @@ class VelocityController:
         self.KpForce = 2000
         self.KdForce = 1000
 
-
         self.initControllerThread()
 
     def controller(self):
