@@ -22,5 +22,3 @@ class BNO055:
             list: Spider's roll, pitch and yaw angles.
         """
         return mappers.mapBno055ToSpiderDegrees(self.bno055.euler, returnRadians)
-
-        
