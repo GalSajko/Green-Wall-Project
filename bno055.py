@@ -1,7 +1,6 @@
 import adafruit_bno055
 import board
 import mappers
-import time
 
 
 class BNO055:
@@ -21,11 +20,4 @@ class BNO055:
         """
         return mappers.mapBno055ToSpiderDegrees(self.bno055.euler, True)
 
-if __name__ == '__main__':
-    bno = BNO055()
-
-    while True:
-        r, p, y = bno.readEulers()
-        print(r, p, y)
-        time.sleep(0.1)
         

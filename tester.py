@@ -7,6 +7,7 @@ import environment as env
 import planning
 import simulaton
 import dynamixel
+import bno055
 
 import time
 import random
@@ -29,8 +30,18 @@ if __name__ == "__main__":
     udpServer = udpServer.UdpServer('192.168.1.8')
     initSendingThread()
     time.sleep(2)
-    for leg in [1, 2, 3, 4]:
-        controller.disableEnableLegsWrapper(leg, 'd')
+    wall = env.Wall('squared')
+    pins = wall.createGrid(True)
+    startPins = [pins[22], pins[9], pins[7], pins[31], pins[33]]
+
+    controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.0])
+    time.sleep(5)
+    controller.moveGrippersWrapper([0, 1, 2, 3, 4], 'o')
+
+    input("PRESS ENTER TO START BNO SENSOR")
+    sensor = bno055.BNO055()
+    while True:
+        print(sensor.readEulers())
 
     
       
