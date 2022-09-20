@@ -135,3 +135,55 @@ def mapRgValuesToOffsetsForOffloading(usedLegs, rgValues, offsetDirection = np.a
     
     return offsets
 
+def bno055MapYawDegrees(sensorValue):
+    """Map sensor's yaw output to spider's convention.
+    Sensor's convention - 0 to 360 in clockwise direction,
+    Spider's convetion - 0 to 180, -180 to 0 in counter-clockwise direction.
+
+    Args:
+        sensorValue (float): Sensor's yaw value in degrees.
+
+    Returns:
+        float: Spider's yaw value in degrees.
+    """
+    if sensorValue < 0.0:
+        sensorValue = 0.0
+    elif sensorValue > 360.0:
+        sensorValue = 360.0
+
+    if 0.0 <= sensorValue < 180.0:
+        return sensorValue * (-1)
+    if 180.0 <= sensorValue <= 360.0:
+        return (-1) * sensorValue + 360.0
+
+def bno055MapPitchDegrees(sensorValue):
+    """Map sensor's pitch output to spider's convention.
+    Sensor's convention - 180 to -180 in clockwise direction,
+    Spider's convention - 180 to -180 in counter-clockwise direction.
+
+    Args:
+        sensorValue (float): Sensor's pitch output in degrees.
+
+    Returns:
+        float: Spider's pitch value in degrees.
+    """
+    return sensorValue * (-1)
+
+def mapBno055ToSpiderDegrees(sensorYrp, returnRadians = False):
+    """Map sensor's orientation to spider's, all in degrees. Note that axis are rotated to match wall (vertical) orientation.
+
+    Args:
+        sensorYrp (list): Sensor's yaw, roll and pitch values in degrees.
+        returnRadians(bool, optional): If True, return values converted in radians, else return degrees.
+
+    Returns:
+        tuple: Spider's roll, pitch and yaw in degrees or radians, depends on value of optional parameter.
+    """
+    sensorYaw, sensorRoll, sensorPitch = sensorYrp
+    spiderYaw = bno055MapYawDegrees(sensorYaw)
+    spiderPitch = bno055MapPitchDegrees(sensorPitch)
+
+    if not returnRadians:
+        return spiderYaw, spiderPitch, sensorRoll
+    
+    return np.radians(spiderYaw), np.radians(spiderPitch), np.radians(sensorRoll)
