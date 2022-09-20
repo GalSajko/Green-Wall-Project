@@ -36,12 +36,18 @@ if __name__ == "__main__":
 
     controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.0])
     time.sleep(5)
-    controller.moveGrippersWrapper([0, 1, 2, 3, 4], 'o')
 
     input("PRESS ENTER TO START BNO SENSOR")
     sensor = bno055.BNO055()
+    time.sleep(10)
+    print(sensor.readEulers(True))
     while True:
-        print(sensor.readEulers())
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.1, 0.1, 0.1])
+        time.sleep(6)
+        print(sensor.readEulers(True))
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, -0.1, -0.1, -0.1])
+        time.sleep(6)
+        print(sensor.readEulers(True))
 
     
       

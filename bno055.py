@@ -12,12 +12,15 @@ class BNO055:
         # Remap axis to fix initial value of pitch, when spider is verticaly on the wall.
         self.bno055.axis_remap = (0, 2, 1, 0, 1, 0)
     
-    def readEulers(self):
+    def readEulers(self, returnRadians = False):
         """Read, map and return spider's orientation given in rpy euler angles.
 
+        Args:
+            returnRadians (bool, optional): If True, return angles in radians, else in degrees. Defaults to False.
+
         Returns:
-            tuple: Spider's orientation given as r, p, y euler angles in radians.
+            list: Spider's roll, pitch and yaw angles.
         """
-        return mappers.mapBno055ToSpiderDegrees(self.bno055.euler, True)
+        return mappers.mapBno055ToSpiderDegrees(self.bno055.euler, returnRadians)
 
         
