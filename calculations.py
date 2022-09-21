@@ -331,6 +331,31 @@ class Dynamics:
         
         return np.dot(np.linalg.inv(np.transpose(J)), torques)
     
+    def getForcesOnLegsTips(self, jointsValues, currentsInMotors):
+        """Calculate forces, applied to tips of all legs, from currents in motors.
+
+        Args:
+            jointsValues (list): 5x3 array of angles in joints.
+            currentsInMotors (list): 5x3 array of currents in motors.
+
+        Returns:
+            numpy.ndarray: 5x3 array of forces, applied to leg tips in x, y, z direction of spider's origin.
+        """
+        currentsInMotors = np.array(currentsInMotors)
+        currentsInMotors[:, 1] *= -1
+        # Parabola fitting constants (derived from least squares method).
+        a = -0.3282
+        b = 2.9326
+        c = -0.1779
+        torques = a + b * currentsInMotors + c * currentsInMotors**2
+
+        forces = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        for legIdx, jointsInLeg in enumerate(jointsValues):
+            J = self.kinematics.spiderBaseToLegTipJacobi(legIdx, jointsInLeg)
+            forces[legIdx] = np.dot(np.linalg.inv(np.transpose(J)), torques[legIdx])
+        
+        return forces
+    
     def getForceEllipsoidLengthInGivenDirection(self, legId, jointsValues, direction):
         """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.
 

@@ -26,10 +26,10 @@ def initSendingThread():
 
 if __name__ == "__main__":
     controller = controllers.VelocityController()
-    udpServer = udpServer.UdpServer('192.168.1.8')
+    udpServer = udpServer.UdpServer('192.168.1.32')
     initSendingThread()
-    time.sleep(2)
-    for leg in [1, 2, 3, 4]:
+    time.sleep(0.2)
+    for leg in [0, 1, 2, 3]:
         controller.disableEnableLegsWrapper(leg, 'd')
 
     

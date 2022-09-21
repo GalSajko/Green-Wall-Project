@@ -36,7 +36,6 @@ class VelocityController:
         self.lastMotorsPositions = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         self.locker = threading.Lock()
         self.killControllerThread = False
-        self.queuesReadyFlags = [False] * self.spider.NUMBER_OF_LEGS
 
         self.Kp = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS) * 20.0
         self.Kd = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS) * 0.25
@@ -44,14 +43,10 @@ class VelocityController:
 
         self.qA = []
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
-        self.fD = np.zeros(3)
-        self.rgValues = np.zeros(self.spider.NUMBER_OF_LEGS)
+        # self.fD = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        self.fD = np.array([5.0, 0.0, 0.0])
 
-        self.startForceController = False
-        self.offloadLegId = 4
-        self.KpForce = 2000
-        self.KdForce = 1000
-
+        self.KpForce = 0.01
 
         self.initControllerThread()
 
@@ -59,11 +54,16 @@ class VelocityController:
         """Velocity controller to controll all five legs continuously. Runs in separate thread.
         """
         lastQErrors = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
-        lastFErrors = np.zeros(3)
+        lastFErrors = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         qDd = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         qD = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        qDdF = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        qDf = np.zeros([self.spider.NUMBER_OF_LEGS , 3])
         init = True
 
+        fBuffer = np.zeros([10, 5, 3])
+        fMean = np.zeros([5, 3])
+        counter = 0
         while True:
             if self.killControllerThread:
                 break
@@ -73,47 +73,51 @@ class VelocityController:
             # Get current data.
             with self.locker: 
                 currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
-                self.qA = currentAngles
-
-            # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
-            if init:
-                self.lastMotorsPositions = currentAngles
-                init = False
-
-            for leg in self.spider.LEGS_IDS:
-                self.fA[leg] = self.dynamics.getForceOnLegTip(leg, currentAngles[leg], currents[leg])
-                fError = -self.fA[leg]
-                fError[:2] = 0.0
-
-                if leg == 0:
-                    xASpider = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
-                    dXSpider = fError / self.KpForce
-                    ddXSpider = fError / self.KdForce
-
-                    if abs(np.linalg.norm(dXSpider)) > 0.01:
-                        dXSpiderUnit = dXSpider / np.linalg.norm(dXSpider)
-                        dXSpider = dXSpiderUnit * 0.01
+                self.qA = currentAngles  
+                # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
+                if init:
+                    self.lastMotorsPositions = currentAngles
+                    init = False
                     
-                    if abs(np.linalg.norm(ddXSpider)) > 0.05:
-                        ddXSpiderUnit = ddXSpider / np.linalg.norm(ddXSpider)
-                        ddXSpider = ddXSpiderUnit * 0.05
+            # Force-velocity P controller.
+            self.fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents)
+            fBuffer[counter] = self.fA
+            counter += 1
 
-                    qDd[leg] = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(leg, currentAngles[leg])), ddXSpider)
+            if counter == len(fBuffer):
+                fMean = np.mean(fBuffer, axis = 0)
+                counter = 0
 
-                    xDSpider = xASpider
-                    xDSpider[:3][:,3] += dXSpider
-                    xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[leg]), xDSpider)[:3][:,3]
-                    qD[leg] = self.kinematics.legInverseKinematics(leg, xD)
+            fErrors = self.fD - fMean
+            dXSpider = fErrors * self.KpForce
+            offsets = dXSpider * self.period
+        
+            # Test only on first leg.
+            leg = 4
+            # Read leg's current pose in spider's origin.
+            xSpider = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
+            # Add calculated offset.
+            xSpider[:3][:,3] += offsets[leg]
+            # Transform into leg's origin.
+            xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[leg]), xSpider)[:3][:,3]
+            # Calculate values in joints space.
+            qDf[leg] = self.kinematics.legInverseKinematics(leg, xD)
+            qDdF[leg] = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(leg, currentAngles[leg])), dXSpider[leg])
             
-            _, _ = self.getQdQddFromQueues() 
-
-            # qD = qDFf     
+            qD = qDf
+            qDd = qDdF
 
             # Position-velocity PD controller.
             qErrors = np.array(qD - currentAngles, dtype = np.float32)
             dQe = (qErrors - lastQErrors) / self.period
             qCds = self.Kp * qErrors + self.Kd * dQe + qDd
             lastQErrors = qErrors
+
+            for idx in range(len(qCds[leg])):
+                if qCds[leg][idx] > 1.0:
+                    qCds[leg][idx] = 1.0
+                elif qCds[leg][idx] < -1.0:
+                    qCds[leg][idx] = -1.0
 
             # Send new commands to motors.
             with self.locker:
@@ -151,7 +155,8 @@ class VelocityController:
         for leg in self.spider.LEGS_IDS:
             try:
                 queueData = self.legsQueues[leg].get(False)
-                self.lastMotorsPositions[leg] = self.qA[leg]
+                with self.locker:
+                    self.lastMotorsPositions[leg] = self.qA[leg]
                 if queueData is self.sentinel:
                     qD[leg] = self.lastMotorsPositions[leg]
                     qDd[leg] = ([0, 0, 0])
@@ -159,7 +164,8 @@ class VelocityController:
                     qD[leg] = queueData[0]
                     qDd[leg] = queueData[1]
             except queue.Empty:
-                qD[leg] = self.lastMotorsPositions[leg]
+                with self.locker:
+                    qD[leg] = self.lastMotorsPositions[leg]
                 qDd[leg] = ([0, 0, 0])
 
         return qD, qDd
