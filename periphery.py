@@ -9,24 +9,28 @@ import mappers
 
 
 class BNO055:
-    """Class for communication BNO055 sensor, connected with i2c protocol.
+    """Class for communication with BNO055 sensor, connected with i2c protocol.
     """
     def __init__(self):
         i2c = board.I2C()
         self.bno055 = adafruit_bno055.BNO055_I2C(i2c)
         # Remap axis to fix initial value of pitch, when spider is verticaly on the wall.
         self.bno055.axis_remap = (0, 2, 1, 0, 1, 0)
+        print("BNO055 initializing...")
+        time.sleep(2)
+        self.initRpyOffsets = mappers.mapBno055ToSpiderDegrees(self.bno055.euler)
+        print(f"Initial offsets are: {self.initRpyOffsets}")
     
-    def readEulers(self, returnRadians = False):
-        """Read, map and return spider's orientation given in rpy euler angles.
-
-        Args:
-            returnRadians (bool, optional): If True, return angles in radians, else in degrees. Defaults to False.
+    def readEulers(self):
+        """Read, map and return spider's orientation given in rpy euler angles, considering initial offsets of sensor.
 
         Returns:
-            list: Spider's roll, pitch and yaw angles.
+            numpy.ndarray: 1x3 array of spider's roll, pitch and yaw angles in radians.
         """
-        return mappers.mapBno055ToSpiderDegrees(self.bno055.euler, returnRadians)
+        rpy = mappers.mapBno055ToSpiderDegrees(self.bno055.euler)
+        rpy -= self.initRpyOffsets
+
+        return rpy
 
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.

@@ -169,21 +169,17 @@ def bno055MapPitchDegrees(sensorValue):
     """
     return sensorValue * (-1)
 
-def mapBno055ToSpiderDegrees(sensorYrp, returnRadians = False):
+def mapBno055ToSpiderDegrees(sensorYrp):
     """Map sensor's orientation to spider's, all in degrees. Note that axis are rotated to match wall (vertical) orientation.
 
     Args:
         sensorYrp (list): Sensor's yaw, roll and pitch values in degrees.
-        returnRadians(bool, optional): If True, return values converted in radians, else return degrees.
 
     Returns:
-        tuple: Spider's roll, pitch and yaw in degrees or radians, depends on value of optional parameter.
+        numpy.ndarray: 1x3 array of spider's roll, pitch and yaw in radians.
     """
     sensorYaw, sensorRoll, sensorPitch = sensorYrp
     spiderYaw = bno055MapYawDegrees(sensorYaw)
     spiderPitch = bno055MapPitchDegrees(sensorPitch)
-
-    if not returnRadians:
-        return spiderYaw, spiderPitch, sensorRoll
     
-    return np.radians(spiderYaw), np.radians(spiderPitch), np.radians(sensorRoll)
+    return np.array([np.radians(spiderYaw), np.radians(spiderPitch), np.radians(sensorRoll)])

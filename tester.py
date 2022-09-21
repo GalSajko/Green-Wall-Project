@@ -7,7 +7,7 @@ import environment as env
 import planning
 import simulaton
 import dynamixel
-import bno055
+import periphery
 
 import time
 import random
@@ -27,9 +27,6 @@ def initSendingThread():
 
 if __name__ == "__main__":
     controller = controllers.VelocityController()
-    udpServer = udpServer.UdpServer('192.168.1.8')
-    initSendingThread()
-    time.sleep(2)
     wall = env.Wall('squared')
     pins = wall.createGrid(True)
     startPins = [pins[22], pins[9], pins[7], pins[31], pins[33]]
@@ -38,16 +35,21 @@ if __name__ == "__main__":
     time.sleep(5)
 
     input("PRESS ENTER TO START BNO SENSOR")
-    sensor = bno055.BNO055()
-    time.sleep(10)
-    print(sensor.readEulers(True))
+    sensor = periphery.BNO055()
+    print(sensor.readEulers())
     while True:
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.1, 0.1, 0.1])
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.2])
         time.sleep(6)
-        print(sensor.readEulers(True))
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, -0.1, -0.1, -0.1])
+        print(sensor.readEulers())
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.0])
         time.sleep(6)
-        print(sensor.readEulers(True))
+        print(sensor.readEulers())
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, -0.2])
+        time.sleep(6)
+        print(sensor.readEulers())
+        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.0])
+        time.sleep(6)
+        print(sensor.readEulers())
 
     
       
