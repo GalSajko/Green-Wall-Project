@@ -19,7 +19,9 @@ class Spider:
         self.BODY_RADIUS = 0.13145
         self.LEGS_IDS = [0, 1, 2, 3, 4]
         # Spiders legs, given as lengths of all three links in one leg.
-        self.LEGS_DIMENSIONS = [[0.064, 0.3, 0.276]] * 5
+        self.LEGS_DIMENSIONS = [[0.064, 0.3, 0.276]] * self.NUMBER_OF_LEGS
+        # Leg limit to avoid singularity.
+        self.LEG_LENGTH_LIMIT = 0.6
         # Angles between legs, looking from spiders origin.
         self.ANGLE_BETWEEN_LEGS = np.radians(360.0 / self.NUMBER_OF_LEGS)
         # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.
@@ -186,5 +188,5 @@ class Wall:
         """
         if self.gridPattern == 'squared':
             return self.createSquaredGrid(threeDim)
-        elif self.gridPattern == 'rhombus':
-            return self.createRhombusGrid(threeDim)
+
+        return self.createRhombusGrid(threeDim)

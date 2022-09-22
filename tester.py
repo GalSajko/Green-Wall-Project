@@ -27,32 +27,26 @@ def initSendingThread():
 
 if __name__ == "__main__":
     controller = controllers.VelocityController()
-    wall = env.Wall('squared')
-    pins = wall.createGrid(True)
-    startPins = [pins[22], pins[9], pins[7], pins[31], pins[33]]
+    udpServer = udpServer.UdpServer('192.168.1.32')
+    initSendingThread()
+    time.sleep(0.2)
 
-    controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.0])
-    time.sleep(5)
+    for i in range(10):
+        controller.moveLegAsync(4, [0.35, 0.0, 0.1], 'l', 3, 'minJerk')
+        # time.sleep(4)
+        controller.startForceMode(0)
+        time.sleep(5)
+        controller.stopForceMode()
+        controller.moveLegAsync(4, [0.45, 0.0, 0.2], 'l', 3, 'minJerk')
+        # time.sleep(4)
+        controller.startForceMode(0)
+        time.sleep(5)
+        controller.stopForceMode()
 
-    input("PRESS ENTER TO START BNO SENSOR")
-    sensor = periphery.BNO055()
-    print(sensor.readEulers())
-    while True:
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.2])
-        time.sleep(6)
-        print(sensor.readEulers())
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.0])
-        time.sleep(6)
-        print(sensor.readEulers())
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, -0.2])
-        time.sleep(6)
-        print(sensor.readEulers())
-        controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 5, 'minJerk', [0.6, 0.55, 0.3, 0.0])
-        time.sleep(6)
-        print(sensor.readEulers())
 
     
       
+
 
 
 
