@@ -188,5 +188,5 @@ class Wall:
         """
         if self.gridPattern == 'squared':
             return self.createSquaredGrid(threeDim)
-        elif self.gridPattern == 'rhombus':
-            return self.createRhombusGrid(threeDim)
+
+        return self.createRhombusGrid(threeDim)
