@@ -30,12 +30,17 @@ if __name__ == "__main__":
     initSendingThread()
     time.sleep(0.2)
 
-    controller.moveLegAsync(4, [0.35, 0.0, 0.1], 'l', 3, 'minJerk')
-    time.sleep(4)
-    controller.toggleForceMode(True)
-    time.sleep(5)
-    controller.toggleForceMode(False)
-    controller.moveLegAsync(4, [0.45, 0.0, 0.2], 'l', 3, 'minJerk')
+    for i in range(10):
+        controller.moveLegAsync(4, [0.35, 0.0, 0.1], 'l', 3, 'minJerk')
+        # time.sleep(4)
+        controller.startForceMode(0)
+        time.sleep(5)
+        controller.stopForceMode()
+        controller.moveLegAsync(4, [0.45, 0.0, 0.2], 'l', 3, 'minJerk')
+        # time.sleep(4)
+        controller.startForceMode(0)
+        time.sleep(5)
+        controller.stopForceMode()
 
 
     

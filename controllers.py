@@ -47,6 +47,7 @@ class VelocityController:
 
         self.KpForce = 0.05
         self.isForceMode = False
+        self.forceModeLegId = None
 
         self.initControllerThread()
 
@@ -75,11 +76,14 @@ class VelocityController:
                 currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
                 self.qA = currentAngles
                 forceMode = self.isForceMode
+                forceModeLeg = self.forceModeLegId
                 # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
                 if init:
                     self.lastMotorsPositions = currentAngles
                     init = False
-        
+
+            qD, qDd = self.getQdQddFromQueues()
+
             if forceMode:
                 # Force-velocity P controller.
                 self.fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents)
@@ -87,24 +91,22 @@ class VelocityController:
                 fMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, self.fA)
                 dXSpider, offsets = self.forcePositionP(self.fD, fMean)
             
-                # Test only on one leg.
-                leg = 4
                 # Read leg's current pose in spider's origin.
-                xSpider = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
+                xSpider = self.kinematics.spiderBaseToLegTipForwardKinematics(forceModeLeg, currentAngles[forceModeLeg])
                 # Add calculated offset.
-                xSpider[:3][:,3] += offsets[leg]
+                xSpider[:3][:,3] += offsets[forceModeLeg]
                 # Transform into leg's origin.
-                xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[leg]), xSpider)[:3][:,3]
+                xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
 
                 # Calculate values in joints space and avoid reaching out of the working space.
                 if np.linalg.norm(xD) > self.spider.LEG_LENGTH_LIMIT:
-                    xSpider[:3][:,3] -= offsets[leg]
-                    xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[leg]), xSpider)[:3][:,3]
-                    dXSpider[leg] = np.zeros(3)
-                qD[leg] = self.kinematics.legInverseKinematics(leg, xD)
-                qDd[leg] = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(leg, currentAngles[leg])), dXSpider[leg])
-            else:
-                qD, qDd = self.getQdQddFromQueues()
+                    xSpider[:3][:,3] -= offsets[forceModeLeg]
+                    xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
+                    dXSpider[forceModeLeg] = np.zeros(3)
+                qD[forceModeLeg] = self.kinematics.legInverseKinematics(forceModeLeg, xD)
+                qDd[forceModeLeg] = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(forceModeLeg, currentAngles[forceModeLeg])), dXSpider[forceModeLeg])
+                with self.locker:
+                    self.lastMotorsPositions[forceModeLeg] = currentAngles[forceModeLeg]
 
             qCds, lastQErrors = self.positionVelocityPD(qD, currentAngles, qDd, lastQErrors)
 
@@ -325,34 +327,6 @@ class VelocityController:
             self.legsQueues[leg].put(self.sentinel)
         
         return True
-    
-    def offloadSelectedLeg(self, legId, legsGlobalPositions = None):
-        """Offloading selected legs by turning it off and than on again.
-
-        Args:
-            legId (int): Leg id.
-            legsGlobalPositions (list, optional): 5x3 array of global legs positions. Defaults to None.
-
-        Returns:
-            list: 1x6 array of new xyzrpy spider's pose (after offloading).
-        """
-        otherLegs = self.spider.LEGS_IDS.copy()
-        otherLegs.remove(legId)
-
-        with self.locker:
-            self.motorDriver.disableLegs(legId)
-        
-        time.sleep(1)
-        with self.locker:
-            self.lastMotorsPositions[legId] = self.qA[legId]
-            self.motorDriver.enableLegs(legId)
-            
-        if legsGlobalPositions is not None:
-            with self.locker:
-                currentAngles = self.qA
-            newPose = self.matrixCalculator.getSpiderPose([0, 1, 2, 3, 4], legsGlobalPositions, currentAngles)  
-
-        return newPose
    
     def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose, legsGlobalPositions):
         """Open gripper, move leg to the new pin and close the gripper.
@@ -419,14 +393,21 @@ class VelocityController:
 
         return qDs, qDds
 
-    def toggleForceMode(self, command):
-        """Start or stop force controller inside main velocity controller loop.
+    def startForceMode(self, legId):
+        """Start force controller inside main velocity controller loop.
 
         Args:
-            command (bool): If True, start force mode, otherwise turn it off.
+            legId (int): Id of leg, which is to be force-controlled.
         """
         with self.locker:
-            self.isForceMode = command
+            self.isForceMode = True
+            self.forceModeLegId = legId
+    
+    def stopForceMode(self):
+        """Stop force controller inside main velocity controller loop.
+        """
+        with self.locker:
+            self.isForceMode = False
 
     def moveGrippersWrapper(self, legsIds, command):
         """Wrapper function for moving the grippers on selected legs.
