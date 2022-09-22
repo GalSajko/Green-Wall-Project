@@ -18,7 +18,7 @@ class PathPlanner:
     def __init__(self, maxLinStep, maxRotStep, gridPattern = 'squared'):
         self.spider = environment.Spider()
         self.wall = environment.Wall(gridPattern)
-        self.geometryTools = calculations.GeometryTools()
+        self.geometryTools = calculations.MathTools()
         self.matrixCalculator = calculations.MatrixCalculator()
         self.kinematics = calculations.Kinematics()
         self.dynamics = calculations.Dynamics()

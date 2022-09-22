@@ -177,7 +177,7 @@ class Kinematics:
         P = np.array([ex, ey, ez])
 
         p12 = p2 - p1
-        phi = GeometryTools().calculateSignedAngleBetweenTwoVectors(p12[:2], np.array([1, 0]))
+        phi = MathTools().calculateSignedAngleBetweenTwoVectors(p12[:2], np.array([1, 0]))
 
         # Rotate P for angle phi aroud z axis to align it with global origin.
         rot = np.array([
@@ -385,7 +385,7 @@ class Dynamics:
 
         return t
 
-class GeometryTools:
+class MathTools:
     """Helper class for geometry calculations.
     """
     def calculateSignedAngleBetweenTwoVectors(cls, firstVector, secondVector):
@@ -426,6 +426,31 @@ class GeometryTools:
             angle -= math.pi * 2
 
         return angle
+    
+    def runningAverage(cls, buffer, counter, newValue):
+        """Calculate running average of values in buffer.
+
+        Args:
+            buffer (list): Values, used to calculate average.
+            counter (int): Index at which new values are writen in buffer, if it is not already full.
+            newValue (list): New values, which will be written in the buffer.
+
+        Returns:
+            tuple: Average of the buffer (element wise), shifted buffer and updated counter.
+        """
+        if counter < len(buffer):
+            buffer[counter] = newValue
+            counter += 1
+            average = np.mean(buffer[:counter], axis = 0)
+
+            return average, buffer, counter
+        
+        buffer = np.roll(buffer, -1, axis = 0)
+        buffer[-1] = newValue
+        average = np.mean(buffer, axis = 0)
+
+        return average, buffer, counter
+        
 
 class MatrixCalculator:
     """ Class for calculating matrices."""
@@ -552,10 +577,10 @@ class MatrixCalculator:
             legsGlobalPositions (list): nx3 array of x, y, z positions of used legs in global origin, where n should be the same as length of legsIds.
 
         Returns:
-            list: 1x6 array of xyzrpy positions.
+            list: 1x6 array of xyzrpy pose.
         """
         legsGlobalPositions = np.array(legsGlobalPositions)
-        spiderXyz = []
+        poses = []
         for legsSubset in itt.combinations(legsIds, 3):
             legsSubset = np.array(legsSubset)
             subsetIdxs = [legsIds.index(leg) for leg in legsSubset]
@@ -563,8 +588,10 @@ class MatrixCalculator:
             legsPoses = np.zeros([3, 4, 4])
             for idx, leg in enumerate(legsSubset):
                 legsPoses[idx] = Kinematics().spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx])
-            spiderXyz.append(Kinematics().platformForwardKinematics(legsSubset, legsGlobalPositions[(subsetIdxs)], legsPoses))
-        spiderXyz = np.mean(np.array(spiderXyz), axis = 0)
+            poses.append(Kinematics().platformForwardKinematics(legsSubset, legsGlobalPositions[(subsetIdxs)], legsPoses))
+        pose = np.mean(np.array(poses), axis = 0)
 
-        return spiderXyz
+        return pose
     
+
+

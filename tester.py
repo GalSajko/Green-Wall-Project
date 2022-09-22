@@ -29,11 +29,18 @@ if __name__ == "__main__":
     udpServer = udpServer.UdpServer('192.168.1.32')
     initSendingThread()
     time.sleep(0.2)
-    for leg in [0, 1, 2, 3]:
-        controller.disableEnableLegsWrapper(leg, 'd')
+
+    controller.moveLegAsync(4, [0.35, 0.0, 0.1], 'l', 3, 'minJerk')
+    time.sleep(4)
+    controller.toggleForceMode(True)
+    time.sleep(5)
+    controller.toggleForceMode(False)
+    controller.moveLegAsync(4, [0.45, 0.0, 0.2], 'l', 3, 'minJerk')
+
 
     
       
+
 
 
 
