@@ -67,7 +67,7 @@ class VelocityController:
         while True:
             if self.killControllerThread:
                 break
- 
+
             startTime = time.perf_counter()
 
             # Get current data.
@@ -141,7 +141,7 @@ class VelocityController:
         lastErrors = qErrors
 
         return qCds, lastErrors
-            
+
     def forcePositionP(self, desiredForces, currentForces):
         """Force-position P controller. Calculate position offsets from desired forces.
 

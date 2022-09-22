@@ -120,7 +120,7 @@ class Kinematics:
         globalTransformMatrix = MatrixCalculator().xyzRpyToMatrix(goalPose)
 
         # Array to store calculated joints values for all legs.
-        joints = []
+        joints = np.zeros([len(legsIds, self.spider.NUMBER_OF_MOTORS_IN_LEG)])
         for idx, leg in enumerate(legsIds):
             # Pose of leg anchor in global
             anchorInGlobal = np.dot(globalTransformMatrix, self.spider.T_ANCHORS[leg])
@@ -136,9 +136,9 @@ class Kinematics:
 
             # With inverse kinematics for single leg calculate joints values.
             q1, q2, q3 = self.legInverseKinematics(leg, anchorToPinLocal)
-            joints.append(np.array([q1, q2, q3]))
+            joints[idx] = np.array([q1, q2, q3])
 
-        return np.array(joints)
+        return joints
 
     def platformForwardKinematics(self, legsIds, legsGlobalPositions, legsLocalPoses):
         """Calculate forward kinematics of platform. Use only those legs, that are in contact with pins.
@@ -345,7 +345,7 @@ class Dynamics:
         """
         currentsInMotors = np.array(currentsInMotors)
         currentsInMotors[:, 1] *= -1
-        # Parabola fitting constants (derived from least squares method).
+        # Torque(current) parabola fitting constants (derived from least squares method).
         a = -0.3282
         b = 2.9326
         c = -0.1779
