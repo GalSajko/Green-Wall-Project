@@ -98,7 +98,7 @@ class GripperController:
             legId (int): Leg id.
             command (str): Command to execute on gripper - 'o' for opening, 'c' for closing .
         """
-        if (command == self.OPEN_COMMAND or command == self.CLOSE_COMMAND):
+        if command in (self.OPEN_COMMAND, self.CLOSE_COMMAND):
             msg = command + str(legId) + "\n"
             self.sendData(msg)
 
