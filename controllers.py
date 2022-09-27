@@ -30,7 +30,7 @@ class VelocityController:
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.gripperController = periphery.GripperController()
         # This line will cause 2s long pause, to initialize the sensor.
-        # self.bno055 = periphery.BNO055()
+        self.bno055 = periphery.BNO055()
 
         self.legsQueues = [queue.Queue() for i in range(self.spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
@@ -44,6 +44,7 @@ class VelocityController:
 
         self.qA = []
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        self.torques = np.zeros([self.spider.NUMBER_OF_LEGS])
         self.fD = np.array([0.0, 0.0, 0.0])
 
         self.KpForce = 0.05
@@ -63,7 +64,7 @@ class VelocityController:
         qDf = np.zeros([self.spider.NUMBER_OF_LEGS , 3])
         init = True
 
-        fBuffer = np.zeros([5, 5, 3])
+        fBuffer = np.zeros([10, 5, 3])
         counter = 0
 
         while True:
@@ -86,9 +87,9 @@ class VelocityController:
             qD, qDd = self.getQdQddFromQueues()
 
             if forceMode:
-                # spiderGravityVector = self.bno055.readGravity()
+                spiderGravityVector = self.bno055.readGravity()
                 # Force-velocity P controller.
-                self.fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents)
+                self.fA, self.torques = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
                 # Running average of measured forces.
                 fMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, self.fA)
                 dXSpider, offsets = self.forcePositionP(self.fD, fMean)

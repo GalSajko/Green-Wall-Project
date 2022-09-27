@@ -11,11 +11,12 @@ import mappers
 class BNO055:
     """Class for communication with BNO055 sensor, connected with i2c protocol.
     """
-    def __init__(self):
+    def __init__(self, isVertical = False):
         i2c = board.I2C()
         self.bno055 = adafruit_bno055.BNO055_I2C(i2c)
         # Remap axis to fix initial value of pitch, when spider is verticaly on the wall.
-        self.bno055.axis_remap = (0, 2, 1, 0, 1, 0)
+        if isVertical:
+            self.bno055.axis_remap = (0, 2, 1, 0, 1, 0)
         print("BNO055 initializing...")
         time.sleep(2)
         self.initRpyOffsets = mappers.mapBno055ToSpiderDegrees(self.bno055.euler)
@@ -40,11 +41,13 @@ class BNO055:
             list: 1x3 gravity vector.
         """
         gravity = self.bno055.gravity
-        if gravity is not None:
+        try:
             gravity = mappers.mapGravityVectorToSpiderOrigin(gravity)
             self.prevGravityVector = gravity
             return gravity
-        return self.prevGravityVector
+        except TypeError:
+            return self.prevGravityVector
+        
 
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.

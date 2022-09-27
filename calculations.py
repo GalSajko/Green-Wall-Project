@@ -33,8 +33,8 @@ class Kinematics:
         L3 = self.spider.LEGS_DIMENSIONS[legId][2]
 
         return np.array([
-            [math.cos(q1) * math.cos(q2 + q3), -math.cos(q1) * math.sin(q2 + q3), -math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3))],
-            [math.cos(q2 + q3) * math.sin(q1), -math.sin(q1) * math.sin(q2 + q3), math.cos(q1), (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1)],
+            [math.cos(q1) * math.cos(q2 + q3), -math.cos(q1) * math.sin(q2 + q3), math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3))],
+            [math.cos(q2 + q3) * math.sin(q1), -math.sin(q1) * math.sin(q2 + q3), -math.cos(q1), (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1)],
             [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
             [0, 0, 0, 1]
         ])
@@ -54,8 +54,8 @@ class Kinematics:
         L2 = self.spider.LEGS_DIMENSIONS[legId][1]
 
         return np.array([
-            [math.cos(q1) * math.cos(q2), -math.cos(q1) * math.sin(q2), -math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2))],
-            [math.cos(q2) * math.sin(q1), -math.sin(q1) * math.sin(q2), math.cos(q1), (L1 + L2 * math.cos(q2)) * math.sin(q1)],
+            [math.cos(q1) * math.cos(q2), -math.cos(q1) * math.sin(q2), math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2))],
+            [math.cos(q2) * math.sin(q1), -math.sin(q1) * math.sin(q2), -math.cos(q1), (L1 + L2 * math.cos(q2)) * math.sin(q1)],
             [math.sin(q2), math.cos(q2), 0, L2 * math.sin(q2)],
             [0, 0, 0, 1]
         ])
@@ -244,8 +244,8 @@ class Kinematics:
         L3 = self.spider.LEGS_DIMENSIONS[legId][2]
 
         Hb3 = np.array([
-            [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), -math.sin(q1 + qb), r * math.cos(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb)],
-            [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), math.cos(q1 + qb), r * math.sin(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)],
+            [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), math.sin(q1 + qb), r * math.cos(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb)],
+            [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), -math.cos(q1 + qb), r * math.sin(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)],
             [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
             [0, 0, 0, 1]
         ])
@@ -333,7 +333,7 @@ class Dynamics:
         
         return np.dot(np.linalg.inv(np.transpose(J)), torques)
     
-    def getForcesOnLegsTips(self, jointsValues, currentsInMotors, spiderGravityVector = None):
+    def getForcesOnLegsTips(self, jointsValues, currentsInMotors, spiderGravityVector):
         """Calculate forces, applied to tips of all legs, from currents in motors.
 
         Args:
@@ -351,15 +351,15 @@ class Dynamics:
         b = 2.9326
         c = -0.1779
 
-        # gravityTorques = self.__getGravityCompensationTorques(jointsValues, spiderGravityVector)
-        torques = a + b * currentsInMotors + c * currentsInMotors**2
+        gravityTorques = self.__getGravityCompensationTorques(jointsValues, spiderGravityVector)
+        torques = (a + b * currentsInMotors + c * currentsInMotors**2)
 
         forces = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         for legId, jointsInLeg in enumerate(jointsValues):
             J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsInLeg)
             forces[legId] = np.dot(np.linalg.inv(np.transpose(J)), torques[legId])
         
-        return forces
+        return forces, torques
     
     def getForceEllipsoidLengthInGivenDirection(self, jointsValues, direction):
         """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.
@@ -420,8 +420,10 @@ class Dynamics:
                 l = np.array([1, 0, 0]) * self.spider.LEGS_DIMENSIONS[legId][2 - i]
                 
                 if i != 0:
-                    forces[i] = np.dot(forceRotationMatrices[i - 1], forces[i - 1]) - self.spider.SEGMENTS_MASSES[legId][2 - i] * localGravityVectors[2 - i]
-                    torquesVectorsInLeg[i] = (np.dot(forceRotationMatrices[i - 1], torquesVectorsInLeg[i - 1]) - np.cross(forces[i], lc) - np.cross(np.dot(forceRotationMatrices[i - 1], forces[i - 1]), (l - lc)))
+                    fgSegment = self.spider.SEGMENTS_MASSES[legId][2 - i] * localGravityVectors[2 - i]
+                    forces[i] = np.dot(forceRotationMatrices[i - 1], forces[i - 1]) - fgSegment
+                    torquesVectorsInLeg[i] = np.dot(forceRotationMatrices[i - 1], torquesVectorsInLeg[i - 1]) + np.cross(fgSegment, lc) - np.cross(np.dot(forceRotationMatrices[i - 1], forces[i - 1]), l)
+                    torquesValuesInLeg[i] = torquesVectorsInLeg[i][2]
                     continue
 
                 forces[i] = -self.spider.SEGMENTS_MASSES[legId][2 - i] * localGravityVectors[2 - i]
@@ -430,18 +432,17 @@ class Dynamics:
             # Flip array, so first value in array will correspond with first joint and so on.
             torques[legId] = np.flip(torquesValuesInLeg)
 
-        return torques
-            
+        return torques 
     
     def __getGravityRotationMatrices(self, legId, jointsValues, qb):
+        q1, q2, q3 = jointsValues
         return [
-            self.spider.T_ANCHORS[legId][:3,:3], 
-            TransformationCalculator().R_B1(qb, jointsValues[0]),
-            TransformationCalculator().R_B2(qb, jointsValues[0], jointsValues[1]),
-            self.kinematics.spiderBaseToLegTipForwardKinematics(legId, jointsValues)]
+            TransformationCalculator().R_B1(qb, q1),
+            TransformationCalculator().R_B2(qb, q1, q2),
+            TransformationCalculator().R_B3(qb, q1, q2, q3)]
     
     def __getForceRotationMatrices(self, jointsValues):
-        return [TransformationCalculator().R_23(jointsValues[1]), TransformationCalculator().R_12(jointsValues[0])]
+        return [TransformationCalculator().R_23(jointsValues[2]), TransformationCalculator().R_12(jointsValues[1])]
 
 
 class MathTools:
@@ -512,7 +513,7 @@ class MathTools:
 
 class TransformationCalculator:
     """ Class for calculating matrices."""
-    def xyzRpyToMatrix(cls, xyzrpy, rotationOnly = False):
+    def xyzRpyToMatrix(cls, xyzrpy):
         """Calculate global transformation matrix for global origin - spider relation.
 
         Args:
@@ -522,12 +523,10 @@ class TransformationCalculator:
         Returns:
             numpy.ndarray: 4x4 transformation matrix from global origin to spider.
         """
-        if not rotationOnly:
-            if len(xyzrpy) == 4:
-                xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
-            position = xyzrpy[0:3]
-            rpy = xyzrpy[3:]
-        # if rotationOnly
+        if len(xyzrpy) == 4:
+            xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
+        position = xyzrpy[0:3]
+        rpy = xyzrpy[3:]
 
         roll = np.array([
             [math.cos(rpy[1]), 0, math.sin(rpy[1])],
@@ -652,51 +651,51 @@ class TransformationCalculator:
         pose = np.mean(np.array(poses), axis = 0)
 
         return pose
-    
-    def R_12(cls, q1):
-        """Rotation matrix from 1st to 2nd leg-segment.
 
-        Args:
-            q1 (float): Angle in first joint, in radians.
-
-        Returns:
-            numpy.ndarray: 3x3 rotation matrix.
-        """
-        return np.array([
-            [np.cos(q1), 0, -np.sin(q1)],
-            [np.sin(q1), 0, np.cos(q1)],
-            [0, 1, 0]
-        ])
-    
-    def R_23(cls, q2):
-        """Rotation matrix from 2st to 3rd leg-segment.
-
-        Args:
-            q1 (float): Angle in first joint, in radians.
-
-        Returns:
-            numpy.ndarray: 3x3 rotation matrix.
-        """
-        return np.array([
-            [np.cos(q2), -np.sin(q2), 0],
-            [np.sin(q2), np.cos(q2), 0],
-            [0, 0, 1]
-        ])
-    
     def R_B1(cls, qb, q1):
         """Rotation matrix from spider's to 1st segment's origin.
 
         Args:
-            qb (float): Angle from spider's origin to leg-base origin, in radians.  
+            qb (float): Angle from spider's origin to leg-base origin, in radians. 
             q1 (float): Angle in first joint, in radians.
 
         Returns:
             numpy.ndarray: 3x3 rotation matrix.
         """
         return np.array([
-            [np.cos(q1 + qb), 0, -np.sin(q1 + qb)],
-            [np.sin(q1 + qb), 0, np.cos(q1 + qb)],
-            [0, 1, 0]
+            [math.cos(q1 + qb), -math.sin(q1 + qb), 0],
+            [math.sin(q1 + qb), math.cos(q1 + qb), 0],
+            [0, 0, 1]
+        ])
+    
+    def R_12(cls, q2):
+        """Rotation matrix from 1st to 2nd leg-segment.
+
+        Args:
+            q2 (float): Angle in second joint, in radians.
+
+        Returns:
+            numpy.ndarray: 3x3 rotation matrix.
+        """
+        return np.array([
+            [math.cos(q2), -math.sin(q2), 0],
+            [0, 0, -1],
+            [math.sin(q2), math.cos(q2), 0]
+        ])
+    
+    def R_23(cls, q3):
+        """Rotation matrix from 2nd to 3rd leg-segment.
+
+        Args:
+            q3 (float): Angle in third joint, in radians.
+
+        Returns:
+            numpy.ndarray: 3x3 rotation matrix.
+        """
+        return np.array([
+            [math.cos(q3), -math.sin(q3), 0],
+            [math.sin(q3), math.cos(q3), 0],
+            [0, 0, 1]
         ])
     
     def R_B2(cls, qb, q1, q2):
@@ -711,9 +710,14 @@ class TransformationCalculator:
             numpy.ndarray: 3x3 rotation matrix.
         """
         return np.array([
-            [np.cos(q2) * np.cos(q1 + qb), -np.cos(q1 + qb) * np.sin(q2), -np.sin(q1 + qb)],
-            [np.cos(q2) * np.sin(q1 + qb), -np.sin(q2) * np.sin(q1 + qb), np.cos(q1 + qb)],
-            [np.sin(q2), np.cos(q2), 0]
+            [math.cos(q2) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2), math.sin(q1 + qb)],
+            [math.cos(q2) * math.sin(q1 + qb), -math.sin(q2) * math.sin(q1 + qb), -math.cos(q1 + qb)],
+            [math.sin(q2), math.cos(q2), 0]
         ])
-
-
+    
+    def R_B3(cls, qb, q1, q2, q3):
+        return np.array([
+            [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), math.sin(q1 + qb)],
+            [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), -math.cos(q1 + qb)],
+            [math.sin(q2 + q3), math.cos(q2 + q3), 0],
+        ])

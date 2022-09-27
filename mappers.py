@@ -169,11 +169,12 @@ def bno055MapPitchDegrees(sensorValue):
     """
     return sensorValue * (-1)
 
-def mapBno055ToSpiderDegrees(sensorYrp):
+def mapBno055ToSpiderDegrees(sensorYrp, isVertical = False):
     """Map sensor's orientation to spider's, all in degrees. Note that axis are rotated to match wall (vertical) orientation.
 
     Args:
         sensorYrp (list): Sensor's yaw, roll and pitch values in degrees.
+        isVertical (bool): If True, spider is in vertical orientation and sensor's axis are remapped, otherwise it's in horizontal orientation. Defaults to False.
 
     Returns:
         numpy.ndarray: 1x3 array of spider's roll, pitch and yaw in radians.
@@ -182,16 +183,21 @@ def mapBno055ToSpiderDegrees(sensorYrp):
     spiderYaw = bno055MapYawDegrees(sensorYaw)
     spiderPitch = bno055MapPitchDegrees(sensorPitch)
     
-    return np.array([np.radians(spiderYaw), np.radians(spiderPitch), np.radians(sensorRoll)])
+    if isVertical:
+        return np.array([np.radians(spiderYaw), np.radians(spiderPitch), np.radians(sensorRoll)])
+    return np.array([np.radians(sensorRoll), np.radians(spiderPitch), np.radians(spiderYaw)])
 
-def mapGravityVectorToSpiderOrigin(gravity):
+def mapGravityVectorToSpiderOrigin(gravity, isVertical = False):
     """Map sensor's gravity vector into spider's origin.
 
     Args:
         gravity (list): 1x3 sensor's gravity vector.
+        isVertical (bool): If True, spider is in vertical orientation and sensor's axis are remapped, otherwise it's in horizontal orientation. Defaults to False.
 
     Returns:
         numpy.ndarray: 1x3 gravity vector in spider's origin.
     """
     gravity = np.array(gravity) * (-1)
-    return np.array([gravity[0], gravity[2], -gravity[1]])
+    if isVertical:
+        return np.array([gravity[0], gravity[2], -gravity[1]])
+    return gravity

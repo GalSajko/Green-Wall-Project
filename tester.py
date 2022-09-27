@@ -17,7 +17,7 @@ import numpy as np
 
 def forceSending(frequency):
     while True:
-        udpServer.send(controller.fA)
+        udpServer.send(controller.torques)
         time.sleep(1.0 / frequency)
 
 def initSendingThread():
@@ -31,7 +31,8 @@ if __name__ == "__main__":
     initSendingThread()
     time.sleep(3)
 
-    controller.startForceMode(4)
+    # controller.moveLegAsync(4, [0.35, 0.0, 0.2], 'l', 5, 'minJerk')
+    controller.startForceMode(1)
     # sensor = periphery.BNO055()
     # while True:
     #     print(sensor.readGravity())
