@@ -1,4 +1,5 @@
 import socket
+import numpy as np
 
 class UdpServer:
 
@@ -17,5 +18,6 @@ class UdpServer:
         print("UDP Server running.")
     
     def send(self, data):
+        data = np.array(data, dtype = np.float64)
         bytesToSend = bytearray(data.flatten())
         self.udpServerSocket.sendto(bytesToSend, (self.addressToSend, self.REMOTE_PORT))

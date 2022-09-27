@@ -347,12 +347,13 @@ class Dynamics:
         currentsInMotors = np.array(currentsInMotors)
         currentsInMotors[:, 1] *= -1
         # Torque(current) parabola fitting constants (derived from least squares method).
-        a = -0.3282
+        # a = -0.3282
+        a = 0.0
         b = 2.9326
         c = -0.1779
 
         gravityTorques = self.__getGravityCompensationTorques(jointsValues, spiderGravityVector)
-        torques = (a + b * currentsInMotors + c * currentsInMotors**2)
+        torques = (a + b * currentsInMotors + c * currentsInMotors**2) - gravityTorques
 
         forces = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         for legId, jointsInLeg in enumerate(jointsValues):
