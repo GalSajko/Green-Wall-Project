@@ -20,6 +20,20 @@ class Spider:
         self.LEGS_IDS = [0, 1, 2, 3, 4]
         # Spiders legs, given as lengths of all three links in one leg.
         self.LEGS_DIMENSIONS = [[0.064, 0.3, 0.276]] * self.NUMBER_OF_LEGS
+        self.SEGMENTS_MASSES = [
+            [0.05, 0.495, 0.195],
+            [0.05, 0.565, 0.195],
+            [0.05, 0.565, 0.195],
+            [0.05, 0.495, 0.195],
+            [0.05, 0.565, 0.195]]
+        # Vectors from 
+        self.VECTORS_TO_COG_SEGMENT = [
+            [0.032, 0.15, 0.14],
+            [0.032, 0.14, 0.14],
+            [0.032, 0.14, 0.14],
+            [0.032, 0.15, 0.14],
+            [0.032, 0.14, 0.14]
+        ]
         # Leg limit to avoid singularity.
         self.LEG_LENGTH_LIMIT = 0.6
         # Angles between legs, looking from spiders origin.

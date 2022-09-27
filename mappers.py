@@ -183,3 +183,15 @@ def mapBno055ToSpiderDegrees(sensorYrp):
     spiderPitch = bno055MapPitchDegrees(sensorPitch)
     
     return np.array([np.radians(spiderYaw), np.radians(spiderPitch), np.radians(sensorRoll)])
+
+def mapGravityVectorToSpiderOrigin(gravity):
+    """Map sensor's gravity vector into spider's origin.
+
+    Args:
+        gravity (list): 1x3 sensor's gravity vector.
+
+    Returns:
+        numpy.ndarray: 1x3 gravity vector in spider's origin.
+    """
+    gravity = np.array(gravity) * (-1)
+    return np.array([gravity[0], gravity[2], -gravity[1]])

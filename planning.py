@@ -19,7 +19,7 @@ class PathPlanner:
         self.spider = environment.Spider()
         self.wall = environment.Wall(gridPattern)
         self.geometryTools = calculations.MathTools()
-        self.matrixCalculator = calculations.MatrixCalculator()
+        self.matrixCalculator = calculations.TransformationCalculator()
         self.kinematics = calculations.Kinematics()
         self.dynamics = calculations.Dynamics()
 
@@ -251,11 +251,11 @@ class PathPlanner:
             rgValuesSumArray = np.zeros(len(pinsCombinations[step]))
             for combIdx, pins in enumerate(pinsCombinations[step]):
                 rgValuesSum = 0
-                for legIdx, pin in enumerate(pins):
-                    anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legIdx][:,3][:3]))
-                    anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[legIdx][:3,:3]), anchorToPinGlobal)
-                    jointsValues = self.kinematics.legInverseKinematics(legIdx, anchorToPinLegLocal)
-                    rgValue = self.dynamics.getForceEllipsoidLengthInGivenDirection(legIdx, jointsValues, [gravityVectorInSpider, zVectorInSpider])
+                for legId, pin in enumerate(pins):
+                    anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legId][:,3][:3]))
+                    anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[legId][:3,:3]), anchorToPinGlobal)
+                    jointsValues = self.kinematics.legInverseKinematics(legId, anchorToPinLegLocal)
+                    rgValue = self.dynamics.getForceEllipsoidLengthInGivenDirection(legId, jointsValues, [gravityVectorInSpider, zVectorInSpider])
                     rgValuesSum += rgValue
                 rgValuesSumArray[combIdx] = rgValuesSum
 

@@ -29,20 +29,13 @@ if __name__ == "__main__":
     controller = controllers.VelocityController()
     udpServer = udpServer.UdpServer('192.168.1.32')
     initSendingThread()
-    time.sleep(0.2)
+    time.sleep(3)
 
-    for i in range(10):
-        controller.moveLegAsync(4, [0.35, 0.0, 0.1], 'l', 3, 'minJerk')
-        # time.sleep(4)
-        controller.startForceMode(0)
-        time.sleep(5)
-        controller.stopForceMode()
-        controller.moveLegAsync(4, [0.45, 0.0, 0.2], 'l', 3, 'minJerk')
-        # time.sleep(4)
-        controller.startForceMode(0)
-        time.sleep(5)
-        controller.stopForceMode()
-
+    controller.startForceMode(4)
+    # sensor = periphery.BNO055()
+    # while True:
+    #     print(sensor.readGravity())
+    #     time.sleep(0.1)
 
     
       

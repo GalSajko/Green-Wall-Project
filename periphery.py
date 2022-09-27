@@ -19,6 +19,7 @@ class BNO055:
         print("BNO055 initializing...")
         time.sleep(2)
         self.initRpyOffsets = mappers.mapBno055ToSpiderDegrees(self.bno055.euler)
+        self.prevGravityVector = np.zeros(3)
         print(f"Initial offsets are: {self.initRpyOffsets}")
     
     def readEulers(self):
@@ -31,6 +32,19 @@ class BNO055:
         rpy -= self.initRpyOffsets
 
         return rpy
+    
+    def readGravity(self):
+        """Read gravity vector.
+
+        Returns:
+            list: 1x3 gravity vector.
+        """
+        gravity = self.bno055.gravity
+        if gravity is not None:
+            gravity = mappers.mapGravityVectorToSpiderOrigin(gravity)
+            self.prevGravityVector = gravity
+            return gravity
+        return self.prevGravityVector
 
 class GripperController:
     """Class for controlling grippers via serial communication with Arduino.

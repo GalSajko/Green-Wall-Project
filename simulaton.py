@@ -13,7 +13,7 @@ class Plotter:
     def __init__(self, gridPattern):
         self.wall = environment.Wall(gridPattern)
         self.spider = environment.Spider()
-        self.matrixCalculator = calculations.MatrixCalculator()
+        self.matrixCalculator = calculations.TransformationCalculator()
         # Figure for plotting.
         self.figure = plt.figure()
         self.board = plt.axes(xlim = (0, self.wall.WALL_SIZE[0]), ylim = (0, self.wall.WALL_SIZE[1]))

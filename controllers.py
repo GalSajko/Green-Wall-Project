@@ -21,7 +21,7 @@ class VelocityController:
     from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop controller takes first values from all of the legs-queues.
     """
     def __init__ (self):
-        self.matrixCalculator = calculations.MatrixCalculator()
+        self.matrixCalculator = calculations.TransformationCalculator()
         self.kinematics = calculations.Kinematics()
         self.dynamics = calculations.Dynamics()
         self.mathTools = calculations.MathTools()
@@ -29,6 +29,8 @@ class VelocityController:
         self.trajectoryPlanner = planning.TrajectoryPlanner()
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.gripperController = periphery.GripperController()
+        # This line will cause 2s long pause, to initialize the sensor.
+        # self.bno055 = periphery.BNO055()
 
         self.legsQueues = [queue.Queue() for i in range(self.spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
@@ -84,6 +86,7 @@ class VelocityController:
             qD, qDd = self.getQdQddFromQueues()
 
             if forceMode:
+                # spiderGravityVector = self.bno055.readGravity()
                 # Force-velocity P controller.
                 self.fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents)
                 # Running average of measured forces.

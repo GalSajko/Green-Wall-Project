@@ -44,7 +44,7 @@ class MotorDriver:
 
         self.kinematics = calculations.Kinematics()
         self.spider = environment.Spider()
-        self.matrixCalculator = calculations.MatrixCalculator()
+        self.matrixCalculator = calculations.TransformationCalculator()
 
         self.motorsIds = np.array(motorsIds)
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
@@ -263,7 +263,7 @@ class MotorDriver:
         """Write velocities to motors in given legs with sync writer.
 
         Args:
-            legIdx (list): Legs ids.
+            legId (list): Legs ids.
             qCd (list): nx3 array of desired velocities, where n is number of given legs.
 
         Returns:
