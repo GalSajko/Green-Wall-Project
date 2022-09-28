@@ -17,7 +17,7 @@ import numpy as np
 
 def forceSending(frequency):
     while True:
-        udpServer.send(controller.torques)
+        udpServer.send(controller.fA)
         time.sleep(1.0 / frequency)
 
 def initSendingThread():
@@ -26,18 +26,21 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":
-    controller = controllers.VelocityController()
-    udpServer = udpServer.UdpServer('192.168.1.32')
-    initSendingThread()
+    controller = controllers.VelocityController(True)
+    # udpServer = udpServer.UdpServer('192.168.1.32')
+    # initSendingThread()
     time.sleep(3)
 
-    # controller.moveLegAsync(4, [0.35, 0.0, 0.2], 'l', 5, 'minJerk')
-    controller.startForceMode(1)
-    # sensor = periphery.BNO055()
+    controller.startForceMode(0)
     # while True:
-    #     print(sensor.readGravity())
+    #     print(controller.bno055.readGravity())
     #     time.sleep(0.1)
-
+    # while True:
+    #     controller.moveGrippersWrapper([3], 'o')
+    #     time.sleep(2)
+    #     controller.moveGrippersWrapper([3], 'c')
+    #     time.sleep(2)
+    
     
       
 

@@ -19,11 +19,11 @@ class Spider:
         # Spiders legs, given as lengths of all three links in one leg.
         self.LEGS_DIMENSIONS = [[0.064, 0.3, 0.276]] * self.NUMBER_OF_LEGS
         self.SEGMENTS_MASSES = np.array([
-            [0.05, 0.495, 0.195],
-            [0.05, 0.565, 0.195],
-            [0.05, 0.565, 0.195],
-            [0.05, 0.495, 0.195],
-            [0.05, 0.565, 0.195]])
+            [0.05, 0.495, 0.19],
+            [0.05, 0.565, 0.19],
+            [0.05, 0.565, 0.19],
+            [0.05, 0.495, 0.19],
+            [0.05, 0.565, 0.19]])
         # Vectors from start of the segment to COG.
         self.VECTORS_TO_COG_SEGMENT = [
             [0.032, 0.15, 0.14],

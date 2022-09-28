@@ -20,8 +20,8 @@ class VelocityController:
     """ Class for velocity-control of spider's movement. All legs are controlled with same controller, but can be moved separately and independently
     from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop controller takes first values from all of the legs-queues.
     """
-    def __init__ (self):
-        self.matrixCalculator = calculations.TransformationCalculator()
+    def __init__ (self, isVertical = False):
+        self.transformations = calculations.TransformationCalculator()
         self.kinematics = calculations.Kinematics()
         self.dynamics = calculations.Dynamics()
         self.mathTools = calculations.MathTools()
@@ -30,7 +30,7 @@ class VelocityController:
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.gripperController = periphery.GripperController()
         # This line will cause 2s long pause, to initialize the sensor.
-        self.bno055 = periphery.BNO055()
+        self.bno055 = periphery.BNO055(isVertical)
 
         self.legsQueues = [queue.Queue() for i in range(self.spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
@@ -44,7 +44,6 @@ class VelocityController:
 
         self.qA = []
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
-        self.torques = np.zeros([self.spider.NUMBER_OF_LEGS])
         self.fD = np.array([0.0, 0.0, 0.0])
 
         self.KpForce = 0.05
@@ -88,11 +87,11 @@ class VelocityController:
 
             if forceMode:
                 spiderGravityVector = self.bno055.readGravity()
-                # Force-velocity P controller.
-                self.fA, self.torques = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
+
+                self.fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
                 # Running average of measured forces.
-                fMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, self.fA)
-                dXSpider, offsets = self.forcePositionP(self.fD, fMean)
+                fAMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, self.fA)
+                dXSpider, offsets = self.forcePositionP(self.fD, fAMean)
             
                 # Read leg's current pose in spider's origin.
                 xSpider = self.kinematics.spiderBaseToLegTipForwardKinematics(forceModeLeg, currentAngles[forceModeLeg])
@@ -102,7 +101,7 @@ class VelocityController:
                 xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
 
                 # Calculate values in joints space and avoid reaching out of the working space.
-                if np.linalg.norm(xD) > self.spider.LEG_LENGTH_LIMIT:
+                if np.linalg.norm(xD) >= self.spider.LEG_LENGTH_LIMIT:
                     xSpider[:3][:,3] -= offsets[forceModeLeg]
                     xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
                     dXSpider[forceModeLeg] = np.zeros(3)
@@ -241,9 +240,9 @@ class VelocityController:
                 localGoalPosition += legCurrentPosition
         elif origin == 'g':
             if not isOffset:
-                localGoalPosition = self.matrixCalculator.getLegInLocal(legId, goalPositionOrOffset, spiderPose)
+                localGoalPosition = self.transformations.getLegInLocal(legId, goalPositionOrOffset, spiderPose)
             else:
-                localGoalPosition = legCurrentPosition + self.matrixCalculator.getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset)
+                localGoalPosition = legCurrentPosition + self.transformations.getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset)
 
         try:
             positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
@@ -309,9 +308,9 @@ class VelocityController:
             elif origin == 'g':
                 globalGoalPosition = goalPositionsOrOffsets[idx]
                 if not offset:
-                    localGoalPosition = self.matrixCalculator.getLegInLocal(leg, globalGoalPosition, spiderPose)
+                    localGoalPosition = self.transformations.getLegInLocal(leg, globalGoalPosition, spiderPose)
                 else:
-                    localGoalPosition = legCurrentPosition + self.matrixCalculator.getGlobalDirectionInLocal(leg, spiderPose, globalGoalPosition)
+                    localGoalPosition = legCurrentPosition + self.transformations.getGlobalDirectionInLocal(leg, spiderPose, globalGoalPosition)
             
             try:
                 positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
@@ -345,8 +344,8 @@ class VelocityController:
 
         with self.locker:
             legPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'l')
-        globalLegPosition = self.matrixCalculator.getLegsInGlobal([legId], legPosition, spiderPose)[0]
-        detachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], spiderPose, [globalLegPosition], offset = 0.1)
+        globalLegPosition = self.transformations.getLegsInGlobal([legId], legPosition, spiderPose)[0]
+        detachPosition = self.transformations.getLegsApproachPositionsInGlobal([legId], spiderPose, [globalLegPosition], offset = 0.1)
 
         # If leg is attached, open a gripper.
         if legId in self.gripperController.getIdsOfAttachedLegs():
@@ -362,10 +361,10 @@ class VelocityController:
         legsGlobalPositions = np.delete(legsGlobalPositions, legId, 0)
         with self.locker:
             currentAngles = self.qA
-        newPose = self.matrixCalculator.getSpiderPose(usedLegs, legsGlobalPositions, currentAngles)
+        newPose = self.transformations.getSpiderPose(usedLegs, legsGlobalPositions, currentAngles)
         
         # Move leg on attach position.
-        attachPosition = self.matrixCalculator.getLegsApproachPositionsInGlobal([legId], newPose, [goalPosition])
+        attachPosition = self.transformations.getLegsApproachPositionsInGlobal([legId], newPose, [goalPosition])
         self.moveLegAsync(legId, attachPosition, 'g', duration, 'bezier', newPose)
         time.sleep(duration + 0.5)
 
@@ -449,7 +448,7 @@ class VelocityController:
             elif origin == 's':
                 legsPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[idx])[:3][:,3]
         if origin == 'g':
-            globalLegsPositions = self.matrixCalculator.getLegsInGlobal(legsIds, legsPositions, spiderPose)
+            globalLegsPositions = self.transformations.getLegsInGlobal(legsIds, legsPositions, spiderPose)
             return globalLegsPositions
 
         if returnAngles:
@@ -476,10 +475,16 @@ class VelocityController:
 
         with self.locker:
             currentAngles = self.qA
-        pose = self.matrixCalculator.getSpiderPose(legsIds, legsGlobalPositions, currentAngles)
+        pose = self.transformations.getSpiderPose(legsIds, legsGlobalPositions, currentAngles)
         return pose
 
     def disableEnableLegsWrapper(self, legId, action):
+        """Disable or enable selected legs.
+
+        Args:
+            legId (list): List of legs ids.
+            action (str): 'd' for disabling, 'e' for enabling selected legs.
+        """
         if action == 'd':
             with self.locker:
                 self.motorDriver.disableLegs(legId)

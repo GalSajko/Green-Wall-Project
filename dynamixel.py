@@ -125,7 +125,7 @@ class MotorDriver:
         """Disable all of the motors in given legs.
 
         Args:
-            legId (list, optional): Ids of legs, which are to be disabled, if value is 5 all legs will be disabled. Defaults to 5.
+            legsIds (list, optional): Ids of legs, which are to be disabled, if value is 5 all legs will be disabled. Defaults to 5.
         """
         if legsIds == 5:
             motorsArray = self.motorsIds.flatten()

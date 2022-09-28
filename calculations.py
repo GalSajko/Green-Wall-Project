@@ -94,9 +94,9 @@ class Kinematics:
         q3 =  -math.acos(np.round((r**2 - L2**2 - L3**2) / (2 * L2 * L3), 4))
         # Angle in second joint.
         alpha = abs(math.atan2(L3 * math.sin(q3), L2 + L3 * math.cos(q3)))
-        gamma = math.atan2(secondJointToEndVector[2], np.linalg.norm(secondJointToEndVector[0:2]))
+        gamma = math.atan2(secondJointToEndVector[2], secondJointToEndVector[0])
         q2 = alpha + gamma
-
+        
         return q1, q2, q3
 
     def platformInverseKinematics(self, legsIds, legsGlobalPositions, goalPose):
@@ -310,28 +310,6 @@ class Dynamics:
     def __init__(self):
         self.spider = env.Spider()
         self.kinematics = Kinematics()
-
-    def getForceOnLegTip(self, legId, jointsValues, currentsInMotors):
-        """Calculate force, applied to leg-tip, from currents in motors.
-
-        Args:
-            legId (int): Leg id.
-            jointsValues (list): 1x3 array of leg's joints values in radians.
-            currentsInMotors (list): Currents in motors in Ampers.
-
-        Returns:
-            list: 3x1 array of forces in x, y and z direction.
-        """
-        currentsInMotors = np.array(currentsInMotors)
-        currentsInMotors[1] *= -1
-        J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsValues)
-        # Parabola fitting constants (derived from least squares method).
-        a = -0.3282
-        b = 2.9326
-        c = -0.1779
-        torques = a + b * currentsInMotors + c * currentsInMotors**2
-        
-        return np.dot(np.linalg.inv(np.transpose(J)), torques)
     
     def getForcesOnLegsTips(self, jointsValues, currentsInMotors, spiderGravityVector):
         """Calculate forces, applied to tips of all legs, from currents in motors.
@@ -347,7 +325,6 @@ class Dynamics:
         currentsInMotors = np.array(currentsInMotors)
         currentsInMotors[:, 1] *= -1
         # Torque(current) parabola fitting constants (derived from least squares method).
-        # a = -0.3282
         a = 0.0
         b = 2.9326
         c = -0.1779
@@ -360,7 +337,7 @@ class Dynamics:
             J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsInLeg)
             forces[legId] = np.dot(np.linalg.inv(np.transpose(J)), torques[legId])
         
-        return forces, torques
+        return forces
     
     def getForceEllipsoidLengthInGivenDirection(self, jointsValues, direction):
         """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.
