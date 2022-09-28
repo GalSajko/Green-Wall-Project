@@ -38,7 +38,7 @@ class VelocityController:
         self.locker = threading.Lock()
         self.killControllerThread = False
 
-        self.Kp = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS) * 20.0
+        self.Kp = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS) * 18.0
         self.Kd = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS) * 0.25
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
 
@@ -46,7 +46,7 @@ class VelocityController:
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         self.fD = np.array([0.0, 0.0, 0.0])
 
-        self.KpForce = 0.05
+        self.KpForce = 0.04
         self.isForceMode = False
         self.forceModeLegId = None
 

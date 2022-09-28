@@ -94,7 +94,8 @@ class Kinematics:
         q3 =  -math.acos(np.round((r**2 - L2**2 - L3**2) / (2 * L2 * L3), 4))
         # Angle in second joint.
         alpha = abs(math.atan2(L3 * math.sin(q3), L2 + L3 * math.cos(q3)))
-        gamma = math.atan2(secondJointToEndVector[2], secondJointToEndVector[0])
+        xy = np.linalg.norm(secondJointToEndVector[0:2]) if endEffectorPosition[0] >= secondJointPosition[0] else -np.linalg.norm(secondJointToEndVector[0:2])
+        gamma = math.atan2(secondJointToEndVector[2], xy)
         q2 = alpha + gamma
         
         return q1, q2, q3
