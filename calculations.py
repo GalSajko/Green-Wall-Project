@@ -78,6 +78,9 @@ class Kinematics:
 
         # Angle in first joint.
         q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
+        # Allow passing from upper workspace of the leg (Xe > 0), to the lower (Xe < 0).
+        if endEffectorPosition[0] < 0.0:
+            q1 = math.atan2(-endEffectorPosition[1], -endEffectorPosition[0])
 
         # Position of second joint in leg-base origin.
         secondJointPosition = np.array([

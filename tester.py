@@ -32,21 +32,14 @@ if __name__ == "__main__":
     time.sleep(3)
 
     controller.startForceMode(0)
+    # controller.moveLegAsync(0, [0.0, 0.0, -0.35], 'l', 3, 'minJerk')
+    # time.sleep(3)
     # while True:
-    #     print(controller.bno055.readGravity())
-    #     time.sleep(0.1)
-    # controller.moveLegAsync(0, [0.0, 0.0, -0.3], 'l', 3, 'minJerk')
-    # while True:
-    #     controller.moveLegAsync(0, [0.3, 0.0, -0.4], 'l', 3, 'minJerk')
-    #     time.sleep(3.5)
-    #     controller.moveLegAsync(0, [0.0, 0.0, -0.3], 'l', 3, 'minJerk')
-    #     time.sleep(3.5)
-    
-      
-
-
-
-
-
-
-
+    #     controller.moveLegAsync(0, [0.05, 0.05, -0.35], 'l', 4, 'minJerk')
+    #     time.sleep(4)
+    #     controller.moveLegAsync(0, [0.0, 0.0, -0.35], 'l', 4, 'minJerk')
+    #     time.sleep(4)
+    #     controller.moveLegAsync(0, [-0.15, 0.05, -0.35], 'l', 4, 'minJerk')
+    #     time.sleep(4)
+    #     controller.moveLegAsync(0, [0.0, 0.0, -0.35], 'l', 4, 'minJerk')
+    #     time.sleep(4)

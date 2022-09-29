@@ -46,7 +46,6 @@ class VelocityController:
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         self.fD = np.array([0.0, 0.0, 0.0])
 
-        self.KpForce = 0.04
         self.isForceMode = False
         self.forceModeLegId = None
 
@@ -88,19 +87,21 @@ class VelocityController:
             if forceMode:
                 spiderGravityVector = self.bno055.readGravity()
 
+                # Read leg's current pose in spider's origin.
+                xSpider = self.kinematics.spiderBaseToLegTipForwardKinematics(forceModeLeg, currentAngles[forceModeLeg])
+                xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
+
                 self.fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
                 # Running average of measured forces.
                 fAMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, self.fA)
-                dXSpider, offsets = self.forcePositionP(self.fD, fAMean)
+                dXSpider, offsets = self.forcePositionP(self.fD, fAMean, xD)
             
-                # Read leg's current pose in spider's origin.
-                xSpider = self.kinematics.spiderBaseToLegTipForwardKinematics(forceModeLeg, currentAngles[forceModeLeg])
                 # Add calculated offset.
                 xSpider[:3][:,3] += offsets[forceModeLeg]
                 # Transform into leg's origin.
                 xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
 
-                # Calculate values in joints space and avoid reaching out of the working space.
+                # Calculate values in joints space and avoid reaching out of the working space. 
                 if np.linalg.norm(xD) >= self.spider.LEG_LENGTH_LIMIT:
                     xSpider[:3][:,3] -= offsets[forceModeLeg]
                     xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
@@ -145,18 +146,20 @@ class VelocityController:
 
         return qCds, lastErrors
 
-    def forcePositionP(self, desiredForces, currentForces):
+    def forcePositionP(self, desiredForces, currentForces, xD):
         """Force-position P controller. Calculate position offsets from desired forces.
 
         Args:
             desiredForces (list): 5x3 array of desired forces in spider's origin.
             currentForces (list): 5x3 array of measured current forces in spider's origin.
+            xD (list): 1x3 array of leg's position in leg's origin.
 
         Returns:
             tuple: 5x3 array of leg-tips velocities and 5x3 array of position offsets of leg-tips, both given in spider's origin.
         """
         fErrors = desiredForces - currentForces
-        dXSpider = fErrors * self.KpForce
+        Kp = self.__calculateKpForce(xD)
+        dXSpider = fErrors * Kp
         offsets = dXSpider * self.period
 
         return dXSpider, offsets
@@ -411,84 +414,12 @@ class VelocityController:
         with self.locker:
             self.isForceMode = False
 
-    def moveGrippersWrapper(self, legsIds, command):
-        """Wrapper function for moving the grippers on selected legs.
-
-        Args:
-            legsIds (list): List of legs ids.
-            command (str): Command to execute on grippers (same for all selected gripepers).
-        """
-        for leg in legsIds:
-            self.gripperController.moveGripper(leg, command)
-        
-    def readLegsPositionsWrapper(self, legsIds, origin = 'l', spiderPose = None, returnAngles = False):
-        """Wrapper function for reading legs positions.
-
-        Args:
-            legsIds (list): List of legs ids.
-            origin (str, optional): Origin in which to read legs positions, 'l' for local, 's' for spider's and 'g' for global. Defaults to 'l'.
-            spiderPose (list, optional): Spider's pose given as xyzr or xyzrpy in global origin. Defaults to None.
-
-        Raises:
-            ValueError: If given origin is global and spider's pose is not given.
-
-        Returns:
-            list: nx3 list of x, y, z positions of legs, where n is number of legs.
-        """
-        if origin == 'g' and spiderPose is None:
-            raise ValueError("Spider pose should be given, if selected origin is global.")
-
-        legsPositions = np.zeros([len(legsIds), 3])
-        currentAngles = np.zeros([len(legsIds), 3])
-        for idx, leg in enumerate(legsIds):
-            with self.locker:
-                currentAngles[idx] = self.qA[leg]
-            if origin == 'l' or origin == 'g': 
-                legsPositions[idx] = self.kinematics.legForwardKinematics(leg, currentAngles[idx])[:3][:,3]
-            elif origin == 's':
-                legsPositions[idx] = self.kinematics.spiderBaseToLegTipForwardKinematics(leg, currentAngles[idx])[:3][:,3]
-        if origin == 'g':
-            globalLegsPositions = self.transformations.getLegsInGlobal(legsIds, legsPositions, spiderPose)
-            return globalLegsPositions
-
-        if returnAngles:
-            return legsPositions, currentAngles
-
-        return legsPositions
-
-    def readSpiderPoseWrapper(self, legsIds, legsGlobalPositions):
-        """Wrapper function for reading spider's pose.
-
-        Args:
-            legsIds (list): List of legs ids, used for reading spider's pose.
-            legsGlobalPositions (list): Global positions of used legs.
-
-        Raises:
-            ValueError: If number of given legs is less than 3.
-            ValueError: If number of used legs and given legs positions is not the same.
-
-        Returns:
-            list: 1x6 list of spider's pose, given as xyzrpy in global origin.
-        """
-        if len(legsIds) < 3:
-            raise ValueError("At least three legs are needed to read spider's pose.")
-
-        with self.locker:
-            currentAngles = self.qA
-        pose = self.transformations.getSpiderPose(legsIds, legsGlobalPositions, currentAngles)
-        return pose
-
-    def disableEnableLegsWrapper(self, legId, action):
-        """Disable or enable selected legs.
-
-        Args:
-            legId (list): List of legs ids.
-            action (str): 'd' for disabling, 'e' for enabling selected legs.
-        """
-        if action == 'd':
-            with self.locker:
-                self.motorDriver.disableLegs(legId)
-        elif action == 'e':
-            with self.locker:
-                self.motorDriver.enableLegs(legId)
+    def __calculateKpForce(self, xD):
+        r = np.linalg.norm(xD[0:2])
+        limit = 0.15
+        minValue = 0.0005
+        maxValue = 0.05
+        if r >= 0.15:
+            return 0.05
+        return ((maxValue - minValue) / limit) * r + minValue
     
