@@ -7,6 +7,7 @@ import os
 import inspect
 import multiprocessing
 import matplotlib.pyplot as plt
+import math
 
 import calculations
 import environment as env
@@ -235,23 +236,11 @@ class VelocityController:
 
         with self.locker:
             currentAngles = self.qA[legId]
+
         legCurrentPosition = self.kinematics.legForwardKinematics(legId, currentAngles)[:,3][:3]
+        localGoalPosition = self.__convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
 
-        if origin == 'l':
-            localGoalPosition = goalPositionOrOffset
-            if isOffset:
-                localGoalPosition += legCurrentPosition
-        elif origin == 'g':
-            if not isOffset:
-                localGoalPosition = self.transformations.getLegInLocal(legId, goalPositionOrOffset, spiderPose)
-            else:
-                localGoalPosition = legCurrentPosition + self.transformations.getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset)
-
-        try:
-            positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
-        except ValueError as ve:
-            print(f'{ve} - {inspect.stack()[0][3]}')
-            return False
+        positionTrajectory, velocityTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
 
         qDs, qDds = self.getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
 
@@ -260,7 +249,7 @@ class VelocityController:
         self.legsQueues[legId].put(self.sentinel)
 
         return True
-    
+            
     def moveLegsSync(self, legsIds, goalPositionsOrOffsets, origin, duration, trajectoryType, spiderPose = None, offset = False):
         """Write reference positions and velocities in any number (within 5) of leg-queues. Legs start to move at the same time. 
         Meant for moving a platform.
@@ -300,26 +289,12 @@ class VelocityController:
         for idx, leg in enumerate(legsIds):
             with self.locker:
                 currentAngles = self.qA[leg]
+                
             # Get current leg position in local.
-            legCurrentPosition = self.kinematics.legForwardKinematics(leg, currentAngles)[:,3][:3]
-
-            if origin == 'l':
-                localGoalPosition = goalPositionsOrOffsets[idx]
-                if offset:
-                    localGoalPosition += legCurrentPosition
-            # If goal position is given in global origin, convert it into local.
-            elif origin == 'g':
-                globalGoalPosition = goalPositionsOrOffsets[idx]
-                if not offset:
-                    localGoalPosition = self.transformations.getLegInLocal(leg, globalGoalPosition, spiderPose)
-                else:
-                    localGoalPosition = legCurrentPosition + self.transformations.getGlobalDirectionInLocal(leg, spiderPose, globalGoalPosition)
+            legCurrentPosition = self.kinematics.legForwardKinematics(leg, currentAngles)[:,3][:3]            
+            localGoalPosition = self.__convertIntoLocalGoalPosition(leg, legCurrentPosition, goalPositionsOrOffsets[idx], origin, spiderPose)
             
-            try:
-                positionTrajectory, velocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
-            except ValueError as ve:
-                print(f'{ve} - {inspect.stack()[0][3]}')
-                return False
+            positionTrajectory, velocityTrajectory = selg.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
             
             qD, qDd = self.getQdQddLegFF(leg, positionTrajectory, velocityTrajectory)
             qDs.append(qD)
@@ -382,11 +357,11 @@ class VelocityController:
 
         Args:
             legId (int): Leg id.
-            xD (list): nx7 array of position (6 values for xyzrpy) trajectory and time stamps (7th value in a row), where n is number of steps on trajectory.
-            xDd (list): nx6 array for xyzrpy values of velocity trajectory, where n is number of steps on trajectory.
+            xD (list): nx7 array of position (6 values for xyzrpy) trajectory and time stamps (7th value in a row), where n is number of steps in trajectory.
+            xDd (list): nx6 array for xyzrpy values of velocity trajectory, where n is number of steps in trajectory.
 
         Returns:
-            tuple: Two nx3 numpy.ndarrays of reference joints positions and velocities, where n is number of steps on trajectory.
+            tuple: Two nx3 numpy.ndarrays of reference joints positions and velocities, where n is number of steps in trajectory.
         """
 
         qDs = np.zeros([len(xD), self.spider.NUMBER_OF_MOTORS_IN_LEG])
@@ -416,10 +391,35 @@ class VelocityController:
 
     def __calculateKpForce(self, xD):
         r = np.linalg.norm(xD[0:2])
-        limit = 0.15
-        minValue = 0.0005
-        maxValue = 0.05
-        if r >= 0.15:
-            return 0.05
-        return ((maxValue - minValue) / limit) * r + minValue
+        limit = 0.1
+        a = 42.8571
+        b = 0.5714
+        c = -0.0357
+        d = 0.005
+        # if r >= limit:
+        #     return 0.05
+        # return a * math.pow(r, 3) + b * math.pow(r, 2) + c * r + d
+        return 0.03
     
+    def __convertIntoLocalGoalPosition(self, legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose):
+        if origin == 'l':
+            localGoalPosition = goalPositionOrOffset
+            if isOffset:
+                localGoalPosition += legCurrentPosition
+            return localGoalPosition
+        if not isOffset:
+            return self.transformations.getLegInLocal(legId, goalPositionOrOffset, spiderPose)
+        return legCurrentPosition + self.transformations.getGlobalDirectionInLocal(legId, spiderPose, goalPositionsOrOffsets)
+    
+    def __getTrajectory(self, legCurrentPosition, legGoalPosition, duration, trajectoryType):
+        # If movement goes over x = 0, add additional point at (0, 0, dz/2).
+        xSigns = [np.sign(legCurrentPosition[0]), np.sign(legGoalPosition[0])]
+
+        if xSigns[0] != xSigns[1] and 0 not in xSigns:
+            interPoint = np.array([0.0, 0.0, (legCurrentPosition[2] + legGoalPosition[2]) / 2.0])
+            firstPositionTrajectory, firstVelocityTrajectory = self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, interPoint, duration / 2, trajectoryType)
+            secondPositionTrajectory, secondVelocityTrajectory = self.trajectoryPlanner.calculateTrajectory(interPoint, legGoalPosition, duration / 2, trajectoryType)
+
+            return np.append(firstPositionTrajectory, secondPositionTrajectory, axis = 0), np.append(firstVelocityTrajectory, secondVelocityTrajectory, axis = 0)
+
+        return self.trajectoryPlanner.calculateTrajectory(legCurrentPosition, legGoalPosition, duration, trajectoryType)

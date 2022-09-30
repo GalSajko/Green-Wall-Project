@@ -461,5 +461,6 @@ class TrajectoryPlanner:
             return self.minJerkTrajectory(start, goal, duration)
         else:
             raise ValueError("Unknown trajectory type!")
+    
         
         
