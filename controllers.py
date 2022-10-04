@@ -108,7 +108,12 @@ class VelocityController:
                     xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
                     dXSpider[forceModeLeg] = np.zeros(3)
                 qD[forceModeLeg] = self.kinematics.legInverseKinematics(forceModeLeg, xD)
-                qDd[forceModeLeg] = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(forceModeLeg, currentAngles[forceModeLeg])), dXSpider[forceModeLeg])
+                # qDd[forceModeLeg] = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(forceModeLeg, currentAngles[forceModeLeg])), dXSpider[forceModeLeg])
+                J = self.kinematics.spiderBaseToLegTipJacobi(forceModeLeg, currentAngles[forceModeLeg])
+                alpha = np.ones_like(J) * 10
+                inverseWithDamping = np.linalg.inv(np.dot(J, np.transpose(J)) + alpha)
+                psevdoInverse = np.dot(np.transpose(J), inverseWithDamping)
+                qDd[forceModeLeg] = np.dot(psevdoInverse, dXSpider[forceModeLeg])
                 with self.locker:
                     self.lastMotorsPositions[forceModeLeg] = currentAngles[forceModeLeg]
 

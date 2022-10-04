@@ -31,17 +31,5 @@ if __name__ == "__main__":
     # initSendingThread()
     time.sleep(3)
 
-    # controller.startForceMode(0)
-    # controller.moveLegAsync(0, [0.0, 0.0, -0.35], 'l', 3, 'minJerk')
-    # time.sleep(3)
-    while True:
-        controller.moveLegAsync(0, [0.15, 0.15, -0.35], 'l', 3, 'minJerk')
-        time.sleep(3.1)
-        # controller.moveLegAsync(0, [0.0, 0.0, -0.35], 'l', 4, 'minJerk')
-        # time.sleep(6)
-        controller.moveLegAsync(0, [-0.15, 0.15, -0.35], 'l', 3, 'minJerk')
-        time.sleep(3.1)
-        print(controller.motorDriver.syncReadMotorsPositionsInLegs([0], True))
-    #     time.sleep(4)
-        # controller.moveLegAsync(0, [0.0, 0.0, -0.35], 'l', 4, 'minJerk')
-        # time.sleep(4)
+    controller.startForceMode(0)
+
