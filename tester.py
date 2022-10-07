@@ -29,7 +29,13 @@ if __name__ == "__main__":
     controller = controllers.VelocityController(True)
     # udpServer = udpServer.UdpServer('192.168.1.32')
     # initSendingThread()
-    time.sleep(3)
+    # time.sleep(3)
 
-    controller.startForceMode(0)
+    # controller.startForceMode(0)
+    # time.sleep(2)
+    while True:
+        controller.moveLegAsync(0, [0.35, 0.0, 0.1], 'l', 3, 'minJerk')
+        time.sleep(3)
+        controller.moveLegAsync(0, [0.35, 0.0, 0.0], 'l', 3, 'minJerk')
+        time.sleep(3)
 

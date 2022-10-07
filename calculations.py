@@ -339,7 +339,9 @@ class Dynamics:
         forces = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         for legId, jointsInLeg in enumerate(jointsValues):
             J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsInLeg)
-            forces[legId] = np.dot(np.linalg.inv(np.transpose(J)), torques[legId])
+            pseudoInv = MathTools().dampedPseudoInverse(J, 0.01)
+            # forces[legId] = np.dot(np.linalg.inv(np.transpose(J)), torques[legId])
+            forces[legId] = np.dot(np.transpose(pseudoInv), torques[legId])
         
         return forces
     

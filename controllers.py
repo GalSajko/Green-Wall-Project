@@ -45,12 +45,13 @@ class VelocityController:
 
         self.qA = []
         self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
-        self.fD = np.array([0.0, 0.0, 0.0])
+        self.fD = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
 
-        self.isForceMode = False
-        self.forceModeLegId = None
+        self.isForceMode = True
+        self.forceModeLegId = 0
 
         self.initControllerThread()
+        time.sleep(1)
 
     def controller(self):
         """Velocity controller to controll all five legs continuously. Runs in separate thread.
@@ -66,6 +67,9 @@ class VelocityController:
         fBuffer = np.zeros([10, 5, 3])
         counter = 0
 
+        timeArray = np.zeros(5000)
+        i = 0
+
         while True:
             if self.killControllerThread:
                 break
@@ -73,7 +77,7 @@ class VelocityController:
             startTime = time.perf_counter()
 
             # Get current data.
-            with self.locker: 
+            with self.locker:
                 currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
                 self.qA = currentAngles
                 forceMode = self.isForceMode
@@ -87,6 +91,7 @@ class VelocityController:
 
             if forceMode:
                 spiderGravityVector = self.bno055.readGravity()
+                # spiderGravityVector = np.array([0.0, -9.81, 0.0])
 
                 # Read leg's current pose in spider's origin.
                 xSpider = self.kinematics.spiderBaseToLegTipForwardKinematics(forceModeLeg, currentAngles[forceModeLeg])
@@ -107,17 +112,15 @@ class VelocityController:
                     xSpider[:3][:,3] -= offsets[forceModeLeg]
                     xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[forceModeLeg]), xSpider)[:3][:,3]
                     dXSpider[forceModeLeg] = np.zeros(3)
-                    
+                   
                 qD[forceModeLeg] = self.kinematics.legInverseKinematics(forceModeLeg, xD)
-                # qDd[forceModeLeg] = np.dot(np.linalg.inv(self.kinematics.spiderBaseToLegTipJacobi(forceModeLeg, currentAngles[forceModeLeg])), dXSpider[forceModeLeg])
 
                 J = self.kinematics.spiderBaseToLegTipJacobi(forceModeLeg, currentAngles[forceModeLeg])
-                alpha = np.ones([3, 3]) * 0.0
+                alpha = np.ones([3, 3]) * 0.01
                 dampedPseudoInverse = self.mathTools.dampedPseudoInverse(J, alpha)
-                torques = self.dynamics.getTorques(currentAngles, currents, spiderGravityVector)
-                forceFactor = (self.fD - np.dot(np.transpose(dampedPseudoInverse), torques[forceModeLeg])) * 0.05
-                qDd[forceModeLeg] = np.dot(dampedPseudoInverse, forceFactor)
-                
+                fError = self.fD[forceModeLeg] - fAMean[forceModeLeg]
+                qDd[forceModeLeg] = np.dot(dampedPseudoInverse, fError * 0.03)
+
                 with self.locker:
                     self.lastMotorsPositions[forceModeLeg] = currentAngles[forceModeLeg]
 
@@ -133,9 +136,20 @@ class VelocityController:
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
 
             elapsedTime = time.perf_counter() - startTime
+
+            timeArray[i] = elapsedTime
+            
+            if i == len(timeArray) - 1:
+                break
+            i += 1
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
+        
+        print(np.mean(timeArray))
+        print(np.max(timeArray))
+        print(np.min(timeArray))
+        print(len(timeArray[timeArray > self.period]))
     
     def positionVelocityPD(self, desiredAngles, currentAngles, ffVelocity, lastErrors):
         """Position-velocity PD controller. Calculate commanded velocities from position input and add feed-forward calculated velocities.
