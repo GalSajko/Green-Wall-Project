@@ -343,8 +343,31 @@ class Dynamics:
         
         return forces
     
+    def getTorques(self, jointsValues, currentsInMotors, spiderGravityVector):
+        """Calculate torques in motors from currents, included torques for gravity compensation.
+
+        Args:
+            jointsValues (list): 5x3 array of angles in joints.
+            currentsInMotors (list): 5x3 array of angles in joints.
+            spiderGravityVector (list): 1x3 gravity vector in spider's origin.
+
+        Returns:
+            numpy.ndarray: 5x3 array of torques in motors.
+        """
+        currentsInMotors = np.array(currentsInMotors)
+        currentsInMotors[:, 1] *= -1
+        # Torque(current) parabola fitting constants (derived from least squares method).
+        a = 0.0
+        b = 2.9326
+        c = -0.1779
+
+        gravityTorques = self.__getGravityCompensationTorques(jointsValues, spiderGravityVector)
+        torques = (a + b * currentsInMotors + c * currentsInMotors**2) - gravityTorques
+
+        return torques      
+    
     def getForceEllipsoidLengthInGivenDirection(self, jointsValues, direction):
-        """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.
+        """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.'
 
         Args:
             legId (int): Leg's id.
@@ -492,6 +515,22 @@ class MathTools:
         average = np.mean(buffer, axis = 0)
 
         return average, buffer, counter
+    
+    def dampedPseudoInverse(cls, J, alpha):
+        """Calculate damped Moore-Penrose pseudo inverse.
+
+        Args:
+            J (list): 3x3 matrix whose pseudo inverse will be calculated.
+            alpha (list): 3x3 damping matrix.
+
+        Returns:
+            numpy.ndarray: 3x3 damped pseudo inverse of J.
+        """
+        Jtrans = np.transpose(J)
+        JJtrans = np.dot(J, Jtrans)
+        dampedFactor = np.linalg.inv(JJtrans + alpha)
+
+        return np.dot(Jtrans, dampedFactor)
 
 class TransformationCalculator:
     """ Class for calculating matrices."""
