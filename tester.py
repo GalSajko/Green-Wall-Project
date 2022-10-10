@@ -2,18 +2,10 @@
 This module is meant as a testing sandbox for other modules, during implementation.
 """
 import controllers
-import calculations
-import environment as env
-import planning
-import simulaton
-import dynamixel
-import periphery
 
 import time
-import random
 import udpServer as udpServer
 import threading
-import numpy as np
 
 def forceSending(frequency):
     while True:
@@ -27,15 +19,9 @@ def initSendingThread():
 
 if __name__ == "__main__":
     controller = controllers.VelocityController(True)
-    # udpServer = udpServer.UdpServer('192.168.1.32')
-    # initSendingThread()
-    # time.sleep(3)
+    # controller.moveLegsSync([0, 1, 2, 3, 4], [[0.35, 0.0, -0.3]] * 5, 'l', 3, 'minJerk')
+    time.sleep(3)
+    
 
-    # controller.startForceMode(0)
-    # time.sleep(2)
-    while True:
-        controller.moveLegAsync(0, [0.35, 0.0, 0.1], 'l', 3, 'minJerk')
-        time.sleep(3)
-        controller.moveLegAsync(0, [0.35, 0.0, 0.0], 'l', 3, 'minJerk')
-        time.sleep(3)
+    controller.startForceMode([0, 1, 2, 3, 4], [[0.0, 0.0, -3.0]] * 5)
 
