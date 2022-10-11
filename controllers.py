@@ -16,7 +16,6 @@ class VelocityController:
     """
     def __init__ (self, isVertical = False):
         self.K_P_FORCE = 0.08
-        self.FORCE_DAMPING = 0.001
 
         self.transformations = calculations.TransformationCalculator()
         self.kinematics = calculations.Kinematics()
@@ -103,7 +102,7 @@ class VelocityController:
                     qD[leg] = self.kinematics.legInverseKinematics(leg, xD)
 
                     J = self.kinematics.spiderBaseToLegTipJacobi(leg, currentAngles[leg])
-                    alpha = np.eye(3) * self.FORCE_DAMPING
+                    alpha = np.eye(3) * config.FORCE_DAMPING
                     Jhash = self.mathTools.dampedPseudoInverse(J, alpha)
                     qDd[leg] = np.dot(Jhash, fErrors[leg] * self.K_P_FORCE)
 
