@@ -130,12 +130,12 @@ class VelocityController:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
         
-        print(np.mean(timeArray))
-        print(np.max(timeArray))
-        print(np.min(timeArray))
-        print(len(timeArray[timeArray > self.period]))
-        plt.plot(timeArray)
-        plt.show()
+        # print(np.mean(timeArray))
+        # print(np.max(timeArray))
+        # print(np.min(timeArray))
+        # print(len(timeArray[timeArray > self.period]))
+        # plt.plot(timeArray)
+        # plt.show()
     
     def endControllerThread(self):
         """Set flag to kill a controller thread.
