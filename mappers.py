@@ -2,7 +2,6 @@
 
 import math
 import numpy as np
-import time
 
 def mapModelAnglesRadiansToMotorsAnglesRadians(modelAngles):
     """Map leg-model angles to motors angles, both in radians. Each leg has three motors, 

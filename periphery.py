@@ -75,42 +75,11 @@ class GripperController:
 
         self.locker = threading.Lock()
 
-        self.initReadingThread()
+        self.__initReadingThread()
 
-        self.handshake()
+        self.__handshake()
 
-    def initReadingThread(self):
-        """Initialize reading data thread.
-        """
-        readingThread = threading.Thread(target = self.readData, name = "gripper_serial_reading_thread", daemon = True)
-        readingThread.start()
-
-    def readData(self):
-        """Constantly receiving data from Arduino. Runs in separate thread.
-        """
-        while True:
-            time.sleep(0.001)
-            with self.locker:
-                msg = self.comm.readline()
-            while not '\\n' in str(msg):
-                time.sleep(0.001)
-                with self.locker:
-                    msg += self.comm.readline()
-
-            self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
-
-    def sendData(self, msg):
-        """Send data to Arduino.
-
-        Args:
-            msg (str): Message to send.
-        """
-        if msg[-1] != '\n':
-            msg += '\n'
-        msg = msg.encode("utf-8")
-        with self.locker:
-            self.comm.write(msg)
-
+    #region public methods
     def moveGripper(self, legId, command):
         """Send command to move a gripper on selected leg.
 
@@ -120,7 +89,7 @@ class GripperController:
         """
         if command in (self.OPEN_COMMAND, self.CLOSE_COMMAND):
             msg = command + str(legId) + "\n"
-            self.sendData(msg)
+            self.__sendData(msg)
 
     def openGrippersAndWait(self, legsIds):
         """Open grippers on given legs and wait for them to come in open state.
@@ -138,9 +107,9 @@ class GripperController:
             with self.locker:
                 recMsg = self.receivedMessage
             if len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
-                for id, leg in enumerate(legsIds):
+                for legId, leg in enumerate(legsIds):
                     if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
-                        checkArray[id] = True
+                        checkArray[legId] = True
         return True
 
     def getSwitchesStates(self):
@@ -169,21 +138,56 @@ class GripperController:
         grippersStates = recMsg[:5]
         switchesStates = recMsg[5:]
         attachedLegsIds = []
-        for id, gripper in enumerate(grippersStates):
-            if gripper == self.GRIPPER_CLOSED_RESPONSE and switchesStates[id] == self.SWITCH_CLOSE_RESPONSE:
-                attachedLegsIds.append(id)
+        for legId, gripper in enumerate(grippersStates):
+            if gripper == self.GRIPPER_CLOSED_RESPONSE and switchesStates[legId] == self.SWITCH_CLOSE_RESPONSE:
+                attachedLegsIds.append(legId)
 
         return attachedLegsIds
+    #endregion
+    
+    #region private methods
+    def __initReadingThread(self):
+        """Initialize reading data thread.
+        """
+        readingThread = threading.Thread(target = self.__readData, name = "gripper_serial_reading_thread", daemon = True)
+        readingThread.start()
 
-    def handshake(self):
+    def __readData(self):
+        """Constantly receiving data from Arduino. Runs in separate thread.
+        """
+        while True:
+            time.sleep(0.001)
+            with self.locker:
+                msg = self.comm.readline()
+            while not '\\n' in str(msg):
+                time.sleep(0.001)
+                with self.locker:
+                    msg += self.comm.readline()
+
+            self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
+
+    def __sendData(self, msg):
+        """Send data to Arduino.
+
+        Args:
+            msg (str): Message to send.
+        """
+        if msg[-1] != '\n':
+            msg += '\n'
+        msg = msg.encode("utf-8")
+        with self.locker:
+            self.comm.write(msg)
+
+    def __handshake(self):
         """Handshake procedure with Arduino.
         """
-        self.sendData(self.INIT_MESSAGE)
+        self.__sendData(self.INIT_MESSAGE)
         time.sleep(0.01)
         while not self.receivedMessage == self.INIT_RESPONSE:
             time.sleep(0.01)
-            self.sendData(self.INIT_MESSAGE)
+            self.__sendData(self.INIT_MESSAGE)
         print("Handshake with grippers Arduino successfull.")
+    #endregion
 
 class WaterPumpController:
     """Class for controlling water pumps via serial communication with Arduino.
@@ -198,18 +202,8 @@ class WaterPumpController:
 
         self.comm = serial.Serial('/dev/ttyUSB_ARDUINO_WATER_PUMP', 115200, timeout = 0)
         self.comm.reset_input_buffer()
-
-    def sendData(self, msg):
-        """Send data to Arduino.
-
-        Args:
-            msg (str): Message to send.
-        """
-        if msg[-1] != '\n':
-            msg += '\n'
-        msg = msg.encode("utf-8")
-        self.comm.write(msg)
     
+    #region public methods
     def pumpControll(self, command, pumpId):
         """Controll water pump - turn it on of off.
 
@@ -219,4 +213,18 @@ class WaterPumpController:
         """
         if command in (self.ON_COMMAND, self.OFF_COMMAND):
             msg = command + str(pumpId) + '\n'
-            self.sendData(msg)
+            self.__sendData(msg)
+    #endregion
+
+    #region private methods
+    def __sendData(self, msg):
+        """Send data to Arduino.
+
+        Args:
+            msg (str): Message to send.
+        """
+        if msg[-1] != '\n':
+            msg += '\n'
+        msg = msg.encode("utf-8")
+        self.comm.write(msg)
+    #endregion

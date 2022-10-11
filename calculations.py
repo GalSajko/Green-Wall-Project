@@ -7,6 +7,7 @@ import itertools as itt
 
 import environment as env
 import config
+from optimization import NumbaWrapper as nw
 
 
 class Kinematics:
@@ -253,7 +254,7 @@ class Kinematics:
             [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), -math.cos(q1 + qb), r * math.sin(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)],
             [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
             [0, 0, 0, 1]
-        ])
+        ], dtype = np.float32)
 
         return Hb3
 
@@ -316,6 +317,7 @@ class Dynamics:
         self.spider = env.Spider()
         self.kinematics = Kinematics()
     
+    #region public methods
     def getForcesOnLegsTips(self, jointsValues, currentsInMotors, spiderGravityVector):
         """Calculate forces, applied to tips of all legs, from currents in motors.
 
@@ -345,30 +347,7 @@ class Dynamics:
         
         return forces
     
-    def getTorques(self, jointsValues, currentsInMotors, spiderGravityVector):
-        """Calculate torques in motors from currents, included torques for gravity compensation.
-
-        Args:
-            jointsValues (list): 5x3 array of angles in joints.
-            currentsInMotors (list): 5x3 array of angles in joints.
-            spiderGravityVector (list): 1x3 gravity vector in spider's origin.
-
-        Returns:
-            numpy.ndarray: 5x3 array of torques in motors.
-        """
-        currentsInMotors = np.array(currentsInMotors)
-        currentsInMotors[:, 1] *= -1
-        # Torque(current) parabola fitting constants (derived from least squares method).
-        a = 0.0
-        b = 2.9326
-        c = -0.1779
-
-        gravityTorques = self.__getGravityCompensationTorques(jointsValues, spiderGravityVector)
-        torques = (a + b * currentsInMotors + c * currentsInMotors**2) - gravityTorques
-
-        return torques      
-    
-    def getForceEllipsoidLengthInGivenDirection(self, jointsValues, direction):
+    def getForceEllipsoidLengthInGivenDirection(self, legId, jointsValues, direction):
         """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.'
 
         Args:
@@ -397,6 +376,23 @@ class Dynamics:
 
         return t
     
+    def calculateGravityVectors(gravityRotationMatrices, spiderGravityVector):
+        """Calculate gravity vectors in segments' origins.
+
+        Args:
+            gravityRotationMatrices (list): 5x3x3 array of five 3x3 rotation matrices.
+            spiderGravityVector (list): 1x3 gravity vector in spider's origin.
+
+        Returns:
+            numpy.ndarray: 3x3 array of three local gravity vectors, given in segments' origins.
+        """
+        localGravityVectors = np.zeros((3, 3), dtype = np.float32)
+        for i in range(3):
+            localGravityVectors[i] = np.dot(np.transpose(gravityRotationMatrices[i]), spiderGravityVector)
+        return localGravityVectors
+    #endregion
+
+    #region private methods
     def __getGravityCompensationTorques(self, jointsValues, spiderGravityVector):
         """Calculate torques in joints (for all legs), required to compensate movement, caused only by gravity.
 
@@ -410,47 +406,26 @@ class Dynamics:
         torques = np.zeros([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG])
         for legId, jointsInLeg in enumerate(jointsValues): 
             qb = legId * self.spider.ANGLE_BETWEEN_LEGS + math.pi / 2.0
-            gravityRotationMatrices = self.__getGravityRotationMatrices(legId, jointsInLeg, qb)
+            gravityRotationMatrices = self.__getGravityRotationMatrices(jointsInLeg, qb)
             forceRotationMatrices = self.__getForceRotationMatrices(jointsInLeg)
 
             # Calculate gravity vectors in segments' origins (from first to last segment).
-            localGravityVectors = np.zeros([3, 3])
-            for i in range(3):
-                localGravityVectors[i] = np.dot(np.transpose(gravityRotationMatrices[i]), spiderGravityVector)
-
-            # Calculate forces and torques (from last to first segment).
-            torquesVectorsInLeg = np.zeros([3, 3])
-            torquesValuesInLeg = np.zeros(3)
-            forces = np.zeros([3, 3])
-            for i in range(3):
-                lc = np.array([1, 0, 0]) * self.spider.VECTORS_TO_COG_SEGMENT[legId][2 - i]
-                l = np.array([1, 0, 0]) * self.spider.LEGS_DIMENSIONS[legId][2 - i]
-                
-                if i != 0:
-                    fgSegment = self.spider.SEGMENTS_MASSES[legId][2 - i] * localGravityVectors[2 - i]
-                    forces[i] = np.dot(forceRotationMatrices[i - 1], forces[i - 1]) - fgSegment
-                    torquesVectorsInLeg[i] = np.dot(forceRotationMatrices[i - 1], torquesVectorsInLeg[i - 1]) + np.cross(fgSegment, lc) - np.cross(np.dot(forceRotationMatrices[i - 1], forces[i - 1]), l)
-                    torquesValuesInLeg[i] = torquesVectorsInLeg[i][2]
-                    continue
-
-                forces[i] = -self.spider.SEGMENTS_MASSES[legId][2 - i] * localGravityVectors[2 - i]
-                torquesVectorsInLeg[i] = (-1) * np.cross(forces[i], lc)
-                torquesValuesInLeg[i] = torquesVectorsInLeg[i][2]
-            # Flip array, so first value in array will correspond with first joint and so on.
-            torques[legId] = np.flip(torquesValuesInLeg)
+            localGravityVectors = nw.calculateGravityVectors(gravityRotationMatrices, spiderGravityVector)
+            legTorques = nw.calculateForcesAndTorques(self.spider.VECTORS_TO_COG_SEGMENT[legId], self.spider.LEGS_DIMENSIONS[legId], self.spider.SEGMENTS_MASSES[legId], forceRotationMatrices, localGravityVectors)
+            torques[legId] = np.flip(legTorques) 
 
         return torques 
-    
-    def __getGravityRotationMatrices(self, legId, jointsValues, qb):
+
+    def __getGravityRotationMatrices(self, jointsValues, qb):
         q1, q2, q3 = jointsValues
-        return [
+        return np.array([
             TransformationCalculator().R_B1(qb, q1),
             TransformationCalculator().R_B2(qb, q1, q2),
-            TransformationCalculator().R_B3(qb, q1, q2, q3)]
+            TransformationCalculator().R_B3(qb, q1, q2, q3)], dtype = np.float32)
     
     def __getForceRotationMatrices(self, jointsValues):
-        return [TransformationCalculator().R_23(jointsValues[2]), TransformationCalculator().R_12(jointsValues[1])]
-
+        return np.array([TransformationCalculator().R_23(jointsValues[2]), TransformationCalculator().R_12(jointsValues[1])], dtype = np.float32)
+    #endregion
 
 class MathTools:
     """Helper class for geometry calculations.

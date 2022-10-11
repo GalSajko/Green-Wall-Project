@@ -17,42 +17,41 @@ class Spider:
         self.BODY_RADIUS = 0.13145
         self.LEGS_IDS = [0, 1, 2, 3, 4]
         # Spiders legs, given as lengths of all three links in one leg.
-        self.LEGS_DIMENSIONS = [[0.064, 0.3, 0.276]] * self.NUMBER_OF_LEGS
+        self.LEGS_DIMENSIONS = np.array([[0.064, 0.3, 0.276]] * self.NUMBER_OF_LEGS, dtype = np.float32)
         self.SEGMENTS_MASSES = np.array([
-            [0.05, 0.495, 0.19],
-            [0.05, 0.565, 0.19],
-            [0.05, 0.565, 0.19],
-            [0.05, 0.495, 0.19],
-            [0.05, 0.565, 0.19]])
+            [0.05, 0.475, 0.16],
+            [0.05, 0.545, 0.16],
+            [0.05, 0.545, 0.16],
+            [0.05, 0.475, 0.16],
+            [0.05, 0.545, 0.16]], dtype = np.float32)
         # Vectors from start of the segment to COG.
-        self.VECTORS_TO_COG_SEGMENT = [
+        self.VECTORS_TO_COG_SEGMENT = np.array([
             [0.032, 0.15, 0.14],
             [0.032, 0.14, 0.14],
             [0.032, 0.14, 0.14],
             [0.032, 0.15, 0.14],
-            [0.032, 0.14, 0.14]
-        ]
+            [0.032, 0.14, 0.14]], dtype = np.float32)
         # Leg limit to avoid singularity.
         self.LEG_LENGTH_LIMIT = 0.6
         # Angles between legs, looking from spiders origin.
         self.ANGLE_BETWEEN_LEGS = np.radians(360.0 / self.NUMBER_OF_LEGS)
         # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.
-        self.LEG_ANCHORS = self.getLegAnchorsInSpiderOrigin()
+        self.LEG_ANCHORS = self.__getLegAnchorsInSpiderOrigin()
         # Unit vectors pointing in radial directions (looking from center of body).
-        self.IDEAL_LEG_VECTORS = self.getIdealLegVectors()
+        self.IDEAL_LEG_VECTORS = self.__getIdealLegVectors()
         # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
         self.CONSTRAINS = [0.25, 0.55, np.radians(40)]
         # Array of transformation matrices for transformations from spider base to anchors in base origin.
-        self.T_ANCHORS = self.getTransformMatricesToAnchors()
+        self.T_ANCHORS = self.__getTransformMatricesToAnchors()
 
-    def getLegAnchorsInSpiderOrigin(self):
+    def __getLegAnchorsInSpiderOrigin(self):
         """Calculate positions of legs-anchors in spider's origin.
 
         Returns:
             numpy.ndarray: 5x2 array of x, y positions for each anchor.
         """
         # Angles between anchors and spiders x axis.
-        legAngles = self.getLegAnglesXAxis()
+        legAngles = self.__getLegAnglesXAxis()
         # Positions of leg anchors on spiders platform in spiders origin.
         legAnchors = [[self.BODY_RADIUS * math.cos(angle), self.BODY_RADIUS * math.sin(angle)] for angle in legAngles]
 
@@ -62,13 +61,13 @@ class Spider:
 
         return np.array(legAnchorsReversed)
 
-    def getIdealLegVectors(self):
+    def __getIdealLegVectors(self):
         """Calculate directions of ideal leg vectors in spider's origin. Ideal leg vector has a radial direction, looking from center of a spider's body.
 
         Returns:
             numpy.ndarray: 5x2 array of x, y directions of ideal vectors.
         """
-        legAngles = self.getLegAnglesXAxis()
+        legAngles = self.__getLegAnglesXAxis()
 
         idealLegVectors = [np.array([legAnchor[0] + math.cos(legAngles[idx]), legAnchor[1] + math.sin(legAngles[idx])]) - legAnchor
             for idx, legAnchor in enumerate(self.LEG_ANCHORS)]
@@ -79,7 +78,7 @@ class Spider:
 
         return np.array(idealLegVectorsReversed)
 
-    def getLegAnglesXAxis(self):
+    def __getLegAnglesXAxis(self):
         """Calculate angles between vectors between anchor and spider's origin and spider's x axis.
 
         Returns:
@@ -88,7 +87,7 @@ class Spider:
         legAngles = [np.radians(90) - leg * self.ANGLE_BETWEEN_LEGS for leg in range(self.NUMBER_OF_LEGS)]
         return np.array(legAngles)
 
-    def getTransformMatricesToAnchors(self):
+    def __getTransformMatricesToAnchors(self):
         """Calculate transformation matrices for transformation from spider's base to anchor.
 
         Returns:
@@ -123,7 +122,24 @@ class Wall:
             raise ValueError("Invalid value of gridPatter parameter!")
         self.gridPattern = gridPattern
 
-    def createRhombusGrid(self, threeDim):
+    #region public methods
+    def createGrid(self, threeDim = False):
+        """Wrapper function for calculating pins positions on the wall. Desired shape of grid is given at class initialization.
+
+        Args:
+            threeDim (bool, optional): If True, calculate pins positions in 3d space, otherwise in 2d space. Defaults to False.
+
+        Returns:
+            numpy.ndarray: nx3 or nx2 array of pins positions, where n is number of pins and second number depends on wheter positions are calculated in 3d or 2d space.
+        """
+        if self.gridPattern == 'squared':
+            return self.__createSquaredGrid(threeDim)
+
+        return self.__createRhombusGrid(threeDim)
+    #endregion
+
+    #region private methods
+    def __createRhombusGrid(self, threeDim):
         """Calculate pins positions. Pins are placed in rhombus pattern.
 
         Args:
@@ -164,7 +180,7 @@ class Wall:
 
         return np.array(pins)
 
-    def createSquaredGrid(self, threeDim):
+    def __createSquaredGrid(self, threeDim):
         """Calculate pins positions. Pins are placed in squared pattern.
 
         Args:
@@ -188,17 +204,4 @@ class Wall:
                     pins.append([x, y, self.PIN_HEIGHT])
 
         return np.array(pins)
-
-    def createGrid(self, threeDim = False):
-        """Wrapper function for calculating pins positions on the wall. Desired shape of grid is given at class initialization.
-
-        Args:
-            threeDim (bool, optional): If True, calculate pins positions in 3d space, otherwise in 2d space. Defaults to False.
-
-        Returns:
-            numpy.ndarray: nx3 or nx2 array of pins positions, where n is number of pins and second number depends on wheter positions are calculated in 3d or 2d space.
-        """
-        if self.gridPattern == 'squared':
-            return self.createSquaredGrid(threeDim)
-
-        return self.createRhombusGrid(threeDim)
+    #endregion

@@ -20,8 +20,23 @@ def initSendingThread():
 if __name__ == "__main__":
     controller = controllers.VelocityController(True)
     # controller.moveLegsSync([0, 1, 2, 3, 4], [[0.35, 0.0, -0.3]] * 5, 'l', 3, 'minJerk')
-    time.sleep(3)
     
+    controller.startForceMode([2], [[0.0, 0.0, 0.0]]*1)
+    while True:
+        controller.moveLegAsync(0, [0.35, 0.0, 0.3], 'l', 2, 'minJerk')
+        time.sleep(0.5)
+        controller.moveLegAsync(1, [0.35, 0.0, 0.3], 'l', 2, 'minJerk')
+        time.sleep(0.5)
+        controller.moveLegAsync(3, [0.35, 0.0, 0.3], 'l', 2, 'minJerk')
+        time.sleep(0.5)
+        controller.moveLegAsync(4, [0.35, 0.0, 0.3], 'l', 2, 'minJerk')
+        time.sleep(0.5)
 
-    controller.startForceMode([0, 1, 2, 3, 4], [[0.0, 0.0, -3.0]] * 5)
-
+        controller.moveLegAsync(0, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
+        time.sleep(0.5)
+        controller.moveLegAsync(1, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
+        time.sleep(0.5)
+        controller.moveLegAsync(3, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
+        time.sleep(0.5)
+        controller.moveLegAsync(4, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
+        time.sleep(0.5)

@@ -1,6 +1,4 @@
 """ Module for simulating Green Wall environment and Spiders movement. """
-
-from multiprocessing.sharedctypes import Value
 import matplotlib.pyplot as plt
 import numpy as np
 
