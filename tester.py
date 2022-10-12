@@ -2,41 +2,40 @@
 This module is meant as a testing sandbox for other modules, during implementation.
 """
 import controllers
+import numbafunctions as nf
+from calculations import Dynamics
+import environment as env
 
 import time
-import udpServer as udpServer
-import threading
-
-def forceSending(frequency):
-    while True:
-        udpServer.send(controller.fA)
-        time.sleep(1.0 / frequency)
-
-def initSendingThread():
-    udpSendingThread = threading.Thread(target = forceSending, args = (20, ), name = 'udp_sending_thread', daemon = False)
-    udpSendingThread.start()
-    print("UDP thread is running.")
+import numpy as np
 
 if __name__ == "__main__":
-    controller = controllers.VelocityController(True)
-    # controller.moveLegsSync([0, 1, 2, 3, 4], [[0.35, 0.0, -0.3]] * 5, 'l', 3, 'minJerk')
-    
-    controller.startForceMode([2], [[0.0, 0.0, 0.0]]*1)
-    while True:
-        controller.moveLegAsync(0, [0.35, 0.0, 0.3], 'l', 2, 'minJerk')
-        time.sleep(0.5)
-        controller.moveLegAsync(1, [0.35, 0.0, 0.3], 'l', 2, 'minJerk')
-        time.sleep(0.5)
-        controller.moveLegAsync(3, [0.35, 0.0, 0.3], 'l', 2, 'minJerk')
-        time.sleep(0.5)
-        controller.moveLegAsync(4, [0.35, 0.0, 0.3], 'l', 2, 'minJerk')
-        time.sleep(0.5)
+    nf.initNumbaFunctions()
 
-        controller.moveLegAsync(0, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        time.sleep(0.5)
-        controller.moveLegAsync(1, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        time.sleep(0.5)
-        controller.moveLegAsync(3, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        time.sleep(0.5)
-        controller.moveLegAsync(4, [0.35, 0.0, 0.0], 'l', 2, 'minJerk')
-        time.sleep(0.5)
+    wall = env.Wall('squared')
+    pins = wall.createGrid(True)
+    startPins = [pins[22], pins[9], pins[7], pins[31], pins[33]]
+    controller = controllers.VelocityController(True)
+
+    
+    controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', [0.6, 0.5, 0.3, 0.0])
+    time.sleep(5)
+    _ = input("PRESS ENTER TO START FORCE CONTROLL")
+    
+    while True:
+        print("FORCE MODE")
+        st = time.perf_counter()
+        while True:
+            fgSum, fDist = Dynamics().distributeForces([0, 1, 2, 3, 4], controller.fAMean)
+            controller.startForceMode([0, 1, 2, 3, 4], fDist)
+            time.sleep(0.2)
+            et = time.perf_counter() - st
+            if et > 15:
+                break
+        print("POSITION MODE")
+        controller.stopForceMode()
+        time.sleep(15)
+
+
+    
+    

@@ -9,14 +9,14 @@ import environment as env
 import dynamixel as dmx
 import planning
 import config
-from optimization import NumbaWrapper as nw
+import numbafunctions as nf
 
 class VelocityController:
     """ Class for velocity-control of spider's movement. All legs are controlled with same controller, but can be moved separately and independently
     from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop controller takes first values from all of the legs-queues.
     """
     def __init__ (self, isVertical = False):
-        self.K_P_FORCE = 0.12
+        self.K_P_FORCE = 0.05
 
         self.transformations = calculations.TransformationCalculator()
         self.kinematics = calculations.Kinematics()
@@ -40,7 +40,7 @@ class VelocityController:
         self.Kd = np.array([[1.0, 1.0, 1.0]] * self.spider.NUMBER_OF_LEGS) * 0.1
 
         self.qA = []
-        self.fA = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        self.fAMean = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
         self.fD = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
 
         self.isForceMode = False
@@ -62,8 +62,8 @@ class VelocityController:
         fBuffer = np.zeros([10, 5, 3])
         counter = 0
 
-        timeArray = np.zeros(5000)
-        i = 0
+        # timeArray = np.zeros(5000)
+        # i = 0
 
         while True:
             if self.killControllerThread:
@@ -84,13 +84,13 @@ class VelocityController:
 
             qD, qDd = self.__getQdQddFromQueues()
 
+            spiderGravityVector = np.array([0.0, -9.81, 0.0], dtype = np.float32)
+            fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
+            self.fAMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, fA)
             if forceMode:
                 # spiderGravityVector = self.bno055.readGravity()
-                spiderGravityVector = np.array([0.0, 0.0, -9.81], dtype = np.float32)
-                self.fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
-                fAMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, self.fA)
-                offsets = self.__forcePositionP(self.fD, fAMean)
-                fErrors = self.fD - fAMean
+                offsets = self.__forcePositionP(self.fD, self.fAMean)
+                fErrors = self.fD - self.fAMean
 
                 for leg in forceModeLegs:
                     # Read leg's current pose in spider's origin.
@@ -122,21 +122,21 @@ class VelocityController:
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
 
             elapsedTime = time.perf_counter() - startTime
-            timeArray[i] = elapsedTime
-            i += 1
-            if i == len(timeArray):
-                break
+            # timeArray[i] = elapsedTime
+            # i += 1
+            # if i == len(timeArray):
+            #     break
 
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
         
-        print(np.mean(timeArray[1000:]))
-        print(np.max(timeArray[1000:]))
-        print(np.min(timeArray[1000:]))
-        print(len(timeArray[1000:][timeArray[1000:] > self.period]))
-        plt.plot(timeArray)
-        plt.show()
+        # print(np.mean(timeArray))
+        # print(np.max(timeArray))
+        # print(np.min(timeArray))
+        # print(len(timeArray[timeArray > self.period]))
+        # plt.plot(timeArray)
+        # plt.show()
 
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -288,8 +288,8 @@ class VelocityController:
         """Start force controller inside main velocity controller loop.
 
         Args:
-            legId (int): Id of leg, which is to be force-controlled.
-            desiredForce (list): 1x3 vector of x, y, z values of force, given in spider's origin.
+            legId (list): Ids of leg, which is to be force-controlled.
+            desiredForce (list): nx3 vector of x, y, z values of force, given in spider's origin, where n is number of used legs.
         """
         with self.locker:
             self.isForceMode = True

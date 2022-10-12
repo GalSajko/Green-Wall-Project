@@ -7,7 +7,7 @@ import itertools
 import environment
 import calculations
 import config
-from optimization import NumbaWrapper as nw
+import numbafunctions as nf
 
 
 class PathPlanner:
@@ -279,10 +279,11 @@ class TrajectoryPlanner:
             Position and velocity trajectory if trajectory calculation was succesfull.
         """
         if trajectoryType == 'bezier':
-            return self.__bezierTrajectory(start, goal, duration)
+            # return self.__bezierTrajectory(start, goal, duration)
+            return nf.bezierTrajectory(start, goal, duration)
         elif trajectoryType == 'minJerk':
             # return self.__minJerkTrajectory(start, goal, duration)
-            return nw.minJerkTrajectory(start, goal, duration)
+            return nf.minJerkTrajectory(start, goal, duration)
         else:
             raise ValueError("Unknown trajectory type!")
     #endregion

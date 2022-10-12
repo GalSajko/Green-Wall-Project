@@ -7,7 +7,7 @@ import itertools as itt
 
 import environment as env
 import config
-from optimization import NumbaWrapper as nw
+import numbafunctions as nf
 
 
 class Kinematics:
@@ -320,12 +320,10 @@ class Dynamics:
     #region public methods
     def getForcesOnLegsTips(self, jointsValues, currentsInMotors, spiderGravityVector):
         """Calculate forces, applied to tips of all legs, from currents in motors.
-
         Args:
             jointsValues (list): 5x3 array of angles in joints.
             currentsInMotors (list): 5x3 array of currents in motors.
             spiderGravityVector(list): 1x3 gravity vector in spider's origin.
-
         Returns:
             numpy.ndarray: 5x3 array of forces, applied to leg tips in x, y, z direction of spider's origin.
         """
@@ -346,7 +344,7 @@ class Dynamics:
             forces[legId] = np.dot(np.transpose(pseudoInv), torques[legId])
         
         return forces
-    
+        
     def getForceEllipsoidLengthInGivenDirection(self, legId, jointsValues, direction):
         """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.'
 
@@ -376,20 +374,14 @@ class Dynamics:
 
         return t
     
-    def calculateGravityVectors(gravityRotationMatrices, spiderGravityVector):
-        """Calculate gravity vectors in segments' origins.
-
-        Args:
-            gravityRotationMatrices (list): 5x3x3 array of five 3x3 rotation matrices.
-            spiderGravityVector (list): 1x3 gravity vector in spider's origin.
-
-        Returns:
-            numpy.ndarray: 3x3 array of three local gravity vectors, given in segments' origins.
-        """
-        localGravityVectors = np.zeros((3, 3), dtype = np.float32)
-        for i in range(3):
-            localGravityVectors[i] = np.dot(np.transpose(gravityRotationMatrices[i]), spiderGravityVector)
-        return localGravityVectors
+    def distributeForces(self, legs, fA):
+        # Sum of forces in gravity direction.
+         fgSum = np.sum(fA[:,1])
+         fgDist = fgSum / len(legs)
+         fDist = np.copy(fA)
+         fDist[:,1] = np.ones(len(fA)) * fgDist
+        #  print(fA)
+         return fgSum, fDist
     #endregion
 
     #region private methods
@@ -410,8 +402,8 @@ class Dynamics:
             forceRotationMatrices = self.__getForceRotationMatrices(jointsInLeg)
 
             # Calculate gravity vectors in segments' origins (from first to last segment).
-            localGravityVectors = nw.calculateGravityVectors(gravityRotationMatrices, spiderGravityVector)
-            legTorques = nw.calculateForcesAndTorques(self.spider.VECTORS_TO_COG_SEGMENT[legId], self.spider.LEGS_DIMENSIONS[legId], self.spider.SEGMENTS_MASSES[legId], forceRotationMatrices, localGravityVectors)
+            localGravityVectors = nf.calculateGravityVectors(gravityRotationMatrices, spiderGravityVector)
+            legTorques = nf.calculateForcesAndTorques(self.spider.VECTORS_TO_COG_SEGMENT[legId], self.spider.LEGS_DIMENSIONS[legId], self.spider.SEGMENTS_MASSES[legId], forceRotationMatrices, localGravityVectors)
             torques[legId] = np.flip(legTorques) 
 
         return torques 
