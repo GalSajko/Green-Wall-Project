@@ -1,6 +1,5 @@
 """Module for all calculations, includes classes for kinematics, geometry and matrix calculations.
 """
-
 import numpy as np
 import math
 import itertools as itt
@@ -324,8 +323,9 @@ class Dynamics:
             jointsValues (list): 5x3 array of angles in joints.
             currentsInMotors (list): 5x3 array of currents in motors.
             spiderGravityVector(list): 1x3 gravity vector in spider's origin.
+
         Returns:
-            numpy.ndarray: 5x3 array of forces, applied to leg tips in x, y, z direction of spider's origin.
+            tuple: 5x3 array of forces, applied to leg tips in x, y, z direction of spider's origin and 5x3x3 array of damped pseudo inverses of jacobian matrices.
         """
         currentsInMotors = np.array(currentsInMotors)
         currentsInMotors[:, 1] *= -1
@@ -337,13 +337,15 @@ class Dynamics:
         gravityTorques = self.__getGravityCompensationTorques(jointsValues, spiderGravityVector)
         torques = (a + b * currentsInMotors + c * currentsInMotors**2) - gravityTorques
 
-        forces = np.zeros([self.spider.NUMBER_OF_LEGS, 3])
+        forces = np.zeros((self.spider.NUMBER_OF_LEGS, 3))
+        dampedPseudoInverses = np.zeros((self.spider.NUMBER_OF_LEGS, 3, 3))
         for legId, jointsInLeg in enumerate(jointsValues):
             J = self.kinematics.spiderBaseToLegTipJacobi(legId, jointsInLeg)
-            pseudoInv = MathTools().dampedPseudoInverse(J, config.FORCE_DAMPING)
-            forces[legId] = np.dot(np.transpose(pseudoInv), torques[legId])
+            Jhash = MathTools().dampedPseudoInverse(J)
+            dampedPseudoInverses[legId] = Jhash
+            forces[legId] = np.dot(np.transpose(Jhash), torques[legId])
         
-        return forces
+        return forces, dampedPseudoInverses
         
     def getForceEllipsoidLengthInGivenDirection(self, legId, jointsValues, direction):
         """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.'
@@ -374,17 +376,68 @@ class Dynamics:
 
         return t
     
-    def distributeForces(self, legs, fA):
-        # Sum of forces in gravity direction.
-         fgSum = np.sum(fA[:,1])
-         fgDist = fgSum / len(legs)
-         fDist = np.copy(fA)
-         fDist[:,1] = np.ones(len(fA)) * fgDist
-        #  print(fA)
-         return fgSum, fDist
+    def distributeForces(self, fA, legToOffload = None, xA = None):
+        if legToOffload is not None and (not (0 <= legToOffload <= 4)):
+            raise ValueError ("Wrong leg ID.")
+        if (legToOffload is not None) and (xA is None):
+            raise ValueError("To offload leg, other legs' positions should be given.")
+
+        # Sum of forces in gravity and z directions.
+        fgSum = np.sum(fA[:,1])
+        fDist = np.copy(fA)
+
+        # Distribute forces between all legs.
+        if legToOffload is None:
+            # TODO: use force-ellipsoids and spider's gravity vector here.
+            fgDist = fgSum / self.spider.NUMBER_OF_LEGS
+            fDist[:,1] = fgDist
+
+            return fDist
+        
+        # Offload selected leg and distribute forces between remaining legs.
+        # TODO: use force-ellipsoids 
+        # usedLegs = np.delete(self.spider.LEGS_IDS, legToOffload).astype(np.int8)
+        # usedLegsPositions = np.array(xA)[usedLegs]
+        fgDist = fgSum / (self.spider.NUMBER_OF_LEGS - 1)
+        # fzSum = np.sum(np.abs(fA[:,2]))
+        # fxSum = np.sum(np.abs(fA[:,0]))
+        # fzDist = self.__distributeZForces(fzSum, usedLegsPositions, usedLegs)
+        # fxDist = self.__distributeXForces(fxSum, usedLegsPositions, usedLegs)
+
+        # fDist[:,0] = fxDist
+        fDist[:,1] = fgDist
+        # fDist[:,2] = fzDist
+        fDist[legToOffload] = np.zeros(3)
+
+        return fDist       
     #endregion
 
     #region private methods
+    def __distributeZForces(self, fSum, xA, legsIds):
+        _, yC = MathTools().centerOfPolygon(xA)
+        allowedError = 0.02
+        positiveLegsIds = legsIds[np.where(xA[:,1] > yC + allowedError)]
+        negativeLegsIds = legsIds[np.where(xA[:,1] < yC - allowedError)]
+
+        fzDist = np.zeros(self.spider.NUMBER_OF_LEGS)
+        fzDist[positiveLegsIds] = (fSum * 0.5) / len(positiveLegsIds)
+        fzDist[negativeLegsIds] = ((fSum * 0.5) / len(negativeLegsIds)) * (-1)
+
+        return fzDist
+    
+    def __distributeXForces(self, fSum, xA, legsIds):
+        xC, _ = MathTools().centerOfPolygon(xA)
+        allowedError = 0.02
+        positiveLegsIds = legsIds[np.where(xA[:,0] > xC + allowedError)]
+        negativeLegsIds = legsIds[np.where(xA[:,0] < xC - allowedError)]
+
+        fxDist = np.zeros(self.spider.NUMBER_OF_LEGS)
+        fxDist[positiveLegsIds] = (fSum * 0.5) / len(positiveLegsIds)
+        fxDist[negativeLegsIds] = ((fSum * 0.5) / len(negativeLegsIds)) * (-1)
+
+        return fxDist
+
+
     def __getGravityCompensationTorques(self, jointsValues, spiderGravityVector):
         """Calculate torques in joints (for all legs), required to compensate movement, caused only by gravity.
 
@@ -485,21 +538,32 @@ class MathTools:
 
         return average, buffer, counter
     
-    def dampedPseudoInverse(cls, J, alpha):
+    def dampedPseudoInverse(cls, J):
         """Calculate damped Moore-Penrose pseudo inverse.
 
         Args:
             J (list): 3x3 matrix whose pseudo inverse will be calculated.
-            alpha (list): 3x3 damping matrix.
 
         Returns:
             numpy.ndarray: 3x3 damped pseudo inverse of J.
         """
         Jtrans = np.transpose(J)
         JJtrans = np.dot(J, Jtrans)
+        alpha = np.eye(3) * config.FORCE_DAMPING
         dampedFactor = np.linalg.inv(JJtrans + alpha)
 
         return np.dot(Jtrans, dampedFactor)
+    
+    def centerOfPolygon(cls, vertices):
+        """Calculate x and y of geometric center of polygon from given vertices.
+
+        Args:
+            points (list): nx3 array of vertices.
+
+        Returns:
+            numpy.ndarray: 1x2 array of x and y coordinate of polygon's geometric center.
+        """
+        return np.array([np.mean(vertices[:,0]), np.mean(vertices[:,1])])
 
 class TransformationCalculator:
     """ Class for calculating matrices."""

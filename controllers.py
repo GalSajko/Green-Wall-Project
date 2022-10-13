@@ -62,9 +62,6 @@ class VelocityController:
         fBuffer = np.zeros([10, 5, 3])
         counter = 0
 
-        # timeArray = np.zeros(5000)
-        # i = 0
-
         while True:
             if self.killControllerThread:
                 break
@@ -85,7 +82,7 @@ class VelocityController:
             qD, qDd = self.__getQdQddFromQueues()
 
             spiderGravityVector = np.array([0.0, -9.81, 0.0], dtype = np.float32)
-            fA = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
+            fA, Jhash = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
             self.fAMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, fA)
             if forceMode:
                 # spiderGravityVector = self.bno055.readGravity()
@@ -99,13 +96,9 @@ class VelocityController:
                     xSpider[:3][:,3] += offsets[leg]
                     # Transform into leg's origin.
                     xD = np.dot(np.linalg.inv(self.spider.T_ANCHORS[leg]), xSpider)[:3][:,3]
-        
-                    J = self.kinematics.spiderBaseToLegTipJacobi(leg, currentAngles[leg])
-                    alpha = np.eye(3) * config.FORCE_DAMPING
-                    Jhash = self.mathTools.dampedPseudoInverse(J, alpha)
 
                     qD[leg] = self.kinematics.legInverseKinematics(leg, xD)
-                    qDd[leg] = np.dot(Jhash, fErrors[leg] * self.K_P_FORCE)
+                    qDd[leg] = np.dot(Jhash[leg], fErrors[leg] * self.K_P_FORCE)
 
                     with self.locker:
                         self.lastMotorsPositions[leg] = currentAngles[leg]
@@ -122,21 +115,9 @@ class VelocityController:
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(self.spider.LEGS_IDS, qCds)
 
             elapsedTime = time.perf_counter() - startTime
-            # timeArray[i] = elapsedTime
-            # i += 1
-            # if i == len(timeArray):
-            #     break
-
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
-        
-        # print(np.mean(timeArray))
-        # print(np.max(timeArray))
-        # print(np.min(timeArray))
-        # print(len(timeArray[timeArray > self.period]))
-        # plt.plot(timeArray)
-        # plt.show()
 
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -284,17 +265,19 @@ class VelocityController:
     #     # Close gripper.
     #     self.gripperController.moveGripper(legId, self.gripperController.CLOSE_COMMAND)
 
-    def startForceMode(self, legId, desiredForce):
+    def startForceMode(self, legsIds, desiredForces):
         """Start force controller inside main velocity controller loop.
 
         Args:
-            legId (list): Ids of leg, which is to be force-controlled.
+            legsIds (list): Ids of leg, which is to be force-controlled.
             desiredForce (list): nx3 vector of x, y, z values of force, given in spider's origin, where n is number of used legs.
         """
+        if len(legsIds) != len(desiredForces):
+            raise ValueError("Number of legs used in force controll does not match with number of given desired forces vectors.")
         with self.locker:
             self.isForceMode = True
-            self.forceModeLegsIds = legId
-            self.fD[legId] = desiredForce
+            self.forceModeLegsIds = legsIds
+            self.fD[legsIds] = desiredForces
     
     def stopForceMode(self):
         """Stop force controller inside main velocity controller loop.

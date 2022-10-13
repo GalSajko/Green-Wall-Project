@@ -15,7 +15,7 @@ class Spider:
         self.NUMBER_OF_MOTORS_IN_LEG = 3
         # Radius of spiders platform, in meters.
         self.BODY_RADIUS = 0.13145
-        self.LEGS_IDS = [0, 1, 2, 3, 4]
+        self.LEGS_IDS = np.array([0, 1, 2, 3, 4], dtype = np.int8)
         # Spiders legs, given as lengths of all three links in one leg.
         self.LEGS_DIMENSIONS = np.array([[0.064, 0.3, 0.276]] * self.NUMBER_OF_LEGS, dtype = np.float32)
         self.SEGMENTS_MASSES = np.array([
