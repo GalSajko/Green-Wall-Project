@@ -82,7 +82,7 @@ class VelocityController:
             qD, qDd = self.__getQdQddFromQueues()
 
             spiderGravityVector = np.array([0.0, -9.81, 0.0], dtype = np.float32)
-            fA, Jhash = self.dynamics.getForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
+            torques, fA, Jhash = self.dynamics.getTorquesAndForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
             self.fAMean, fBuffer, counter = self.mathTools.runningAverage(fBuffer, counter, fA)
             if forceMode:
                 # spiderGravityVector = self.bno055.readGravity()

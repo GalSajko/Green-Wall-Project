@@ -6,6 +6,7 @@ import config
 def initNumbaFunctions():
     calculateGravityVectors(np.zeros((5, 3, 3), dtype = np.float32), np.zeros(3, dtype = np.float32))
     calculateForcesAndTorques(np.zeros(3, dtype = np.float32), np.zeros(3, dtype = np.float32), np.zeros(3, dtype = np.float32), np.zeros((3, 3, 3), dtype = np.float32), np.zeros((3, 3), dtype = np.float32))
+    createJmMatrix(np.zeros((5, 3), dtype = np.float32))
     minJerkTrajectory(np.zeros(3, dtype = np.float32), np.zeros(3, dtype = np.float32), 1)
     bezierTrajectory(np.zeros(3, dtype = np.float32), np.zeros(3, dtype = np.float32), 1)
 
@@ -59,6 +60,31 @@ def calculateForcesAndTorques(vectorsToCog, legsDimensions, segmentMasses, force
         torquesValuesInLeg[i] = torquesVectorsInLeg[i][2]
     
     return torquesValuesInLeg
+
+@numba.njit
+def createJmMatrix(xA):
+    """Create Jm matrix from antisimetric matrices of position vectors
+
+    Args:
+        xA (list): nx3 array of legs' positions.
+
+    Returns:
+        numpy.ndarray: 3x(3xn) Jm matrix, where n is number of used legs.
+    """
+    xA = np.array(xA, dtype = np.float32)
+    for i in range(len(xA)):
+        posVector = xA[i]
+        antisimMatrix = np.array([
+            [0, -posVector[2], posVector[1]],
+            [posVector[2], 0, -posVector[0]],
+            [-posVector[1], posVector[0], 0]
+        ], dtype = np.float32)
+        if i == 0:
+            Jm = antisimMatrix
+            continue
+        Jm = np.c_[Jm, antisimMatrix]
+
+    return Jm
     
 @numba.njit
 def minJerkTrajectory(startPose, goalPose, duration):

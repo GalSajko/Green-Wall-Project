@@ -317,7 +317,7 @@ class Dynamics:
         self.kinematics = Kinematics()
     
     #region public methods
-    def getForcesOnLegsTips(self, jointsValues, currentsInMotors, spiderGravityVector):
+    def getTorquesAndForcesOnLegsTips(self, jointsValues, currentsInMotors, spiderGravityVector):
         """Calculate forces, applied to tips of all legs, from currents in motors.
         Args:
             jointsValues (list): 5x3 array of angles in joints.
@@ -327,15 +327,7 @@ class Dynamics:
         Returns:
             tuple: 5x3 array of forces, applied to leg tips in x, y, z direction of spider's origin and 5x3x3 array of damped pseudo inverses of jacobian matrices.
         """
-        currentsInMotors = np.array(currentsInMotors)
-        currentsInMotors[:, 1] *= -1
-        # Torque(current) parabola fitting constants (derived from least squares method).
-        a = 0.0
-        b = 2.9326
-        c = -0.1779
-
-        gravityTorques = self.__getGravityCompensationTorques(jointsValues, spiderGravityVector)
-        torques = (a + b * currentsInMotors + c * currentsInMotors**2) - gravityTorques
+        torques = self.__getTorquesInLegs(jointsValues, currentsInMotors, spiderGravityVector)
 
         forces = np.zeros((self.spider.NUMBER_OF_LEGS, 3))
         dampedPseudoInverses = np.zeros((self.spider.NUMBER_OF_LEGS, 3, 3))
@@ -409,7 +401,18 @@ class Dynamics:
         # fDist[:,2] = fzDist
         fDist[legToOffload] = np.zeros(3)
 
-        return fDist       
+        return fDist   
+
+    def distributeForces(self, fA, xA, legToOffload = None):
+        genForceVector = fA.flatten()
+        Jf = np.array([np.eye(3)] * len(fA))
+        Jm = nf.createJmMatrix(np.array(xA, dtype = np.float32))
+        Jfm = np.r_[Jf, Jm]
+        
+
+
+        
+
     #endregion
 
     #region private methods
@@ -437,6 +440,27 @@ class Dynamics:
 
         return fxDist
 
+    def __getTorquesInLegs(self, jointsValues, currentsInMotors, spiderGravityVector):
+        """Calculate torques in leg-joints from measured currents. 
+
+        Args:
+            jointsValues (list): 5x3 array of angles in joints.
+            currentsInMotors (list): 5x3 array of currents in motors.
+            spiderGravityVector (list): 3x1 gravity vector in spider's origin.
+
+        Returns:
+            numpy.ndarray: 5x3 array of torques in motors.
+        """
+        currentsInMotors = np.array(currentsInMotors)
+        currentsInMotors[:,1] *= -1
+        a = 0.0
+        b = 2.9326
+        c = -0.1779
+
+        gravityTorques = self.__getGravityCompensationTorques(jointsValues, spiderGravityVector)
+        torques = (a + b * currentsInMotors + c * currentsInMotors**2) - gravityTorques
+
+        return np.array(torques, dtype = np.float32)
 
     def __getGravityCompensationTorques(self, jointsValues, spiderGravityVector):
         """Calculate torques in joints (for all legs), required to compensate movement, caused only by gravity.
@@ -549,7 +573,7 @@ class MathTools:
         """
         Jtrans = np.transpose(J)
         JJtrans = np.dot(J, Jtrans)
-        alpha = np.eye(3) * config.FORCE_DAMPING
+        alpha = np.eye(len(JJtrans)) * config.FORCE_DAMPING
         dampedFactor = np.linalg.inv(JJtrans + alpha)
 
         return np.dot(Jtrans, dampedFactor)
