@@ -2,13 +2,15 @@
 """
 import numpy as np
 import math
+import itertools
 
-import environment.spider as spider
-import environment.wall as wall
-import calcuations.mathtools as mt
-import calculations.kinematics as kin
-import calculations.transformations as tf
-import calculations.dynamics as dyn
+from ..environment import spider
+from ..environment import wall
+from ..calculations import mathtools as mt
+from ..calculations import transformations as tf
+from ..calculations import kinematics as kin
+from ..calculations import dynamics as dyn
+
 
 MAX_LIN_STEP = 0.05
 MAX_ROT_STEP = 0.2
@@ -228,7 +230,7 @@ def _calculateIdealPinsFromValidCombinations(pinsCombinations, path):
     """
     selectedPins = np.zeros([len(path), spider.NUMBER_OF_LEGS, 3])
     for step, pose in enumerate(path):
-        T_GS = matrixCalculator.xyzRpyToMatrix(pose)
+        T_GS = tf.xyzRpyToMatrix(pose)
         anchorsPoses = [np.dot(T_GS, t) for t in spider.T_ANCHORS]
         gravityVectorInSpider = np.dot(T_GS[:3,:3], np.array([0, -1, 0]))
         zVectorInSpider = np.dot(T_GS[:3,:3], np.array([0, 0, 1]))
@@ -238,8 +240,8 @@ def _calculateIdealPinsFromValidCombinations(pinsCombinations, path):
             for legId, pin in enumerate(pins):
                 anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legId][:,3][:3]))
                 anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[legId][:3,:3]), anchorToPinGlobal)
-                jointsValues = kinematics.legInverseKinematics(legId, anchorToPinLegLocal)
-                rgValue = dynamics.getForceEllipsoidLengthInGivenDirection(legId, jointsValues, [gravityVectorInSpider, zVectorInSpider])
+                jointsValues = kin.legInverseKinematics(legId, anchorToPinLegLocal)
+                rgValue = dyn.getForceEllipsoidLengthInGivenDirection(legId, jointsValues, [gravityVectorInSpider, zVectorInSpider])
                 rgValuesSum += rgValue
             rgValuesSumArray[combIdx] = rgValuesSum
 

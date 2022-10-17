@@ -1,13 +1,13 @@
 """ Wrapper module for controlling Dynamixel motors. Wraps some of the functions from dynamixel_sdk module.
 """
 
-import numpy as np
-from dynamixel_sdk import *
 import threading
 import os
+import numpy as np
+from dynamixel_sdk import *
 
 import mappers
-from environment import Spider
+from environment import spider
 
 class MotorDriver:
     """ Class for controlling Dynamixel motors.
@@ -28,7 +28,7 @@ class MotorDriver:
         self.PRESENT_CURRENT_ADDR = 126
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
-        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB1"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.PRESENT_CURRENT_DATA_LENGTH = 2
         self.GOAL_VELOCITY_DATA_LENGTH = 4
@@ -38,8 +38,6 @@ class MotorDriver:
 
         self.locker = threading.Lock()
         self.readingThreadRunning = False
-
-        self.spider = Spider()
 
         self.motorsIds = np.array(motorsIds)
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
@@ -65,10 +63,10 @@ class MotorDriver:
         _ = self.groupSyncReadCurrent.fastSyncRead()
         _ = self.groupSyncReadPosition.fastSyncRead()
 
-        currents = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
-        positions = np.empty([self.spider.NUMBER_OF_LEGS, self.spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+        currents = np.empty([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+        positions = np.empty([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
 
-        for leg in self.spider.LEGS_IDS:
+        for leg in spider.LEGS_IDS:
             for idx, motorInLeg in enumerate(self.motorsIds[leg]):
                 positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
                 currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
@@ -193,8 +191,8 @@ class MotorDriver:
         if not resultAddParams:
             return False
 
-        for leg in self.spider.LEGS_IDS:
-            initVelocities = np.zeros(self.spider.NUMBER_OF_MOTORS_IN_LEG)
+        for leg in spider.LEGS_IDS:
+            initVelocities = np.zeros(spider.NUMBER_OF_MOTORS_IN_LEG)
             encoderVelocoties = mappers.mapModelVelocitiesToVelocityEncoderValues(initVelocities).astype(int)
             for i, motor in enumerate(self.motorsIds[leg]):
                 initVelocityBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocoties[i]))]

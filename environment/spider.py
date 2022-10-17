@@ -78,7 +78,7 @@ NUMBER_OF_MOTORS_IN_LEG = 3
 BODY_RADIUS = 0.13145
 LEGS_IDS = np.array([0, 1, 2, 3, 4], dtype = np.int8)
 # Spiders legs, given as lengths of all three links in one leg.
-LEGS_DIMENSIONS = np.array([[0.064, 0.3, 0.276]] * NUMBER_OF_LEGS, dtype = np.float32)
+LEGS_DIMENSIONS = np.array([0.064, 0.3, 0.276], dtype = np.float32)
 SEGMENTS_MASSES = np.array([
     [0.05, 0.475, 0.16],
     [0.05, 0.545, 0.16],

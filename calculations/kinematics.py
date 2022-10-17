@@ -2,13 +2,14 @@
 """
 import math
 import numpy as np
+import itertools as itt
 
-import environment.spider as spider
-import transformations as tf
-import mathtools as mathTools
+from environment import spider
+from . import transformations as tf
+from . import mathtools as mathTools
 
 
-def legForwardKinematics(legId, jointsValues):
+def legForwardKinematics(jointsValues):
     """Calculate forward kinematics for spiders leg, using transformation matrices.  
 
     :param jointValues: Joint values in radians.
@@ -22,18 +23,18 @@ def legForwardKinematics(legId, jointsValues):
         numpy.ndarray: 4x4 transformation matrix from base to end effector.
     """
     q1, q2, q3 = jointsValues
-    L1 = spider.LEGS_DIMENSIONS[legId][0]
-    L2 = spider.LEGS_DIMENSIONS[legId][1]
-    L3 = spider.LEGS_DIMENSIONS[legId][2]
+    L1 = spider.LEGS_DIMENSIONS[0]
+    L2 = spider.LEGS_DIMENSIONS[1]
+    L3 = spider.LEGS_DIMENSIONS[2]
 
     return np.array([
         [math.cos(q1) * math.cos(q2 + q3), -math.cos(q1) * math.sin(q2 + q3), math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3))],
         [math.cos(q2 + q3) * math.sin(q1), -math.sin(q1) * math.sin(q2 + q3), -math.cos(q1), (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1)],
         [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
         [0, 0, 0, 1]
-    ])
+    ], dtype = np.float32)
 
-def legBaseToThirdJointForwardKinematics(legId, jointValues):
+def legBaseToThirdJointForwardKinematics(jointValues):
     """Calculate forward kinematics from leg base to third joint.
 
     Args:
@@ -44,17 +45,17 @@ def legBaseToThirdJointForwardKinematics(legId, jointValues):
         numpy.ndarray: 4x4 transformation matrix from leg-base to third joint.
     """
     q1, q2, _ = jointValues
-    L1 = spider.LEGS_DIMENSIONS[legId][0]
-    L2 = spider.LEGS_DIMENSIONS[legId][1]
+    L1 = spider.LEGS_DIMENSIONS[0]
+    L2 = spider.LEGS_DIMENSIONS[1]
 
     return np.array([
         [math.cos(q1) * math.cos(q2), -math.cos(q1) * math.sin(q2), math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2))],
         [math.cos(q2) * math.sin(q1), -math.sin(q1) * math.sin(q2), -math.cos(q1), (L1 + L2 * math.cos(q2)) * math.sin(q1)],
         [math.sin(q2), math.cos(q2), 0, L2 * math.sin(q2)],
         [0, 0, 0, 1]
-    ])
+    ], dtype = np.float32)
 
-def legInverseKinematics(legId, endEffectorPosition):
+def legInverseKinematics(endEffectorPosition):
     """Calculate inverse kinematics for leg, using geometry.
 
     Args:
@@ -66,9 +67,9 @@ def legInverseKinematics(legId, endEffectorPosition):
     """
     endEffectorPosition = np.array(endEffectorPosition)
 
-    L1 = spider.LEGS_DIMENSIONS[legId][0]
-    L2 = spider.LEGS_DIMENSIONS[legId][1]
-    L3 = spider.LEGS_DIMENSIONS[legId][2]
+    L1 = spider.LEGS_DIMENSIONS[0]
+    L2 = spider.LEGS_DIMENSIONS[1]
+    L3 = spider.LEGS_DIMENSIONS[2]
 
     # Angle in first joint.
     q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
@@ -203,7 +204,7 @@ def platformForwardKinematics(legsIds, legsGlobalPositions, legsLocalPoses):
     
     return xyzrpy
 
-def legJacobi(legId, jointValues):
+def legJacobi(jointValues):
     """Calculate Jacobian matrix for given leg.
 
     Args:
@@ -214,15 +215,15 @@ def legJacobi(legId, jointValues):
         numpy.ndarray: 3x3 Jacobian matrix.
     """
     q1, q2, q3 = jointValues
-    L1 = spider.LEGS_DIMENSIONS[legId][0]
-    L2 = spider.LEGS_DIMENSIONS[legId][1]
-    L3 = spider.LEGS_DIMENSIONS[legId][2]
+    L1 = spider.LEGS_DIMENSIONS[0]
+    L2 = spider.LEGS_DIMENSIONS[1]
+    L3 = spider.LEGS_DIMENSIONS[2]
 
     return np.array([
         [-(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1), -math.cos(q1) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1) * math.sin(q2 + q3)],
         [math.cos(q1) * (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)), -math.sin(q1) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.sin(q1) * math.sin(q2 + q3)],
         [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
-        ])
+        ], dtype = np.float32)
 
 def spiderBaseToLegTipForwardKinematics(legId, jointsValues):
     """Calculate forward kinematics from spider base to leg-tip.
@@ -237,18 +238,16 @@ def spiderBaseToLegTipForwardKinematics(legId, jointsValues):
     qb = legId * spider.ANGLE_BETWEEN_LEGS + math.pi / 2
     q1, q2, q3 = jointsValues
     r = spider.BODY_RADIUS
-    L1 = spider.LEGS_DIMENSIONS[legId][0]
-    L2 = spider.LEGS_DIMENSIONS[legId][1]
-    L3 = spider.LEGS_DIMENSIONS[legId][2]
+    L1 = spider.LEGS_DIMENSIONS[0]
+    L2 = spider.LEGS_DIMENSIONS[1]
+    L3 = spider.LEGS_DIMENSIONS[2]
 
-    Hb3 = np.array([
+    return np.array([
         [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), math.sin(q1 + qb), r * math.cos(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb)],
         [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), -math.cos(q1 + qb), r * math.sin(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)],
         [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
         [0, 0, 0, 1]
     ], dtype = np.float32)
-
-    return Hb3
 
 def spiderBaseToLegTipJacobi(legId, jointValues):
     """Calculate Jacobian matrix for spider's origin - leg-tip relation.
@@ -262,15 +261,15 @@ def spiderBaseToLegTipJacobi(legId, jointValues):
     """
     qb = legId * spider.ANGLE_BETWEEN_LEGS + math.pi / 2
     q1, q2, q3 = jointValues
-    L1 = spider.LEGS_DIMENSIONS[legId][0]
-    L2 = spider.LEGS_DIMENSIONS[legId][1]
-    L3 = spider.LEGS_DIMENSIONS[legId][2]
+    L1 = spider.LEGS_DIMENSIONS[0]
+    L2 = spider.LEGS_DIMENSIONS[1]
+    L3 = spider.LEGS_DIMENSIONS[2]
 
     return np.array([
         [-(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb), -math.cos(q1 + qb) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1 + qb) * math.sin(q2 + q3)],
         [(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb), -(L2 * math.sin(q2) + L3 * math.sin(q2 + q3)) * math.sin(q1 + qb), -L3 * math.sin(q2 + q3) * math.sin(q1 + qb)],
         [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
-    ])
+    ], dtype = np.float32)
 
 def getSpiderToLegReferenceVelocities(legsIds, spiderVelocity):
     """Calculate needed legs velocities to match given spider velocity.
@@ -299,4 +298,60 @@ def getSpiderToLegReferenceVelocities(legsIds, spiderVelocity):
         ])
     refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
 
-    return np.array(refereneceLegVelocities)
+    return np.array(refereneceLegVelocities, dtype = np.float32)
+
+def getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalPinsPositions, offset = 0.03):
+    """Calculate approach point in global origin, so that gripper would fit on pin.
+
+    Args:
+        legsIds (list): Ids of used legs.
+        spiderPose (list): Global spider's pose. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
+        globalPinsPositions (list): nx3 array of used pins positions in global origin, where n should be same as number of used legs.
+        offset (float, optional): Distance from pin to the approach point. Defaults to 0.03.
+
+    Raises:
+        ValueError: If lengths of legsIds and globalPinsPositions parameters are not the same.
+
+    Returns:
+        numpy.ndarray: nx3 array of approach positions in global origin, where n is number of used legs.
+    """
+    if len(legsIds) != len(globalPinsPositions):
+        raise ValueError("Invalid values of legsIds or pinsPositions parameters.")
+    
+    approachPointsInGlobal = np.empty([len(legsIds), 3])
+    for idx, leg in enumerate(legsIds):
+        jointsValues = legInverseKinematics(leg, tf.getLegInLocal(leg, globalPinsPositions[idx], spiderPose))
+        T_GA = np.dot(tf.xyzRpyToMatrix(spiderPose), spider.T_ANCHORS[leg])
+        thirdJointLocalPosition = legBaseToThirdJointForwardKinematics(leg, jointsValues)[:,3][:3]
+        thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
+
+        pinToThirdJoint = thirdJointGlobalPosition - globalPinsPositions[idx]
+        pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
+        approachPointsInGlobal[idx] = globalPinsPositions[idx] + pinToThirdJoint
+
+    return approachPointsInGlobal
+
+def getSpiderPose(legsIds, legsGlobalPositions, qA):
+    """Calculate spider's pose in global origin. If more than three legs are given, it calculates spider's pose from each
+    combination of these three legs. Finally pose is determined as mean value of all calculations.
+
+    Args:
+        legsIds (list): Ids of legs to use for calculating spider's pose. Should not use less than three legs.
+        legsGlobalPositions (list): nx3 array of x, y, z positions of used legs in global origin, where n should be the same as length of legsIds.
+
+    Returns:
+        list: 1x6 array of xyzrpy pose.
+    """
+    legsGlobalPositions = np.array(legsGlobalPositions)
+    poses = []
+    for legsSubset in itt.combinations(legsIds, 3):
+        legsSubset = np.array(legsSubset)
+        subsetIdxs = [legsIds.index(leg) for leg in legsSubset]
+        jointsValues = qA[legsSubset]
+        legsPoses = np.zeros([3, 4, 4])
+        for idx, leg in enumerate(legsSubset):
+            legsPoses[idx] = spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx])
+        poses.append(platformForwardKinematics(legsSubset, legsGlobalPositions[(subsetIdxs)], legsPoses))
+    pose = np.mean(np.array(poses), axis = 0)
+
+    return pose
