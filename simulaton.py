@@ -2,19 +2,17 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import environment
-import calculations
+import environment.wall as wall
+import environment.spider as spider
+import calculations.transformations as tf
 
 class Plotter:
     """Class for ploting a 2d representation of a wall and spiders movement.
     """
-    def __init__(self, gridPattern):
-        self.wall = environment.Wall(gridPattern)
-        self.spider = environment.Spider()
-        self.matrixCalculator = calculations.TransformationCalculator()
+    def __init__(self):
         # Figure for plotting.
         self.figure = plt.figure()
-        self.board = plt.axes(xlim = (0, self.wall.WALL_SIZE[0]), ylim = (0, self.wall.WALL_SIZE[1]))
+        self.board = plt.axes(xlim = (0, wall.WALL_SIZE[0]), ylim = (0, wall.WALL_SIZE[1]))
         self.board.set_aspect('equal')
 
     def plotWallGrid(self, plotPins = False):
@@ -23,7 +21,7 @@ class Plotter:
         Args:
             plotPins (bool, optional): Show graph if True. Defaults to False.
         """
-        pins = np.transpose(self.wall.createGrid())
+        pins = np.transpose(wall.createGrid(False))
         self.board.plot(pins[0], pins[1], 'g.')
         if plotPins:
             plt.show()
@@ -57,7 +55,7 @@ class Plotter:
         # Loop through each step on path.
         for idx, pose in enumerate(path):
             # Plot spiders body on each step.
-            spiderBody = plt.Circle((pose[0], pose[1]), self.spider.BODY_RADIUS, color = "blue")
+            spiderBody = plt.Circle((pose[0], pose[1]), spider.BODY_RADIUS, color = "blue")
             self.board.add_patch(spiderBody) 
 
             if allPotentialPins is not None:
@@ -88,13 +86,13 @@ class Plotter:
             legTips = []    
             for i in range(len(legPositions[idx])):
                 if len(pose) > 2:
-                    T_GA = self.matrixCalculator.xyzRpyToMatrix(pose)
-                    anchorPosition = np.dot(T_GA, self.spider.T_ANCHORS[i])[:,3][:3]
+                    T_GA = tf.xyzRpyToMatrix(pose)
+                    anchorPosition = np.dot(T_GA, spider.T_ANCHORS[i])[:,3][:3]
                     xVals = [anchorPosition[0], legPositions[idx][i][0]]
                     yVals = [anchorPosition[1], legPositions[idx][i][1]]
                 else:
-                    xVals = [pose[0] + self.spider.LEG_ANCHORS[i][0], legPositions[idx][i][0]]
-                    yVals = [pose[1] + self.spider.LEG_ANCHORS[i][1], legPositions[idx][i][1]]
+                    xVals = [pose[0] + spider.LEG_ANCHORS[i][0], legPositions[idx][i][0]]
+                    yVals = [pose[1] + spider.LEG_ANCHORS[i][1], legPositions[idx][i][1]]
                 legs.append(self.board.plot(xVals, yVals, 'g')[0])
                 # Mark 1st leg with red tip and 2nd leg with yellow (to check legs orientation)
                 color = "orange"
