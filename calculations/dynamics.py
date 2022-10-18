@@ -5,16 +5,15 @@ import math
 import numba
 
 from environment import spider
-from . import mathtools as mathTools
-from . import transformations as tf
-from . import kinematics as kin
+from calculations import kinematics as kin
+from calculations import mathtools as mathTools
+from calculations import transformations as tf
 
 A_TORQUE_POLYNOM = 0.0
 B_TORQUE_POLYNOM = 2.9326
 C_TORQUE_POLYNOM = -0.1779
 
 #region public methods
-# @numba.njit
 def getTorquesAndForcesOnLegsTips(jointsValues, currentsInMotors, spiderGravityVector):
     """Calculate forces, applied to tips of all legs, from currents in motors.
     Args:
@@ -101,15 +100,30 @@ def getForceEllipsoidLengthInGivenDirection(legId, jointsValues, direction):
 
 #     return fDist   
 
-def distributeForces(measuredTorques, xA, jointsValues):
+def distributeForces(measuredTorques, jointsValues):
+    """Calculated new desired forces from minimized torques.
+
+    Args:
+        measuredTorques (list): 5x3 array of measured torques in joints.
+        jointsValues (list): 5x3 array of angles in joints, in radians.
+
+    Returns:
+        numpy.ndarray: 5x3 array of desired forces, to be applied on leg-tips.
+    """
     measuredTorquesArray = measuredTorques.flatten()
     Jf = _createJfMatrix()
+    xA = np.zeros((5, 3))
+    for leg in spider.LEGS_IDS:
+        xA[leg] = kin.spiderBaseToLegTipForwardKinematics(leg, jointsValues[leg])[:,3][:3]
     Jm = _createJmMatrix(np.array(xA, dtype = np.float32))
     Jfm = np.r_[Jf, Jm]
     JhashTransDiag = _createDiagTransposeJHash(jointsValues)
-    print(JhashTransDiag)
     Jx = np.dot(Jfm, JhashTransDiag)
     W = np.dot(Jx, measuredTorquesArray)
+    # A = np.eye(15)
+    # A[2, 2] = 5
+    # Jx = mathTools.weightedPseudoInverse(Jx, A)
+    # distTorquesArray = np.dot(Jx, W)
     distTorquesArray = np.dot(np.linalg.pinv(Jx), W)
     distForcesArray = np.dot(JhashTransDiag, distTorquesArray)
 
@@ -117,7 +131,6 @@ def distributeForces(measuredTorques, xA, jointsValues):
 #endregion
 
 #region private methods
-# @numba.njit
 def _getTorquesInLegs(jointsValues, currentsInMotors, spiderGravityVector):
     """Calculate torques in leg-joints from measured currents. 
 
@@ -137,7 +150,6 @@ def _getTorquesInLegs(jointsValues, currentsInMotors, spiderGravityVector):
 
     return np.array(torques, dtype = np.float32)
 
-# @numba.njit
 def _getGravityCompensationTorques(jointsValues, spiderGravityVector):
     """Calculate torques in joints (for all legs), required to compensate movement, caused only by gravity.
 
@@ -161,7 +173,7 @@ def _getGravityCompensationTorques(jointsValues, spiderGravityVector):
 
     return torques 
 
-# @numba.njit
+@numba.njit
 def _calculateGravityVectors(gravityRotationMatrices, spiderGravityVector):
     """Calculate gravity vectors in segments' origins.
 
@@ -177,7 +189,7 @@ def _calculateGravityVectors(gravityRotationMatrices, spiderGravityVector):
         localGravityVectors[i] = np.dot(np.transpose(gravityRotationMatrices[i]), spiderGravityVector)
     return localGravityVectors
 
-# @numba.njit
+@numba.njit
 def _calculateForcesAndTorques(legId, forceRotationMatrices, localGravityVectors):
     """Calculate forces on leg-tip and torques in the motors, using Newton-Euler method.
 
@@ -191,10 +203,17 @@ def _calculateForcesAndTorques(legId, forceRotationMatrices, localGravityVectors
     torquesVectorsInLeg = np.zeros((3, 3), dtype = np.float32)
     torquesValuesInLeg = np.zeros(3)
     forces = np.zeros((3, 3), dtype = np.float32)
-    
+    legsDimensions = np.array([0.064, 0.3, 0.276], dtype = np.float32)
+    cogVectors = np.array([
+    [0.032, 0.15, 0.14],
+    [0.032, 0.14, 0.14],
+    [0.032, 0.14, 0.14],
+    [0.032, 0.15, 0.14],
+    [0.032, 0.14, 0.14]], dtype = np.float32)
     for i in range(3):
-        lc = np.array([1, 0, 0], dtype = np.float32) * spider.VECTORS_TO_COG_SEGMENT[legId][2 - i]
-        l = np.array([1, 0, 0], dtype = np.float32) * spider.LEGS_DIMENSIONS[2 - i]
+        # lc = np.array([1, 0, 0], dtype = np.float32) * spider.VECTORS_TO_COG_SEGMENT[legId][2 - i]
+        lc = np.array([1, 0, 0], dtype = np.float32) * cogVectors[legId][2 - i]
+        l = np.array([1, 0, 0], dtype = np.float32) * legsDimensions[2 - i]
 
         if i != 0:
             fgSegment = spider.SEGMENTS_MASSES[legId][2 - i] * localGravityVectors[2 - i]
@@ -241,9 +260,8 @@ def _createJfMatrix():
         Jf = np.c_[Jf, np.eye(3)]
     return Jf
 
-# @numba.njit
 def _createDiagTransposeJHash(jointsValues):
-    """Create diagonal matrix of transposed damped pseudo-inverses of jacobian matrices.
+    """Create diagonal matrix from transposed damped pseudo-inverses of jacobian matrices.
 
     Args:
         jointsValues (list): 5x3 array of angles in joints in radians.
@@ -251,14 +269,13 @@ def _createDiagTransposeJHash(jointsValues):
     Returns:
         numpy.ndarray: (3*n)x(3*n) diagonal matrix of transposed damped-pseudo-inverses of jacobian matrices.
     """
-    diagTransJHash = np.zeros((3 * len(jointsValues), 3 * len(jointsValues)))
+    diagJhashTrans = np.zeros((3 * len(jointsValues), 3 * len(jointsValues)))
     for leg in range(spider.NUMBER_OF_LEGS):
         JhashTrans = np.transpose(mathTools.dampedPseudoInverse(kin.spiderBaseToLegTipJacobi(leg, jointsValues[leg])))
-        diagTransJHash[leg:leg+len(JhashTrans), leg:leg+len(JhashTrans)] = JhashTrans
+        diagJhashTrans[3*leg:3*leg+len(JhashTrans), 3*leg:3*leg+len(JhashTrans)] = JhashTrans
     
-    return diagTransJHash
+    return diagJhashTrans
 
-# @numba.njit
 def _getGravityRotationMatrices(jointsValues, qb):
     q1, q2, q3 = jointsValues
     return np.array([
@@ -266,7 +283,6 @@ def _getGravityRotationMatrices(jointsValues, qb):
         tf.R_B2(qb, q1, q2),
         tf.R_B3(qb, q1, q2, q3)], dtype = np.float32)
 
-# @numba.njit
 def _getForceRotationMatrices(jointsValues):
     return np.array([tf.R_23(jointsValues[2]), tf.R_12(jointsValues[1])], dtype = np.float32)
 #endregion

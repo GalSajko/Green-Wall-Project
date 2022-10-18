@@ -4,11 +4,11 @@ import threading
 import queue
 
 import config
+from environment import spider
+from calculations import mathtools as mathTools
 from calculations import transformations as tf
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
-from calculations import mathtools as mathTools
-from environment import spider
 from planning import trajectoryplanner as trajPlanner
 from periphery import dynamixel as dmx
 
@@ -79,12 +79,12 @@ class VelocityController:
 
             qD, qDd = self.__getQdQddFromQueues()
 
-            spiderGravityVector = np.array([0.0, 0.0, -9.81], dtype = np.float32)
-            self.tauAMean, fA, Jhash = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
+            spiderGravityVector = np.array([0.0, -9.81, 0.0], dtype = np.float32)
+            tauA, fA, Jhash = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
 
             # Filter over measured values.
             self.fAMean, fBuffer, counter = mathTools.runningAverage(fBuffer, counter, fA)
-            # self.tauAMean, tauBuffer, counter = mathTools.runningAverage(tauBuffer, counter, tauA)
+            self.tauAMean, tauBuffer, counter = mathTools.runningAverage(tauBuffer, counter, tauA)
 
             if forceMode:
                 # spiderGravityVector = self.bno055.readGravity()
@@ -266,6 +266,17 @@ class VelocityController:
 
     #     # Close gripper.
     #     self.gripperController.moveGripper(legId, self.gripperController.CLOSE_COMMAND)
+
+    def forceDistribution(self):
+        """Run force distribution process in a loop.
+        """
+        while True:
+            with self.locker:
+                currentTorques = self.tauAMean
+                currentAngles = self.qA
+            fDist = dyn.distributeForces(currentTorques, currentAngles)
+            self.startForceMode(spider.LEGS_IDS, fDist)
+            time.sleep(0.01)
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force controller inside main velocity controller loop.

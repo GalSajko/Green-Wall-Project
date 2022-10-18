@@ -5,8 +5,8 @@ import numpy as np
 import itertools as itt
 
 from environment import spider
-from . import transformations as tf
-from . import mathtools as mathTools
+from calculations import transformations as tf
+from calculations import mathtools as mathTools
 
 
 def legForwardKinematics(jointsValues):

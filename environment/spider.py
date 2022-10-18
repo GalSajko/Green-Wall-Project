@@ -92,6 +92,7 @@ VECTORS_TO_COG_SEGMENT = np.array([
     [0.032, 0.14, 0.14],
     [0.032, 0.15, 0.14],
     [0.032, 0.14, 0.14]], dtype = np.float32)
+TEST = 10
 # Leg limit to avoid singularity.
 LEG_LENGTH_LIMIT = 0.6
 # Angles between legs, looking from spiders origin.

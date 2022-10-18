@@ -84,6 +84,13 @@ def dampedPseudoInverse(J):
 
     return np.dot(Jtrans, dampedFactor)
 
+def weightedPseudoInverse(J, A):
+    Jtrans = np.transpose(J)
+    Ainv = np.linalg.inv(A)
+    Jw = np.dot(np.dot(Ainv, Jtrans), np.linalg.inv(np.dot(J, np.dot(Ainv, Jtrans))))
+    return Jw
+
+
 def centerOfPolygon(vertices):
     """Calculate x and y of geometric center of polygon from given vertices.
 
