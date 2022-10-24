@@ -2,6 +2,7 @@
 """
 import math
 import numpy as np
+import numba
 
 import config
 
@@ -68,7 +69,8 @@ def runningAverage(buffer, counter, newValue):
 
     return average, buffer, counter
 
-def dampedPseudoInverse(J):
+@numba.njit
+def dampedPseudoInverse(J, damping = config.FORCE_DAMPING):
     """Calculate damped Moore-Penrose pseudo inverse.
 
     Args:
@@ -77,17 +79,18 @@ def dampedPseudoInverse(J):
     Returns:
         numpy.ndarray: 3x3 damped pseudo inverse of J.
     """
-    Jtrans = np.transpose(J)
-    JJtrans = np.dot(J, Jtrans)
-    alpha = np.eye(len(JJtrans)) * config.FORCE_DAMPING
-    dampedFactor = np.linalg.inv(JJtrans + alpha)
+    Jtrans = np.transpose(J).astype(np.float32)
+    JJtrans = np.dot(J, Jtrans).astype(np.float32)
+    alpha = np.eye(len(JJtrans), dtype = np.float32) * damping
+    dampedFactor = np.linalg.inv(JJtrans + alpha).astype(np.float32)
 
     return np.dot(Jtrans, dampedFactor)
 
+@numba.njit
 def weightedPseudoInverse(J, A):
-    Jtrans = np.transpose(J)
-    Ainv = np.linalg.inv(A)
-    Jw = np.dot(np.dot(Ainv, Jtrans), np.linalg.inv(np.dot(J, np.dot(Ainv, Jtrans))))
+    Jtrans = np.transpose(J).astype(np.float32)
+    Ainv = np.linalg.inv(A).astype(np.float32)
+    Jw = np.dot(np.dot(Ainv, Jtrans), np.linalg.inv(np.dot(J.astype(np.float32), np.dot(Ainv, Jtrans))))
     return Jw
 
 

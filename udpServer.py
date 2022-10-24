@@ -4,7 +4,7 @@ import numpy as np
 class UdpServer:
 
     def __init__(self, addressToSend):
-        self.LOCAL_IP = '192.168.1.18'
+        self.LOCAL_IP = '192.168.1.8'
         self.LOCAL_PORT = 20000
         self.REMOTE_PORT = 6565
         

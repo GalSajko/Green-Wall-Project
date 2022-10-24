@@ -63,7 +63,7 @@ class VelocityController:
         while True:
             if self.killControllerThread:
                 break
-
+            
             startTime = time.perf_counter()
 
             # Get current data.
@@ -267,15 +267,18 @@ class VelocityController:
     #     # Close gripper.
     #     self.gripperController.moveGripper(legId, self.gripperController.CLOSE_COMMAND)
 
-    def forceDistribution(self):
+    def distributeForces(self, legsIds = spider.LEGS_IDS, offloadLegId = None):
         """Run force distribution process in a loop.
         """
+        doOffload = (len(legsIds) != spider.NUMBER_OF_LEGS) and offloadLegId
         while True:
             with self.locker:
                 currentTorques = self.tauAMean
                 currentAngles = self.qA
-            fDist = dyn.distributeForces(currentTorques, currentAngles)
-            self.startForceMode(spider.LEGS_IDS, fDist)
+            fDist = dyn.calculateDistributedForces(currentTorques, currentAngles, legsIds, offloadLegId)
+            if doOffload:
+                fDist = np.insert(fDist, offloadLegId, np.zeros(3, dtype = np.float32), axis = 0)
+            self.startForceMode(legsIds, fDist)
             time.sleep(0.01)
 
     def startForceMode(self, legsIds, desiredForces):
@@ -283,7 +286,7 @@ class VelocityController:
 
         Args:
             legsIds (list): Ids of leg, which is to be force-controlled.
-            desiredForce (list): nx3 vector of x, y, z values of force, given in spider's origin, where n is number of used legs.
+            desiredForce (list): 5x3 vector of x, y, z values of force, given in spider's origin, where n is number of used legs.
         """
         if len(legsIds) != len(desiredForces):
             raise ValueError("Number of legs used in force controll does not match with number of given desired forces vectors.")

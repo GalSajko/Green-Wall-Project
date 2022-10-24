@@ -3,6 +3,7 @@
 import math
 import numpy as np
 import itertools as itt
+import numba
 
 from environment import spider
 from calculations import transformations as tf
@@ -225,7 +226,8 @@ def legJacobi(jointValues):
         [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
         ], dtype = np.float32)
 
-def spiderBaseToLegTipForwardKinematics(legId, jointsValues):
+@numba.njit
+def spiderBaseToLegTipForwardKinematics(legId, jointsValues, angleBetweenLegs = spider.ANGLE_BETWEEN_LEGS, radius = spider.BODY_RADIUS, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate forward kinematics from spider base to leg-tip.
 
     Args:
@@ -235,21 +237,37 @@ def spiderBaseToLegTipForwardKinematics(legId, jointsValues):
     Returns:
         numpy.ndarray: 4x4 transformation matrix from spider base to leg-tip.
     """
-    qb = legId * spider.ANGLE_BETWEEN_LEGS + math.pi / 2
+    qb = legId * angleBetweenLegs + math.pi / 2
     q1, q2, q3 = jointsValues
-    r = spider.BODY_RADIUS
-    L1 = spider.LEGS_DIMENSIONS[0]
-    L2 = spider.LEGS_DIMENSIONS[1]
-    L3 = spider.LEGS_DIMENSIONS[2]
+    r = radius
+    L1 = legsDimensions[0]
+    L2 = legsDimensions[1]
+    L3 = legsDimensions[2]
 
     return np.array([
         [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), math.sin(q1 + qb), r * math.cos(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb)],
         [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), -math.cos(q1 + qb), r * math.sin(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)],
         [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
-        [0, 0, 0, 1]
+        [0.0, 0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-def spiderBaseToLegTipJacobi(legId, jointValues):
+@numba.njit
+def spiderBaseToLegTipForwardKinematicsMultipleLegs(jointsValues, legs = spider.LEGS_IDS):
+    """Calculate legs' positions in spider's origin, for all five legs.
+
+    Args:
+        jointsValues (list): 5x3 array of joints values in radians.
+
+    Returns:
+        numpy.ndarray: 5x3 array of legs' positions in spider's origin.
+    """
+    xA = np.zeros((len(legs), 3), dtype = np.float32)
+    for idx, leg in enumerate(legs):
+        xA[idx] = spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx])[:,3][:3]
+    return xA
+
+@numba.njit
+def spiderBaseToLegTipJacobi(legId, jointValues, angle = spider.ANGLE_BETWEEN_LEGS, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate Jacobian matrix for spider's origin - leg-tip relation.
 
     Args:
@@ -259,11 +277,11 @@ def spiderBaseToLegTipJacobi(legId, jointValues):
     Returns:
         numpy.ndarray: 3x3 Jacobian matrix.
     """
-    qb = legId * spider.ANGLE_BETWEEN_LEGS + math.pi / 2
+    qb = legId * angle + math.pi / 2
     q1, q2, q3 = jointValues
-    L1 = spider.LEGS_DIMENSIONS[0]
-    L2 = spider.LEGS_DIMENSIONS[1]
-    L3 = spider.LEGS_DIMENSIONS[2]
+    L1 = legsDimensions[0]
+    L2 = legsDimensions[1]
+    L3 = legsDimensions[2]
 
     return np.array([
         [-(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb), -math.cos(q1 + qb) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1 + qb) * math.sin(q2 + q3)],

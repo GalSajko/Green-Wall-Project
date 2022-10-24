@@ -7,11 +7,11 @@ import udpServer as udpServer
 
 import time
 import threading
-
+import numpy as np
 
 def forceSending(frequency):
     while True:
-        udpServer.send(controller.tauAMean)
+        udpServer.send(controller.fAMean)
         time.sleep(1.0 / frequency)
 
 def initSendingThread():
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     pins = wall.createGrid(True)
     startPins = [pins[22], pins[9], pins[7], pins[31], pins[33]]
     controller = controllers.VelocityController(True)
-    udpServer = udpServer.UdpServer('192.168.1.38')
+    udpServer = udpServer.UdpServer('192.168.1.41')
     initSendingThread()
 
     
@@ -32,6 +32,6 @@ if __name__ == "__main__":
     time.sleep(5)
     _ = input("PRESS ENTER TO START FORCE CONTROLL")
 
-    controller.forceDistribution()
+    controller.distributeForces(np.array([0, 1, 2, 3, 4]))
     
     
