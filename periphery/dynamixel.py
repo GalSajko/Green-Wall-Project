@@ -28,7 +28,7 @@ class MotorDriver:
         self.PRESENT_CURRENT_ADDR = 126
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
-        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB1"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.PRESENT_CURRENT_DATA_LENGTH = 2
         self.GOAL_VELOCITY_DATA_LENGTH = 4
@@ -60,20 +60,23 @@ class MotorDriver:
         Returns:
             tuple: Two 5x3 numpy.ndarrays with positions in radians and currents in Ampers in each motor.
         """
-        _ = self.groupSyncReadCurrent.fastSyncRead()
-        _ = self.groupSyncReadPosition.fastSyncRead()
+        try:
+            _ = self.groupSyncReadCurrent.fastSyncRead()
+            _ = self.groupSyncReadPosition.fastSyncRead()
 
-        currents = np.empty([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
-        positions = np.empty([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+            currents = np.empty([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+            positions = np.empty([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
 
-        for leg in spider.LEGS_IDS:
-            for idx, motorInLeg in enumerate(self.motorsIds[leg]):
-                positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
-                currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
-            positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
-            currents[leg] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[leg])
+            for leg in spider.LEGS_IDS:
+                for idx, motorInLeg in enumerate(self.motorsIds[leg]):
+                    positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
+                    currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
+                positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
+                currents[leg] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[leg])
 
-        return positions, currents
+            return positions, currents
+        except KeyError as ke:
+            raise ke
 
     def syncWriteMotorsVelocitiesInLegs(self, legIds, qCd):
         """Write velocities to motors in given legs with sync writer.

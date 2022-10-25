@@ -32,8 +32,8 @@ class VelocityController:
         self.killControllerThread = False
 
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
-        self.Kp = np.array([[1.0, 1.0, 1.0]] * spider.NUMBER_OF_LEGS) * 12.0
-        self.Kd = np.array([[1.0, 1.0, 1.0]] * spider.NUMBER_OF_LEGS) * 0.1
+        self.Kp = np.array([[1.0, 1.0, 1.0]] * spider.NUMBER_OF_LEGS) * 20.0
+        self.Kd = np.array([[1.0, 1.0, 1.0]] * spider.NUMBER_OF_LEGS) * 0.2
 
         self.qA = []
         self.fAMean = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
@@ -68,7 +68,11 @@ class VelocityController:
 
             # Get current data.
             with self.locker:
-                currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                try:
+                    currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                except KeyError:
+                    print("COMM READING ERROR")
+                    continue
                 self.qA = currentAngles
                 forceMode = self.isForceMode
                 forceModeLegs = self.forceModeLegsIds
@@ -151,7 +155,7 @@ class VelocityController:
         with self.locker:
             currentAngles = self.qA[legId]
 
-        legCurrentPosition = kin.legForwardKinematics(legId, currentAngles)[:,3][:3]
+        legCurrentPosition = kin.legForwardKinematics(currentAngles)[:,3][:3]
         localGoalPosition = self.__convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
 
         positionTrajectory, velocityTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
@@ -267,20 +271,6 @@ class VelocityController:
     #     # Close gripper.
     #     self.gripperController.moveGripper(legId, self.gripperController.CLOSE_COMMAND)
 
-    def distributeForces(self, legsIds = spider.LEGS_IDS, offloadLegId = None):
-        """Run force distribution process in a loop.
-        """
-        doOffload = (len(legsIds) != spider.NUMBER_OF_LEGS) and offloadLegId
-        while True:
-            with self.locker:
-                currentTorques = self.tauAMean
-                currentAngles = self.qA
-            fDist = dyn.calculateDistributedForces(currentTorques, currentAngles, legsIds, offloadLegId)
-            if doOffload:
-                fDist = np.insert(fDist, offloadLegId, np.zeros(3, dtype = np.float32), axis = 0)
-            self.startForceMode(legsIds, fDist)
-            time.sleep(0.01)
-
     def startForceMode(self, legsIds, desiredForces):
         """Start force controller inside main velocity controller loop.
 
@@ -305,6 +295,20 @@ class VelocityController:
         """Set flag to kill a controller thread.
         """
         self.killControllerThread = True
+
+    def startForceDistribution(self, legsIds = spider.LEGS_IDS, duration = 3):
+        """Start force-distribution process in separate thread.
+
+        Args:
+            legsIds (list, optional): Ids of legs that will be used in force distribution. Defaults to spider.LEGS_IDS.
+            duration (int, optional): Duration of distribution process. Defaults to 3.
+        """
+        thread = threading.Thread(target = self.__distributeForces, args = (legsIds, duration, ), name = "force_distribution_thread")
+        try:
+            thread.start()
+            print("Force distribution thread is running.")
+        except RuntimeError as re:
+            print(re)
     #endregion
 
     #region private methods
@@ -317,6 +321,35 @@ class VelocityController:
             print("Controller thread is running.")
         except RuntimeError as re:
             print(re)
+    
+    def __distributeForces(self, legsIds, duration, offloadDuration = 3):
+        """Run force distribution process in a loop.
+        """
+        offloadLegId = np.setdiff1d(spider.LEGS_IDS, legsIds)
+        if len(offloadLegId) > 1:
+            print("Cannot offload more than one leg at the same time.")
+            return False
+
+        print("START DISTRIBUTION")
+
+        startTime = time.perf_counter()
+        elapsedTime = 0
+        while elapsedTime < duration:
+            with self.locker:
+                currentTorques = self.tauAMean
+                currentAngles = self.qA
+            fDist = dyn.calculateDistributedForces(currentTorques, currentAngles, legsIds, offloadLegId)
+
+            if len(offloadLegId):
+                fDist = np.insert(fDist, offloadLegId[0], np.zeros(3, dtype = np.float32), axis = 0)
+
+            self.startForceMode(spider.LEGS_IDS, fDist)
+            time.sleep(self.period)
+            elapsedTime = time.perf_counter() - startTime
+        
+        self.stopForceMode()
+
+        print("DISTRIBUTION FINISHED")
     
     def __getQdQddFromQueues(self):
         """Read current qD and qDd from queues for each leg. If leg-queue is empty, keep leg on latest position.

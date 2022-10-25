@@ -9,6 +9,8 @@ from calculations import kinematics as kin
 from calculations import mathtools as mathTools
 from calculations import transformations as tf
 
+print("IMPORTING DYNAMICS")
+
 A_TORQUE_POLYNOM = 0.0
 B_TORQUE_POLYNOM = 2.9326
 C_TORQUE_POLYNOM = -0.1779
@@ -82,10 +84,10 @@ def calculateDistributedForces(measuredTorques, jointsValues, legsIds, offloadLe
     # A[2, 2] = 5
     # Jx = mathTools.weightedPseudoInverse(Jx, A)
     # distTorquesArray = np.dot(Jx, W)
-    if offloadLegId is not None:
-        Jx = np.delete(Jx, range(offloadLegId, offloadLegId + 3), axis = 1)
-        JhashTransDiag = np.delete(JhashTransDiag, range(offloadLegId, offloadLegId + 3), axis = 0)
-        JhashTransDiag = np.delete(JhashTransDiag, range(offloadLegId, offloadLegId + 3), axis = 1)
+    if len(offloadLegId):
+        Jx = np.delete(Jx, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 1)
+        JhashTransDiag = np.delete(JhashTransDiag, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 0)
+        JhashTransDiag = np.delete(JhashTransDiag, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 1)
 
     distTorquesArray = np.dot(np.linalg.pinv(Jx), W)
     distForcesArray = np.dot(JhashTransDiag, distTorquesArray)
