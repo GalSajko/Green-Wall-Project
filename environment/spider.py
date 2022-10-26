@@ -64,9 +64,9 @@ def _getTransformMatricesToAnchors():
             [math.sin(rotationAngle), math.cos(rotationAngle), 0, LEG_ANCHORS[i][1]],
             [0, 0, 1, 0],
             [0, 0, 0, 1]
-        ]))
+        ], dtype = np.float32))
 
-    return np.array(T)
+    return np.array(T, dtype = np.float32)
 #endregion
 
 #region constants

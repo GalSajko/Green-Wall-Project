@@ -56,21 +56,21 @@ def legBaseToThirdJointForwardKinematics(jointValues):
         [0, 0, 0, 1]
     ], dtype = np.float32)
 
-def legInverseKinematics(endEffectorPosition):
+@numba.njit
+def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate inverse kinematics for leg, using geometry.
 
     Args:
-        legId (int): Leg id.
         endEffectorPosition (list): Desired position of end effector in leg-base origin.
 
     Returns:
         tuple: Angles in radians in first, second and third joint.
     """
-    endEffectorPosition = np.array(endEffectorPosition)
+    # endEffectorPosition = np.array(endEffectorPosition, dtype = np.float32)
 
-    L1 = spider.LEGS_DIMENSIONS[0]
-    L2 = spider.LEGS_DIMENSIONS[1]
-    L3 = spider.LEGS_DIMENSIONS[2]
+    L1 = legsDimensions[0]
+    L2 = legsDimensions[1]
+    L3 = legsDimensions[2]
 
     # Angle in first joint.
     q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
@@ -82,10 +82,10 @@ def legInverseKinematics(endEffectorPosition):
     secondJointPosition = np.array([
         L1 * math.cos(q1),
         L1 * math.sin(q1),
-        0])
+        0], dtype = np.float32)
 
     # Vector from second joint to end effector.
-    secondJointToEndVector = np.array(endEffectorPosition - secondJointPosition)
+    secondJointToEndVector = endEffectorPosition - secondJointPosition
 
     # Distance between second joint and end effector.
     r = np.linalg.norm(secondJointToEndVector)
@@ -135,7 +135,7 @@ def platformInverseKinematics(legsIds, legsGlobalPositions, goalPose):
         anchorToPinLocal = np.dot(np.linalg.inv(rotationMatrix), anchorToPinGlobal)
 
         # With inverse kinematics for single leg calculate joints values.
-        q1, q2, q3 = legInverseKinematics(leg, anchorToPinLocal)
+        q1, q2, q3 = legInverseKinematics(anchorToPinLocal)
         joints[idx] = np.array([q1, q2, q3])
 
     return joints
@@ -289,6 +289,20 @@ def spiderBaseToLegTipJacobi(legId, jointValues, angle = spider.ANGLE_BETWEEN_LE
         [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
     ], dtype = np.float32)
 
+@numba.njit
+def getQdFromOffsets(forceModeLegs, offsets, currentAngles, anchors = spider.T_ANCHORS):
+    qD = np.zeros((len(forceModeLegs), 3), dtype = np.float32)
+    for leg in forceModeLegs:
+        # Read leg's current pose in spider's origin.
+        xSpider = spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
+        # Add calculated offset.
+        xSpider[:3][:,3] += offsets[leg]
+        # Transform into leg's origin.
+        xD = np.dot(np.linalg.inv(anchors[leg]), xSpider)[:3][:,3]
+        qD[leg] = legInverseKinematics(xD)
+
+    return qD
+            
 def getSpiderToLegReferenceVelocities(legsIds, spiderVelocity):
     """Calculate needed legs velocities to match given spider velocity.
 

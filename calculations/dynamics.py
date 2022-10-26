@@ -4,12 +4,11 @@ import numpy as np
 import math
 import numba
 
+import config
 from environment import spider
 from calculations import kinematics as kin
 from calculations import mathtools as mathTools
 from calculations import transformations as tf
-
-print("IMPORTING DYNAMICS")
 
 A_TORQUE_POLYNOM = 0.0
 B_TORQUE_POLYNOM = 2.9326
@@ -69,7 +68,7 @@ def getForceEllipsoidLengthInGivenDirection(legId, jointsValues, direction):
     return t 
 
 def calculateDistributedForces(measuredTorques, jointsValues, legsIds, offloadLegId):
-    """Calculated new desired forces from minimized torques.
+    """Calculated distributed forces from minimized torques.
 
     Args:
         measuredTorques (list): 5x3 array of measured torques in joints.
@@ -93,10 +92,48 @@ def calculateDistributedForces(measuredTorques, jointsValues, legsIds, offloadLe
     distForcesArray = np.dot(JhashTransDiag, distTorquesArray)
 
     return np.reshape(distForcesArray, (len(legsIds), 3))
+
+@numba.njit
+def getQdQddFromOffsetsAndForceErrors(forceModeLegs, offsets, currentAngles, fErrors, Jhash, Kp = config.K_P_FORCE, anchors = spider.T_ANCHORS):
+    """Calculate joints positions and velocities from offsets and force errors.
+
+    Args:
+        forceModeLegs (list): List of legs' ids, that are used in force controll.
+        offsets (list): Calculated offsets from force-position P controller.
+        currentAngles (list): Joints values.
+        fErrors (list): Calculated force errors.
+        Jhash (list): List of damped pseudo-inverses of jacobian matrices.
+
+    Returns:
+        _type_: _description_
+    """
+    qD = np.zeros((len(forceModeLegs), 3), dtype = np.float32)
+    qDd = np.zeros((len(forceModeLegs), 3), dtype = np.float32)
+    for i, leg in enumerate(forceModeLegs):
+        # Read leg's current pose in spider's origin.
+        xSpider = kin.spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
+        # Add calculated offset.
+        xSpider[:3][:,3] += offsets[leg]
+        # Transform into leg's origin.
+        xD = np.dot(np.linalg.inv(anchors[leg]), xSpider)[:3][:,3]
+
+        qD[i] = np.array(kin.legInverseKinematics(xD), dtype = np.float32)
+        qDd[i] = np.dot(Jhash[leg].astype(np.float32), (fErrors[leg] * Kp).astype(np.float32))
+
+    return qD, qDd 
 #endregion
 
 #region private methods
 def _getSpiderExternalForces(measuredTorques, jointsValues):
+    """Calculate external forces and torques from all internal torques and joints values.
+
+    Args:
+        measuredTorques (list): 5x3 array of measured torques in motors.
+        jointsValues (list): 5x3 array of angles in joints in radians.
+
+    Returns:
+        numpy.ndarray: 6x1 array of external forces and torques.
+    """
     measuredTorquesArray = measuredTorques.flatten()
     Jf = _createJfMatrix()
     xA = kin.spiderBaseToLegTipForwardKinematicsMultipleLegs(jointsValues)
