@@ -27,22 +27,22 @@ if __name__ == "__main__":
     udpServer = udpServer.UdpServer('192.168.1.41')
     initSendingThread()
 
-    leg = 4
-    controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', [0.6, 0.5, 0.3, 0.0])
-    time.sleep(5)
-    _ = input("PRESS ENTER TO START FORCE CONTROLL")
-    controller.startForceDistribution(np.array([0, 1, 2, 3, 4]), duration = 60)
+    # legId = 2
+    # controller.moveLegsSync([0, 1, 2, 3, 4], startPins, 'g', 3, 'minJerk', [0.6, 0.5, 0.3, 0.0])
+    # time.sleep(5)
+    # _ = input("PRESS ENTER TO START FORCE CONTROLL")
+    # controller.startForceDistribution(np.array([0, 1, 2, 4]), duration = 10)
 
-    # _ = input("PRESS ENTER TO OFFLOAD LEG AGAIN")
-    # controller.startForceMode([1], [np.zeros(3)])
+    _ = input("PRESS ENTER TO OFFLOAD LEG AGAIN")
+    controller.startForceMode([0], [np.zeros(3)])
     # time.sleep(2)
     # controller.stopForceMode()
     # _ = input("PRESS ENTER TO MOVE LEG")
-    # controller.moveLegAsync(0, [0.0, 0.0, 0.05], 'g', 2, 'minJerk', [0.6, 0.5, 0.3, 0.0], True)
+    # controller.moveLegAsync(legId, [0.0, 0.0, 0.05], 'g', 2, 'minJerk', [0.6, 0.5, 0.3, 0.0], True)
     # time.sleep(2)
-    # controller.moveLegAsync(0, [0.2, 0.0, 0.0], 'g', 3, 'minJerk', [0.6, 0.5, 0.3, 0.0], True)
+    # controller.moveLegAsync(legId, [-0.2, 0.0, 0.0], 'g', 3, 'minJerk', [0.6, 0.5, 0.3, 0.0], True)
     # time.sleep(3)
-    # controller.moveLegAsync(0, [0.0, 0.0, -0.05], 'g', 2, 'minJerk', [0.6, 0.5, 0.3, 0.0], True)
+    # controller.moveLegAsync(legId, [0.0, 0.0, -0.05], 'g', 2, 'minJerk', [0.6, 0.5, 0.3, 0.0], True)
     # time.sleep(5)
     # controller.startForceDistribution(spider.LEGS_IDS, duration = 60)
     

@@ -148,7 +148,7 @@ class VelocityController:
 
         positionTrajectory, velocityTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
 
-        qDs, qDds = self.__getQdQddLegFF(legId, positionTrajectory, velocityTrajectory)
+        qDs, qDds = self.__getQdQddLegFF(positionTrajectory, velocityTrajectory)
 
         for idx, qD in enumerate(qDs):
             self.legsQueues[legId].put([qD, qDds[idx]])
@@ -330,8 +330,8 @@ class VelocityController:
 
             if len(offloadLegId):
                 fDist = np.insert(fDist, offloadLegId[0], np.zeros(3, dtype = np.float32), axis = 0)
-
             self.startForceMode(spider.LEGS_IDS, fDist)
+
             time.sleep(self.period)
             elapsedTime = time.perf_counter() - startTime
         
