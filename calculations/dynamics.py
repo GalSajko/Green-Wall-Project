@@ -255,7 +255,8 @@ def _calculateTorques(legId, forceRotationMatrices, localGravityVectors, cogVect
         torquesVectorsInLeg[i] = (-1) * np.cross(forces[i], lc)
         torquesValuesInLeg[i] = torquesVectorsInLeg[i][2]
     
-    return torquesValuesInLeg
+    
+    return np.flip(torquesValuesInLeg)
 
 def _createJmMatrix(xA):
     """Create Jm matrix from antisimetric matrices of position vectors

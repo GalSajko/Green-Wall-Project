@@ -41,6 +41,8 @@ class VelocityController:
         self.isForceMode = False
         self.forceModeLegsIds = None
 
+        self.spiderGravityVector = np.array([0.0, -9.81, 0.0], dtype = np.float32) if isVertical else np.array([0.0, 0.0, -9.81], dtype = np.float32)
+
         self.__initControllerThread()
         time.sleep(1)
 
@@ -81,15 +83,13 @@ class VelocityController:
 
             qD, qDd = self.__getQdQddFromQueues()
 
-            spiderGravityVector = np.array([0.0, -9.81, 0.0], dtype = np.float32)
-            tauA, fA, Jhash = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, spiderGravityVector)
+            tauA, fA, Jhash = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.spiderGravityVector)
 
             # Filter over measured values.
             self.fAMean, fBuffer, counter = mathTools.runningAverage(fBuffer, counter, fA)
             self.tauAMean, tauBuffer, counter = mathTools.runningAverage(tauBuffer, counter, tauA)
 
             if forceMode:
-                # spiderGravityVector = self.bno055.readGravity()
                 offsets = self.__forcePositionP(self.fD, self.fAMean)
                 fErrors = self.fD - self.fAMean
                 qD[forceModeLegs], qDd[forceModeLegs] = dyn.getQdQddFromOffsetsAndForceErrors(forceModeLegs, offsets, currentAngles, fErrors, Jhash)
