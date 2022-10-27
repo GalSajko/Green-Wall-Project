@@ -54,13 +54,11 @@ def getForceEllipsoidLengthInGivenDirection(legId, jointsValues, direction):
     eigVals, eigVects = np.linalg.eig(A)
 
     # Unit vector in given direction in ellipsoid origin.
-    eGrav = np.dot(eigVects, direction[0])
-    ez = np.dot(eigVects, direction[1])
+    eGrav = np.dot(eigVects, direction)
 
     ellipsoidSizeInGlobalNegY = math.sqrt(np.prod(eigVals) / (math.pow(eGrav[0], 2) * eigVals[1] * eigVals[2] + math.pow(eGrav[1], 2) * eigVals[0] * eigVals[2] + math.pow(eGrav[2], 2) * eigVals[0] * eigVals[1]))
-    ellipsoidSizeInGlobalZ = math.sqrt(np.prod(eigVals) / (math.pow(ez[0], 2) * eigVals[1] * eigVals[2] + math.pow(ez[1], 2) * eigVals[0] * eigVals[2] + math.pow(ez[2], 2) * eigVals[0] * eigVals[1]))
 
-    ed = np.array([0, -ellipsoidSizeInGlobalNegY, ellipsoidSizeInGlobalZ])
+    ed = np.array([0, -ellipsoidSizeInGlobalNegY, 0])
     ed = ed / np.linalg.norm(ed)
     ed = np.dot(np.linalg.inv(eigVects), ed)
     t = math.sqrt(np.prod(eigVals) / (math.pow(ed[0], 2) * eigVals[1] * eigVals[2] + math.pow(ed[1], 2) * eigVals[0] * eigVals[2] + math.pow(ed[2], 2) * eigVals[0] * eigVals[1]))

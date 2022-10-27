@@ -284,33 +284,7 @@ class VelocityController:
         """
         self.killControllerThread = True
 
-    def startForceDistribution(self, legsIds = spider.LEGS_IDS, duration = 3):
-        """Start force-distribution process in separate thread.
-
-        Args:
-            legsIds (list, optional): Ids of legs that will be used in force distribution. Defaults to spider.LEGS_IDS.
-            duration (int, optional): Duration of distribution process. Defaults to 3.
-        """
-        thread = threading.Thread(target = self.__distributeForces, args = (legsIds, duration, ), name = "force_distribution_thread")
-        try:
-            thread.start()
-            print("Force distribution thread is running.")
-        except RuntimeError as re:
-            print(re)
-    #endregion
-
-    #region private methods
-    def __initControllerThread(self):
-        """Start a thread with controller loop.
-        """
-        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
-        try:
-            thread.start()
-            print("Controller thread is running.")
-        except RuntimeError as re:
-            print(re)
-    
-    def __distributeForces(self, legsIds, duration):
+    def distributeForces(self, legsIds, duration):
         """Run force distribution process in a loop for a given duration.
         """
         offloadLegId = np.setdiff1d(spider.LEGS_IDS, legsIds)
@@ -338,7 +312,45 @@ class VelocityController:
         self.stopForceMode()
 
         print("DISTRIBUTION FINISHED")
-    
+        
+    # def distributeForces(self, legsIds):
+    #     """Run force distribution process in a loop for a given duration.
+    #     """
+    #     offloadLegId = np.setdiff1d(spider.LEGS_IDS, legsIds)
+    #     if len(offloadLegId) > 1:
+    #         print("Cannot offload more than one leg at the same time.")
+    #         return False
+
+    #     print("START DISTRIBUTION")
+
+    #     with self.locker:
+    #         currentTorques = self.tauAMean
+    #         currentAngles = self.qA
+    #         currentForces = self.fAMean
+
+    #     fDist = dyn.calculateDistributedForces(currentTorques, currentAngles, legsIds, offloadLegId)
+    #     if len(offloadLegId):
+    #         fDist = np.insert(fDist, offloadLegId[0], np.zeros(3, dtype = np.float32), axis = 0)
+
+    #     self.startForceMode(spider.LEGS_IDS, fDist)
+        # fDistInterp = np.linspace(currentForces, fDist, 5)
+
+        # for forces in fDistInterp:
+        #     self.startForceMode(spider.LEGS_IDS, forces)
+        #     time.sleep(2)
+    #endregion
+
+    #region private methods
+    def __initControllerThread(self):
+        """Start a thread with controller loop.
+        """
+        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
+        try:
+            thread.start()
+            print("Controller thread is running.")
+        except RuntimeError as re:
+            print(re)
+
     def __getQdQddFromQueues(self):
         """Read current qD and qDd from queues for each leg. If leg-queue is empty, keep leg on latest position.
 

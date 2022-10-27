@@ -4,12 +4,12 @@ import numpy as np
 import math
 import itertools
 
-from ..environment import spider
-from ..environment import wall
-from ..calculations import mathtools as mt
-from ..calculations import transformations as tf
-from ..calculations import kinematics as kin
-from ..calculations import dynamics as dyn
+from environment import spider
+from environment import wall
+from calculations import mathtools as mt
+from calculations import transformations as tf
+from calculations import kinematics as kin
+from calculations import dynamics as dyn
 
 
 MAX_LIN_STEP = 0.05
@@ -91,7 +91,7 @@ def calculateSpiderLegsPositionsXyzRpyFF(path):
             potentialPinsForSingleLeg = []
             anchorPosition = anchor[:,3][:3]
             for pin in pins:
-                distanceToPin = np.linalg.norm(anchorPosition - pin)
+                distanceToPin = np.linalg.norm(anchorPosition[:2] - pin[:2])
 
                 if spider.CONSTRAINS[0] < distanceToPin < spider.CONSTRAINS[1]:
                     rotatedIdealLegVector = np.dot(T_GS[:3,:3], np.append(spider.IDEAL_LEG_VECTORS[idx], 0))
@@ -104,14 +104,14 @@ def calculateSpiderLegsPositionsXyzRpyFF(path):
                             previousPin = selectedPins[step - 1][idx]
                             distanceBetweenSelectedAndPreviousPin = np.linalg.norm(previousPin - pin)
                             isLegMoving = 0 if distanceBetweenSelectedAndPreviousPin == 0 else 1
-                            criterionFunction = 0.4 * abs(angleBetweenIdealVectorAndPin) + 0.4 * isLegMoving + 0.2 * abs(distanceToPin - spider.CONSTRAINS[1])
+                            criterionFunction = 0.4 * abs(angleBetweenIdealVectorAndPin) + 0.2* isLegMoving + 0.4 * abs(distanceToPin - spider.CONSTRAINS[1])
                         else:
                             criterionFunction = abs(distanceToPin - spider.CONSTRAINS[1]) + abs(angleBetweenIdealVectorAndPin)
 
                         potentialPinsForSingleLeg.append([pin, criterionFunction])
 
-            potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg, dtype = np.float32)
-            potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:, 1].argsort()]
+            potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg, dtype = np.object)
+            potentialPinsForSingleLeg = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:,1].argsort()]
             selectedPinsOnEachStep.append(potentialPinsForSingleLeg[0][0])
 
         selectedPins.append(selectedPinsOnEachStep)
@@ -184,7 +184,7 @@ def _calculatePotentialPins(path):
             potentialPinsForLeg = []
             anchorPosition = anchorPose[:,3][:3]
             for pin in pins:
-                distanceToPin = np.linalg.norm(anchorPosition - pin)
+                distanceToPin = np.linalg.norm(anchorPosition[0:2] - pin[0:2])
                 if spider.CONSTRAINS[0] < distanceToPin < spider.CONSTRAINS[1]:
                     rotatedIdealLegVector = np.dot(T_GS[:3,:3], np.append(spider.IDEAL_LEG_VECTORS[idx], 0))
                     anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorPosition))
@@ -233,15 +233,14 @@ def _calculateIdealPinsFromValidCombinations(pinsCombinations, path):
         T_GS = tf.xyzRpyToMatrix(pose)
         anchorsPoses = [np.dot(T_GS, t) for t in spider.T_ANCHORS]
         gravityVectorInSpider = np.dot(T_GS[:3,:3], np.array([0, -1, 0]))
-        zVectorInSpider = np.dot(T_GS[:3,:3], np.array([0, 0, 1]))
         rgValuesSumArray = np.zeros(len(pinsCombinations[step]))
         for combIdx, pins in enumerate(pinsCombinations[step]):
             rgValuesSum = 0
             for legId, pin in enumerate(pins):
-                anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legId][:,3][:3]))
+                anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legId][:,3][:3]), dtype = np.float32)
                 anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[legId][:3,:3]), anchorToPinGlobal)
-                jointsValues = kin.legInverseKinematics(legId, anchorToPinLegLocal)
-                rgValue = dyn.getForceEllipsoidLengthInGivenDirection(legId, jointsValues, [gravityVectorInSpider, zVectorInSpider])
+                jointsValues = kin.legInverseKinematics(anchorToPinLegLocal)
+                rgValue = dyn.getForceEllipsoidLengthInGivenDirection(legId, jointsValues, gravityVectorInSpider)
                 rgValuesSum += rgValue
             rgValuesSumArray[combIdx] = rgValuesSum
 
