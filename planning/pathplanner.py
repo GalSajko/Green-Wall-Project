@@ -104,7 +104,7 @@ def calculateSpiderLegsPositionsXyzRpyFF(path):
                             previousPin = selectedPins[step - 1][idx]
                             distanceBetweenSelectedAndPreviousPin = np.linalg.norm(previousPin - pin)
                             isLegMoving = 0 if distanceBetweenSelectedAndPreviousPin == 0 else 1
-                            criterionFunction = 0.4 * abs(angleBetweenIdealVectorAndPin) + 0.2* isLegMoving + 0.4 * abs(distanceToPin - spider.CONSTRAINS[1])
+                            criterionFunction = 0.0 * abs(angleBetweenIdealVectorAndPin) + 0.0 * isLegMoving + 1.0 * abs(distanceToPin - spider.CONSTRAINS[1])
                         else:
                             criterionFunction = abs(distanceToPin - spider.CONSTRAINS[1]) + abs(angleBetweenIdealVectorAndPin)
 
@@ -118,6 +118,66 @@ def calculateSpiderLegsPositionsXyzRpyFF(path):
 
     return selectedPins
 
+def calculateSelectedPinsMaxYDistance(path):
+    """Calculate legs positions in global orogin, for each step of the spider's path. Legs should be as stretched as posible in gravity direction.
+
+    Args:
+        path (list): nx4 array of poses on each step of the path, where n is number of steps.
+
+    Returns:
+        numpy.ndarray: nx5x3 array of positions of selected pins on each step of the path.
+    """
+    pins = wall.createGrid(True)
+    selectedPins = np.zeros((len(path), 5, 3))
+    searchRadius = 1.0
+    
+    def xCrit(pinPos, legIdx):
+        xDist = pinPos[0] - anchorsPositions[legIdx].flatten()[0]
+
+        if legIdx == upperMiddleLeg:
+            return 1 / (abs(pin[0] - pose[0]) + 10e-5)
+        if legIdx == upperLeftLeg:
+            if pinPos[0] == selectedMiddleLegPin[0]:
+                return -1000
+            return 0 if xDist > 0.0 else 1 / (abs(xDist) + 10e-5)
+        if legIdx == upperRightLeg:
+            if pinPos[0] == selectedMiddleLegPin[0]:
+                return -1000
+            return 0 if xDist < 0.0 else 1 / (abs(xDist) + 10e-5)
+        
+        if legIdx == lowerLeftLeg:
+            return 0 if xDist > 0.0 else 1 / (abs(xDist) + 10e-5)
+        if legIdx == lowerRightLeg:
+            return 0 if xDist < 0.0 else 1 / (abs(xDist) + 10e-5)
+
+    for step, pose in enumerate(path):
+        pinsInSearchRadius = pins[(np.sum(np.abs(pins - pose[:3])**2, axis = -1))**(0.5) < searchRadius]
+        T_GS = tf.xyzRpyToMatrix(pose)
+        anchorsPositions = np.array([np.dot(T_GS, t)[:,3][:3] for t in spider.T_ANCHORS])
+        selectedPinsOnStep = np.zeros((5, 3))
+
+        upperLeftLeg, upperRightLeg, upperMiddleLeg, lowerLeftLeg, lowerRightLeg = _getLegsRoles(anchorsPositions, pose)
+
+        selectedMiddleLegPin = None
+        for idx, anchorPosition in enumerate(anchorsPositions):
+            potentialPinsForSingleLeg = []
+            for pin in pinsInSearchRadius:
+                if not (spider.CONSTRAINS[0] < np.linalg.norm(anchorPosition[:2] - pin[:2]) < spider.CONSTRAINS[1]):
+                    continue
+                criterion = (5 if idx in (upperLeftLeg, upperMiddleLeg, upperRightLeg) else -5) * (pin[1] - anchorPosition[1]) + \
+                     (1 / (abs(anchorPosition[0] - pin[0]) + 10e-5)) + xCrit(pin, idx)
+
+                potentialPinsForSingleLeg.append([pin, criterion])
+
+            potentialPinsForSingleLeg = np.array(potentialPinsForSingleLeg, dtype = np.object)
+            selectedPinsOnStep[idx] = potentialPinsForSingleLeg[potentialPinsForSingleLeg[:,1].argmax()][0]
+            if idx == 0:
+                selectedMiddleLegPin = selectedPinsOnStep[idx]
+
+        selectedPins[step] = selectedPinsOnStep
+
+    return selectedPins
+                
 def calculateSelectedPins(path, returnPotentialPins = False):
     """Wrapper function for calculating selected pins from spider's path, using force-manipulability ellipsoids.
 
@@ -135,23 +195,25 @@ def calculateSelectedPins(path, returnPotentialPins = False):
         return selectedPins
     return potentialPins, selectedPins
     
-def calculateWalkingMovesFF(globalStartPose, globalGoalPose):
+def calculateWalkingMovesFF(globalStartPose, globalGoalPose, method):
     """(Feed-forward) calculation of spider's poses and its legs positions during walking. Spider's body is moving 
     continuously untily one of the leg has to change its position.
 
     Args:
         globalStartPose (list): 1x4 array of spider's start pose in global origin, given as x, y, z and rotZ, where rotZ is rotation around global z axis.
         globalGoalPose (list): 1x4 array of spider's goal pose in global origin, given as x, y, z and rotZ, where rotZ is rotation around global z axis.
+        method (function): Function to be used for calculating selected pins along the spider's path. Use either calculateSelectedPins or calculateSpiderLegsPositionsXyzRpyFF.
 
     Returns:
         tuple: Two numpy.ndarrays, first of shape nx4 representing all of the spider's body poses during the walking, second of shape nx5x3 representing all of 
         legs positions during walking, where n is number of walking steps.
     """
+    globalStartPose = np.array(globalStartPose)
+    globalGoalPose = np.array(globalGoalPose)
     path = calculateSpiderBodyPath(globalStartPose, globalGoalPose)
-    selectedPins = calculateSpiderLegsPositionsXyzRpyFF(path)
+    selectedPins = method(path)
     platformPoses = [np.array(globalStartPose)]
-    startingPins = selectedPins[0]
-    selectedDiffPins = [np.array(startingPins)]
+    selectedDiffPins = [np.array(selectedPins[0])]
 
     for idx, pins in enumerate(selectedPins):
         if idx == 0:
@@ -161,9 +223,61 @@ def calculateWalkingMovesFF(globalStartPose, globalGoalPose):
             platformPoses.append(path[idx])
 
     return np.array(platformPoses), np.array(selectedDiffPins)
+
+def createWalkingInstructions(startPose, goalPose, pinSelectionMethod = calculateSelectedPinsMaxYDistance):
+    startPose = np.array(startPose)
+    goalPose = np.array(goalPose)
+
+    path = calculateSpiderBodyPath(startPose, goalPose)
+    selectedPins = pinSelectionMethod(path)
+    poses = [np.array(startPose)]
+    selectedDiffPins = [np.c_[spider.LEGS_IDS, np.array(selectedPins[0])]]
+
+    movingDirection = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1])
+    legMovingOrder = np.array([4, 3, 0, 2, 1]) if movingDirection >= 0.0 else np.array([1, 2, 0, 3, 4])
+    if movingDirection == 0.0:
+        legMovingOrder = np.array([0, 1, 4, 2, 3])
+    
+    for idx, pins in enumerate(selectedPins):
+        if idx == 0:
+            continue
+        if (np.array(pins) - np.array(selectedPins[idx - 1])).any():
+            poses.append(path[idx])
+            selectedDiffPins.append(pins[legMovingOrder])
+            selectedDiffPins[-1] = np.c_[legMovingOrder, selectedDiffPins[-1]]
+
+    return np.array(poses), selectedDiffPins
+
+    
+
+
 #endregion
 
 #region private methods
+def _getLegsRoles(anchorsPositions, pose):
+    """Define legs roles, based on their positions - upper/lower right/left or middle.
+
+    Args:
+        anchorsPositions (list): 5x3 array of positions of legs' anchors in global origin.
+        pose (list): Array of spider's pose in global origin.
+
+    Returns:
+        tuple: Indexes of upper-left, upper-right, upper-middle, lower-left and lower-right legs.
+    """
+    upperLegs = np.where(anchorsPositions[:,1] > pose[1])[0]
+    upperLeftIdx = np.where(anchorsPositions[upperLegs,0] == anchorsPositions[upperLegs,0].min())[0]
+    upperRightIdx = np.where(anchorsPositions[upperLegs,0] == anchorsPositions[upperLegs,0].max())[0]
+    upperLeftLeg = upperLegs[upperLeftIdx]
+    upperRightLeg = upperLegs[upperRightIdx]
+    upperMiddleLeg = upperLegs[np.delete(upperLegs, [upperLeftIdx, upperRightIdx])]
+
+
+    lowerLegs = np.delete(spider.LEGS_IDS, upperLegs)
+    lowerLeftLeg = lowerLegs[np.where(anchorsPositions[lowerLegs, 0] == anchorsPositions[lowerLegs, 0].min())[0]]
+    lowerRightLeg = lowerLegs[np.where(anchorsPositions[lowerLegs, 0] == anchorsPositions[lowerLegs, 0].max())[0]]
+
+    return upperLeftLeg, upperRightLeg, upperMiddleLeg, lowerLeftLeg, lowerRightLeg
+
 def _calculatePotentialPins(path):
     """Calculate all potential pins for each leg on each step of the path.
 
@@ -208,7 +322,7 @@ def _calculateValidCombinationOfPotentialPins(potentialPins):
         representing number of potential pins for each leg on single step and cannot be determined in advance.
 
     Returns:
-        list: nxmx5 array of all possible valid combinations of pins for each step of the path, where n is number of steps on the path.
+        list: nx5xm array of all possible valid combinations of pins for each step of the path, where n is number of steps on the path.
     """
     combinations = []
     for potentialPinsOnStep in potentialPins:

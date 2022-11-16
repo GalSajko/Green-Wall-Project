@@ -10,7 +10,6 @@ class Plotter:
     """Class for ploting a 2d representation of a wall and spiders movement.
     """
     def __init__(self):
-        # Figure for plotting.
         self.figure = plt.figure()
         self.board = plt.axes(xlim = (0, wall.WALL_SIZE[0]), ylim = (0, wall.WALL_SIZE[1]))
         self.board.set_aspect('equal')
@@ -107,7 +106,7 @@ class Plotter:
                 legTips.append(legTip)
 
             plt.draw()
-            plt.pause(5)
+            plt.pause(0.2)
 
             # Remove all drawn components from board, unless spider is at the end of the path.
             if (pose - path[-1]).any():
@@ -121,3 +120,55 @@ class Plotter:
                     legs[i].remove()
         
         plt.show()
+    
+    def plotSpiderMovementSteps(self, path, pinsInstructions):
+        """2-d animation of spider's movement on the wall, with animated steps of each leg.
+
+        Args:
+            path (list): nxm array of spider's body poses along the way. Only x and y values are used for animation.
+            legPositions (list): nx5x3 array of legs positions on each step of the path.
+        """
+        self.plotWallGrid()
+        self.plotSpidersPath(path)
+
+        legs = list(range(spider.NUMBER_OF_LEGS))
+
+        def plotLegs(step, pose, inLoopPause, deleteLegs):
+            for i in range(len(pinsInstructions[step])):
+                legIdx = int(pinsInstructions[step][i][0])
+                legPosition = pinsInstructions[step][i][1:]
+
+                if deleteLegs:
+                    legs[legIdx].remove()
+                if len(pose) > 2:
+                    T_GA = tf.xyzRpyToMatrix(pose)
+                    anchorPosition = np.dot(T_GA, spider.T_ANCHORS[legIdx])[:,3][:3]
+                    xVals = [anchorPosition[0], legPosition[0]]
+                    yVals = [anchorPosition[1], legPosition[1]]
+                else:
+                    xVals = [pose[0] + spider.LEG_ANCHORS[legIdx][0], legPosition[0]]
+                    yVals = [pose[1] + spider.LEG_ANCHORS[legIdx][1], legPosition[1]]
+                legs[legIdx] = self.board.plot(xVals, yVals, 'g')[0]
+                if inLoopPause:
+                    plt.draw()
+                    if (legPosition - pinsInstructions[step - 1][i][1:]).any():
+                        plt.pause(0.5)
+            if not inLoopPause:
+                plt.draw()
+                plt.pause(0.75)
+
+        for step, pose in enumerate(path):
+            spiderBody = plt.Circle((pose[0], pose[1]), spider.BODY_RADIUS, color = 'blue')
+            self.board.add_patch(spiderBody)
+            
+            if step == 0:
+                plotLegs(step, pose, False, False)
+            else:
+                plotLegs(step - 1, pose, False, True)
+                plotLegs(step, pose, True, True)
+
+            if (pose - path[-1]).any():
+                spiderBody.remove()
+  
+        plt.show()
+        
