@@ -30,8 +30,8 @@ def getTorquesAndForcesOnLegsTips(jointsValues, currentsInMotors, spiderGravityV
 
     forces = np.zeros((numberOfLegs, 3), dtype = np.float32)
     dampedPseudoInverses = np.zeros((numberOfLegs, 3, 3), dtype = np.float32)
-    for legId in range(len(jointsValues)):
-        J = kin.spiderBaseToLegTipJacobi(legId, jointsValues[legId])
+    for legId, jointValues in enumerate(jointsValues):
+        J = kin.spiderBaseToLegTipJacobi(legId, jointValues)
         Jhash = mathTools.dampedPseudoInverse(J)
         dampedPseudoInverses[legId] = Jhash
         forces[legId] = np.dot(np.transpose(Jhash), torques[legId])

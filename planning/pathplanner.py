@@ -246,7 +246,7 @@ def createWalkingInstructions(startPose, goalPose, pinSelectionMethod = calculat
             selectedDiffPins.append(pins[legMovingOrder])
             selectedDiffPins[-1] = np.c_[legMovingOrder, selectedDiffPins[-1]]
 
-    return np.array(poses), selectedDiffPins
+    return np.array(poses), np.array(selectedDiffPins)
 
     
 
