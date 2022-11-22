@@ -26,10 +26,10 @@ def initSendingThread():
 if __name__ == "__main__":
     pinsInstructions = wall.createGrid(True)
 
-    startPose = np.array([0.3, 0.7, 0.3, 0.0], dtype = np.float32)
-    endPose = np.array([0.8, 0.7, 0.3, 0.0], dtype = np.float32)
+    startPose = np.array([0.8, 0.4, 0.3, 0.0], dtype = np.float32)
+    endPose = np.array([0.4, 0.8, 0.3, 0.0], dtype = np.float32)
 
-    poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
+    poses, pinsInstructions = pathplanner.createWalkingInstructions(endPose, startPose)
 
     print(pinsInstructions)
     # print(poses)
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     plotter = sim.Plotter()
     plotter.plotSpiderMovementSteps(poses, pinsInstructions)
 
-    # controller = controllers.VelocityController()
+
 
     # # udpServer = udpServer.UdpServer('192.168.1.41')
     # # initSendingThread()
@@ -46,50 +46,49 @@ if __name__ == "__main__":
 
     # # leg = 0
     # # pins = pinsInstructions[:, :, 1:]
-    # # controller.moveLegsSync([0, 1, 2, 3, 4], pins[0], 'g', 3, 'minJerk', poses[0])
+    # legs = [0, 1, 4, 2, 3]
+    # positions = [[0.4, 0.75, 0.0], [0.2, 0.75, 0.0], [0.6, 0.75, 0.0], [0.2, 0.0, 0.0], [0.4, 0.0, 0.0]]
+    # controller.moveLegsSync(legs, positions, 'g', 3, 'minJerk', poses[0])
     # # time.sleep(5)
 
-    # # for leg in [0, 1, 2, 3, 4]:
-    # #     controller.gripperController.moveGripper(leg, 'o')
+    # for leg in spider.LEGS_IDS:
+    #     controller.gripperController.moveGripper(leg, 'o')
 
     
-    # _ = input("PRESS ENTER TO START WALKING")
-    # for step, pose in enumerate(poses):
-    #     currentPinsPositions = pinsInstructions[step, :, 1:]
-    #     currentLegsMovingOrder = pinsInstructions[step, :, 0]
+    _ = input("PRESS ENTER TO START WALKING")
+    time.sleep(4)
+    controller = controllers.VelocityController(True)
+    for step, pose in enumerate(poses):
+        currentPinsPositions = pinsInstructions[step, :, 1:]
+        currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
 
-    #     if step == 0:
-    #         # controller.moveLegsSync(spider.LEGS_IDS, currentPinsPositions, 'g', 5, 'minJerk', pose)
-    #         # time.sleep(5.5)
-    #         # controller.distributeForces(spider.LEGS_IDS, 10)
-    #         continue
+        if step == 0:
+            controller.moveLegsSync(currentLegsMovingOrder, currentPinsPositions, 'g', 3, 'minJerk', pose)
+            time.sleep(3.5)
+            controller.distributeForces(spider.LEGS_IDS, 10)
+            continue
         
-    #     previusPinsPositions = pinsInstructions[step - 1, :, 1:]
-    #     # controller.moveLegsSync(spider.LEGS_IDS, previusPinsPositions, 'g', 5, 'minJerk', pose)
-    #     # time.sleep(5.5)
+        previusPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
+        controller.moveLegsSync(currentLegsMovingOrder, previusPinsPositions, 'g', 3, 'minJerk', pose)
+        time.sleep(3.5)
 
-    #     for instruction in pinsInstructions[1:, :, :]:
-    #         for i in range(len(spider.LEGS_IDS)):
-    #             legToMove = int(instruction[i][0])
-    #             goalPosition = instruction[i][1:]
-    #             pinOffset = goalPosition - previusPinsPositions[legToMove]
-    #             print(legToMove)
-    #             print(goalPosition)
-    #             print(pinOffset)
-                    
-    #             # if pinOffset.any():
-    #             #     controller.gripperController.moveGripper(legToMove, controller.gripperController.OPEN_COMMAND)
-    #             #     time.sleep(1)
-    #             #     controller.moveLegAsync(legToMove, [0.0, 0.0, 0.05], 'g', 1, 'minJerk', pose, True)
-    #             #     time.sleep(1)
-    #             #     controller.moveLegAsync(legToMove, pinOffset, 'g', 3, 'minJerk', pose, True)
-    #             #     time.sleep(3)
-    #             #     controller.moveLegAsync(legToMove, [0.0, 0.0, -0.05], 'g', 1, 'minJerk', pose, True)
-    #             #     time.sleep(1)
-    #             #     controller.gripperController.moveGripper(legToMove, controller.gripperController.CLOSE_COMMAND)
-    #             #     time.sleep(1)                   
-    #     # controller.distributeForces(spider.LEGS_IDS, 3)
-    #     # time.sleep(3.5)
+        pinsOffsets = currentPinsPositions - previusPinsPositions
+        for idx, leg in enumerate(currentLegsMovingOrder):
+            if pinsOffsets[idx].any():
+                controller.distributeForces(np.delete(spider.LEGS_IDS, leg), 2)
+                time.sleep(2.2)
+                controller.gripperController.moveGripper(leg, controller.gripperController.OPEN_COMMAND)
+                time.sleep(1)
+                controller.moveLegAsync(leg, [0.0, 0.0, 0.05], 'g', 1, 'minJerk', pose, True)
+                time.sleep(1.5)
+                controller.moveLegAsync(leg, pinsOffsets[idx], 'g', 3, 'minJerk', pose, True)
+                time.sleep(3.5)
+                controller.moveLegAsync(leg, [0.0, 0.0, -0.05], 'g', 1, 'minJerk', pose, True)
+                time.sleep(1.5)
+                controller.gripperController.moveGripper(leg, controller.gripperController.CLOSE_COMMAND)
+                time.sleep(1)                   
+        controller.distributeForces(spider.LEGS_IDS, 3)
+        time.sleep(3.5)
 
         
         

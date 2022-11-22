@@ -164,6 +164,12 @@ def calculateSelectedPinsMaxYDistance(path):
             for pin in pinsInSearchRadius:
                 if not (spider.CONSTRAINS[0] < np.linalg.norm(anchorPosition[:2] - pin[:2]) < spider.CONSTRAINS[1]):
                     continue
+                rotatedIdealLegVector = np.dot(T_GS[:3,:3], np.append(spider.IDEAL_LEG_VECTORS[idx], 0))
+                angleBetweenIdealVectorAndPin = mt.calculateSignedAngleBetweenTwoVectors(
+                    rotatedIdealLegVector[:2], 
+                    np.array(np.array(pin) - np.array(anchorPosition))[:2])               
+                if not (abs(angleBetweenIdealVectorAndPin) < spider.CONSTRAINS[2]):
+                    continue
                 criterion = (5 if idx in (upperLeftLeg, upperMiddleLeg, upperRightLeg) else -5) * (pin[1] - anchorPosition[1]) + \
                      (1 / (abs(anchorPosition[0] - pin[0]) + 10e-5)) + xCrit(pin, idx)
 
@@ -231,22 +237,24 @@ def createWalkingInstructions(startPose, goalPose, pinSelectionMethod = calculat
     path = calculateSpiderBodyPath(startPose, goalPose)
     selectedPins = pinSelectionMethod(path)
     poses = [np.array(startPose)]
-    selectedDiffPins = [np.c_[spider.LEGS_IDS, np.array(selectedPins[0])]]
+    pinsInstructions = [np.c_[spider.LEGS_IDS, np.array(selectedPins[0])]]
 
     movingDirection = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1])
     legMovingOrder = np.array([4, 3, 0, 2, 1]) if movingDirection >= 0.0 else np.array([1, 2, 0, 3, 4])
     if movingDirection == 0.0:
         legMovingOrder = np.array([0, 1, 4, 2, 3])
+    legMovingOrder = legMovingOrder.astype(int)
     
     for idx, pins in enumerate(selectedPins):
         if idx == 0:
+            pinsInstructions[-1] = pinsInstructions[-1][legMovingOrder]
             continue
         if (np.array(pins) - np.array(selectedPins[idx - 1])).any():
             poses.append(path[idx])
-            selectedDiffPins.append(pins[legMovingOrder])
-            selectedDiffPins[-1] = np.c_[legMovingOrder, selectedDiffPins[-1]]
+            pinsInstructions.append(pins[legMovingOrder])
+            pinsInstructions[-1] = np.c_[legMovingOrder, pinsInstructions[-1]]
 
-    return np.array(poses), np.array(selectedDiffPins)
+    return np.array(poses), np.array(pinsInstructions)
 
     
 
