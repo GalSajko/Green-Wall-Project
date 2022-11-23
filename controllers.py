@@ -10,13 +10,14 @@ from calculations import transformations as tf
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
 from planning import trajectoryplanner as trajPlanner
+from planning import pathplanner 
 from periphery import dynamixel as dmx
 from periphery import grippers
 
 
 class VelocityController:
-    """ Class for velocity-control of spider's movement. All legs are controlled with same controller, but can be moved separately and independently
-    from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop controller takes first values from all of the legs-queues.
+    """ Class for velocity-control of spider's movement. All legs are controlled with same self, but can be moved separately and independently
+    from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop self takes first values from all of the legs-queues.
     """
     def __init__ (self, isVertical = False):
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
@@ -48,8 +49,8 @@ class VelocityController:
         time.sleep(1)
 
     #region public methods
-    def controller(self):
-        """Velocity controller to controll all five legs continuously. Runs in separate thread.
+    def self(self):
+        """Velocity self to controll all five legs continuously. Runs in separate thread.
         """
         lastQErrors = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG])
         fErrors = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
@@ -77,7 +78,7 @@ class VelocityController:
                 self.qA = currentAngles
                 forceMode = self.isForceMode
                 forceModeLegs = self.forceModeLegsIds
-                # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
+                # If self was just initialized, save current positions and keep legs on these positions until new command is given.
                 if init:
                     self.lastMotorsPositions = currentAngles
                     init = False
@@ -214,54 +215,70 @@ class VelocityController:
             self.legsQueues[leg].put(self.sentinel)
         
         return True
-   
-   # TODO: Change this method to use angles read at the beginning at the control loop.
-    # def moveLegAndGripper(self, legId, goalPosition, duration, spiderPose, legsGlobalPositions):
-    #     """Open gripper, move leg to the new pin and close the gripper.
+    
+    def walk(self, startPose, endPose):
+        """Walking procedure from start to goal pose on the wall.
 
-    #     Args:
-    #         legId (int): Leg id.
-    #         goalPosition (list): 1x3 array of global x, y and z position of leg.
-    #         duration (float): Duration of movement.
-    #         spiderPose (list): 1x4 array of global x, y, z and rotZ pose of spider's body.
-    #     """
-    #     attachTime = 1
-    #     detachTime = 1
+        Args:
+            startPose (list): 1x4 array of x, y, z and yaw values of starting spider's pose in global origin.
+            endPose (_type_): 1x4 array of x, y, z and yaw values of goal spider's pose in global origin.
+        """
+        poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
+        for step, pose in enumerate(poses):
+            currentPinsPositions = pinsInstructions[step, :, 1:]
+            currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
 
-    #     with self.locker:
-    #         legPosition = self.motorDriver.syncReadMotorsPositionsInLegs([legId], True, 'l')
-    #     globalLegPosition = tf.getLegsInGlobal([legId], legPosition, spiderPose)[0]
-    #     detachPosition = tf.getLegsApproachPositionsInGlobal([legId], spiderPose, [globalLegPosition], offset = 0.1)
+            if step == 0:
+                self.moveLegsSync(currentLegsMovingOrder, currentPinsPositions, 'g', 3, 'minJerk', pose)
+                time.sleep(3.5)
+                self.distributeForces(spider.LEGS_IDS, 5)
+                continue
+            
+            previusPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
+            self.moveLegsSync(currentLegsMovingOrder, previusPinsPositions, 'g', 3, 'minJerk', pose)
+            time.sleep(3.5)
 
-    #     # If leg is attached, open a gripper.
-    #     if legId in self.gripperController.getIdsOfAttachedLegs():
-    #         self.gripperController.openGrippersAndWait([legId])
+            pinsOffsets = currentPinsPositions - previusPinsPositions
+            for idx, leg in enumerate(currentLegsMovingOrder):
+                if pinsOffsets[idx].any():
+                    self.moveLegFromPinToPin(leg, pinsOffsets[idx], currentPinsPositions[idx], pose)                   
+            self.distributeForces(spider.LEGS_IDS, 3)
+            time.sleep(3.5)      
 
-    #     # Move leg on detach position.
-    #     self.moveLegAsync(legId, detachPosition, 'g', detachTime, 'minJerk', spiderPose)
-    #     time.sleep(detachTime + 0.5)
+    def moveLegFromPinToPin(self, leg, pinOffset, goalPinPosition, pose):
+        """Move leg from one pin to another, including force-offloading and gripper movements.
 
-    #     # Measure new spider pose after detaching the leg.
-    #     usedLegs = spider.LEGS_IDS.copy()
-    #     usedLegs.remove(legId)
-    #     legsGlobalPositions = np.delete(legsGlobalPositions, legId, 0)
-    #     with self.locker:
-    #         currentAngles = self.qA
-    #     newPose = tf.getSpiderPose(usedLegs, legsGlobalPositions, currentAngles)
-        
-    #     # Move leg on attach position.
-    #     attachPosition = tf.getLegsApproachPositionsInGlobal([legId], newPose, [goalPosition])
-    #     self.moveLegAsync(legId, attachPosition, 'g', duration, 'bezier', newPose)
-    #     time.sleep(duration + 0.5)
-
-    #     self.moveLegAsync(legId, goalPosition, 'g', attachTime, 'minJerk', newPose)
-    #     time.sleep(attachTime + 0.5)
-
-    #     # Close gripper.
-    #     self.gripperController.moveGripper(legId, self.gripperController.CLOSE_COMMAND)
+        Args:
+            leg (int): Leg id.
+            pinOffset (list): 1x3 array of offsets between current and next pin.
+            pose (list): 1x4 array of x, y, z and yaw value of spider's pose in global origin.
+        """
+        self.distributeForces(np.delete(spider.LEGS_IDS, leg), 2)
+        time.sleep(2.2)
+        self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
+        time.sleep(1)
+        self.moveLegAsync(leg, [0.0, 0.0, 0.05], 'g', 1, 'minJerk', pose, True)
+        time.sleep(1.5)
+        self.moveLegAsync(leg, pinOffset, 'g', 3, 'minJerk', pose, True)
+        time.sleep(3.5)
+        self.moveLegAsync(leg, [0.0, 0.0, -0.05], 'g', 1, 'minJerk', pose, True)
+        time.sleep(1.5)
+        self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
+        time.sleep(1)     
+        # Check if leg successfully grabbed the pin.
+        while not (leg in self.gripperController.getIdsOfAttachedLegs()):
+            print(f"LEG {leg} NOT ATTACHED")      
+            self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
+            time.sleep(1)
+            self.moveLegAsync(leg, [0.0, 0.0, 0.05], 'g', 1, 'minJerk', pose, True) 
+            time.sleep(1.5)
+            self.moveLegAsync(leg, goalPinPosition, 'g', 1, 'minJerk', pose)
+            time.sleep(1.5)
+            self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
+            time.sleep(1)            
 
     def startForceMode(self, legsIds, desiredForces):
-        """Start force controller inside main velocity controller loop.
+        """Start force self inside main velocity self loop.
 
         Args:
             legsIds (list): Ids of leg, which is to be force-controlled.
@@ -275,13 +292,13 @@ class VelocityController:
             self.fD[legsIds] = desiredForces
     
     def stopForceMode(self):
-        """Stop force controller inside main velocity controller loop.
+        """Stop force self inside main velocity self loop.
         """
         with self.locker:
             self.isForceMode = False
 
     def endControllerThread(self):
-        """Set flag to kill a controller thread.
+        """Set flag to kill a self thread.
         """
         self.killControllerThread = True
 
@@ -313,42 +330,16 @@ class VelocityController:
         self.stopForceMode()
 
         print("DISTRIBUTION FINISHED")
-        
-    # def distributeForces(self, legsIds):
-    #     """Run force distribution process in a loop for a given duration.
-    #     """
-    #     offloadLegId = np.setdiff1d(spider.LEGS_IDS, legsIds)
-    #     if len(offloadLegId) > 1:
-    #         print("Cannot offload more than one leg at the same time.")
-    #         return False
-
-    #     print("START DISTRIBUTION")
-
-    #     with self.locker:
-    #         currentTorques = self.tauAMean
-    #         currentAngles = self.qA
-    #         currentForces = self.fAMean
-
-    #     fDist = dyn.calculateDistributedForces(currentTorques, currentAngles, legsIds, offloadLegId)
-    #     if len(offloadLegId):
-    #         fDist = np.insert(fDist, offloadLegId[0], np.zeros(3, dtype = np.float32), axis = 0)
-
-    #     self.startForceMode(spider.LEGS_IDS, fDist)
-        # fDistInterp = np.linspace(currentForces, fDist, 5)
-
-        # for forces in fDistInterp:
-        #     self.startForceMode(spider.LEGS_IDS, forces)
-        #     time.sleep(2)
     #endregion
 
     #region private methods
     def __initControllerThread(self):
-        """Start a thread with controller loop.
+        """Start a thread with self loop.
         """
-        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
+        thread = threading.Thread(target = self.self, name = 'velocity_controller_thread', daemon = False)
         try:
             thread.start()
-            print("Controller thread is running.")
+            print("self thread is running.")
         except RuntimeError as re:
             print(re)
 
@@ -401,7 +392,7 @@ class VelocityController:
         return qDs, qDds
     
     def __positionVelocityPD(self, desiredAngles, currentAngles, ffVelocity, lastErrors):
-        """Position-velocity PD controller. Calculate commanded velocities from position input and add feed-forward calculated velocities.
+        """Position-velocity PD self. Calculate commanded velocities from position input and add feed-forward calculated velocities.
 
         Args:
             desiredAngles (list): 5x3 array of desired angles in joints.
@@ -420,7 +411,7 @@ class VelocityController:
         return qCds, lastErrors
 
     def __forcePositionP(self, desiredForces, currentForces):
-        """Force-position P controller. Calculate position offsets from desired forces.
+        """Force-position P self. Calculate position offsets from desired forces.
 
         Args:
             desiredForces (list): 5x3 array of desired forces in spider's origin.
