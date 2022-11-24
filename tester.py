@@ -37,11 +37,16 @@ if __name__ == "__main__":
     # # udpServer = udpServer.UdpServer('192.168.1.41')
     # # initSendingThread()
     
-    _ = input("PRESS ENTER TO START WALKING")
-    time.sleep(4)
+    # _ = input("PRESS ENTER TO START WALKING")
+    # time.sleep(4)
     controller = controllers.VelocityController(True)
-    controller.walk(startPose, goalPose)
+    # controller.walk(startPose, goalPose)
 
-        
-        
+    while True:
+        for i in spider.LEGS_IDS:
+            controller.gripperController.moveGripper(i, 'o')
+            time.sleep(1)
+            controller.gripperController.moveGripper(i, 'c')
+            time.sleep(1)
+            
 
