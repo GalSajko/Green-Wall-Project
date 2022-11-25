@@ -27,9 +27,12 @@ if __name__ == "__main__":
     pinsInstructions = wall.createGrid(True)
 
     startPose = np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32)
-    goalPose = np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)
+    goalPose = np.array([1.0, 0.9, 0.3, 0.0], dtype = np.float32)
 
     poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, goalPose)
+
+    # print(poses)
+    # print(pinsInstructions)
 
     # plotter = sim.Plotter()
     # plotter.plotSpiderMovementSteps(poses, pinsInstructions)
@@ -37,16 +40,11 @@ if __name__ == "__main__":
     # # udpServer = udpServer.UdpServer('192.168.1.41')
     # # initSendingThread()
     
-    # _ = input("PRESS ENTER TO START WALKING")
-    # time.sleep(4)
+    _ = input("PRESS ENTER TO START WALKING")
+    time.sleep(4)
     controller = controllers.VelocityController(True)
-    # controller.walk(startPose, goalPose)
+    controller.walk(startPose, goalPose)
 
-    while True:
-        for i in spider.LEGS_IDS:
-            controller.gripperController.moveGripper(i, 'o')
-            time.sleep(1)
-            controller.gripperController.moveGripper(i, 'c')
-            time.sleep(1)
+
             
 

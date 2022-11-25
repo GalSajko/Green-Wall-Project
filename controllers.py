@@ -264,18 +264,18 @@ class VelocityController:
         self.moveLegAsync(leg, [0.0, 0.0, -0.05], 'g', 1, 'minJerk', pose, True)
         time.sleep(1.5)
         self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
-        time.sleep(1)    
+        time.sleep(3)    
         # Check if leg successfully grabbed the pin.
         while not (leg in self.gripperController.getIdsOfAttachedLegs()):
             print(f"LEG {leg} NOT ATTACHED")      
             self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
             time.sleep(1)
-            self.moveLegAsync(leg, [0.0, 0.0, 0.05], 'g', 1, 'minJerk', pose, True)
+            self.moveLegAsync(leg, [0.0, 0.0, 0.04], 'g', 1, 'minJerk', pose, True)
             time.sleep(1.5)
-            self.moveLegAsync(leg, goalPinPosition, 'g', 1, 'minJerk', pose)
+            self.moveLegAsync(leg, [0.0, 0.0, -0.05], 'g', 1, 'minJerk', pose, True)
             time.sleep(1.5)
-            self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
-            time.sleep(1)            
+            self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
+            time.sleep(3)            
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force self inside main velocity self loop.

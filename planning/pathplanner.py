@@ -189,7 +189,7 @@ def createWalkingInstructions(startPose, goalPose, pinSelectionMethod = calculat
         if idx == 0:
             pinsInstructions[-1] = pinsInstructions[-1][legMovingOrder]
             continue
-        if (np.array(pins) - np.array(selectedPins[idx - 1])).any() or idx == len(selectedPins):
+        if (np.array(pins) - np.array(selectedPins[idx - 1])).any() or idx == (len(selectedPins) - 1):
             appendToPoseAndPinsInstructions(idx, pins)
 
     return np.array(poses), np.array(pinsInstructions)
