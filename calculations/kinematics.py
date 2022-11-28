@@ -72,6 +72,9 @@ def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMEN
     L2 = legsDimensions[1]
     L3 = legsDimensions[2]
 
+    y = endEffectorPosition[1]
+    x = endEffectorPosition[0]
+
     # Angle in first joint.
     q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
     # Allow passing from upper workspace of the leg (Xe > 0), to the lower (Xe < 0).
@@ -347,14 +350,18 @@ def getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalPinsPositions, o
     Returns:
         numpy.ndarray: nx3 array of approach positions in global origin, where n is number of used legs.
     """
+    spiderPose = np.array(spiderPose, dtype = np.float32)
+
     if len(legsIds) != len(globalPinsPositions):
         raise ValueError("Invalid values of legsIds or pinsPositions parameters.")
     
     approachPointsInGlobal = np.empty([len(legsIds), 3])
     for idx, leg in enumerate(legsIds):
-        jointsValues = legInverseKinematics(leg, tf.getLegInLocal(leg, globalPinsPositions[idx], spiderPose))
+        goalPosition = tf.getLegInLocal(leg, globalPinsPositions[idx], spiderPose)
+        goalPosition = np.array(goalPosition, dtype = np.float32)
+        jointsValues = legInverseKinematics(goalPosition)
         T_GA = np.dot(tf.xyzRpyToMatrix(spiderPose), spider.T_ANCHORS[leg])
-        thirdJointLocalPosition = legBaseToThirdJointForwardKinematics(leg, jointsValues)[:,3][:3]
+        thirdJointLocalPosition = legBaseToThirdJointForwardKinematics(jointsValues)[:,3][:3]
         thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
 
         pinToThirdJoint = thirdJointGlobalPosition - globalPinsPositions[idx]

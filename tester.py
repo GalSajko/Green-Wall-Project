@@ -26,10 +26,17 @@ def initSendingThread():
 if __name__ == "__main__":
     pinsInstructions = wall.createGrid(True)
 
-    startPose = np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32)
-    goalPose = np.array([1.0, 0.9, 0.3, 0.0], dtype = np.float32)
+    startPose = np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)
+    goalPose = np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32)
 
-    poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, goalPose)
+    startGoalPosePairs = [
+        [np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32)],
+        [np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)],
+        [np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32)],
+        [np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32)]
+    ]
+
+    # poses, pinsInstructions = pathplanner.createWalkingInstructions(goalPose, startPose)
 
     # print(poses)
     # print(pinsInstructions)
@@ -43,7 +50,8 @@ if __name__ == "__main__":
     _ = input("PRESS ENTER TO START WALKING")
     time.sleep(4)
     controller = controllers.VelocityController(True)
-    controller.walk(startPose, goalPose)
+    for startGoalPosePair in startGoalPosePairs:
+        controller.walk(startGoalPosePair[0], startGoalPosePair[1])
 
 
             

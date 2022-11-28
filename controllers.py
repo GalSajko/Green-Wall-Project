@@ -234,18 +234,18 @@ class VelocityController:
                 self.distributeForces(spider.LEGS_IDS, 5)
                 continue
             
-            previusPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
-            self.moveLegsSync(currentLegsMovingOrder, previusPinsPositions, 'g', 3, 'minJerk', pose)
+            previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
+            self.moveLegsSync(currentLegsMovingOrder, previousPinsPositions, 'g', 3, 'minJerk', pose)
             time.sleep(3.5)
 
-            pinsOffsets = currentPinsPositions - previusPinsPositions
+            pinsOffsets = currentPinsPositions - previousPinsPositions
             for idx, leg in enumerate(currentLegsMovingOrder):
                 if pinsOffsets[idx].any():
-                    self.moveLegFromPinToPin(leg, pinsOffsets[idx], currentPinsPositions[idx], pose)                   
+                    self.moveLegFromPinToPin(leg, pinsOffsets[idx], currentPinsPositions[idx], previousPinsPositions[idx], pose)                 
             self.distributeForces(spider.LEGS_IDS, 3)
             time.sleep(3.5)      
 
-    def moveLegFromPinToPin(self, leg, pinOffset, goalPinPosition, pose):
+    def moveLegFromPinToPin(self, leg, pinOffset, goalPinPosition, currentPinPosition, pose):
         """Move leg from one pin to another, including force-offloading and gripper movements.
 
         Args:
@@ -253,15 +253,20 @@ class VelocityController:
             pinOffset (list): 1x3 array of offsets between current and next pin.
             pose (list): 1x4 array of x, y, z and yaw value of spider's pose in global origin.
         """
+        detachOffset = 0.02
+        approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.01)[0]
+        currentPinToApproachOffset = approachPosition - currentPinPosition
+        approachToGoalPinOffset = goalPinPosition - approachPosition
+        approachToGoalPinOffset[2] -= detachOffset
         self.distributeForces(np.delete(spider.LEGS_IDS, leg), 2)
         time.sleep(2.2)
         self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
         time.sleep(1)
-        self.moveLegAsync(leg, [0.0, 0.0, 0.05], 'g', 1, 'minJerk', pose, True)
+        self.moveLegAsync(leg, [0.0, 0.0, detachOffset], 'g', 1, 'minJerk', pose, True)
         time.sleep(1.5)
-        self.moveLegAsync(leg, pinOffset, 'g', 3, 'minJerk', pose, True)
+        self.moveLegAsync(leg, currentPinToApproachOffset, 'g', 3, 'minJerk', pose, True)
         time.sleep(3.5)
-        self.moveLegAsync(leg, [0.0, 0.0, -0.05], 'g', 1, 'minJerk', pose, True)
+        self.moveLegAsync(leg, approachToGoalPinOffset, 'g', 1, 'minJerk', pose, True)
         time.sleep(1.5)
         self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
         time.sleep(3)    
@@ -270,12 +275,12 @@ class VelocityController:
             print(f"LEG {leg} NOT ATTACHED")      
             self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
             time.sleep(1)
-            self.moveLegAsync(leg, [0.0, 0.0, 0.04], 'g', 1, 'minJerk', pose, True)
+            self.moveLegAsync(leg, [0.0, 0.0, 0.03], 'g', 1, 'minJerk', pose, True)
             time.sleep(1.5)
-            self.moveLegAsync(leg, [0.0, 0.0, -0.05], 'g', 1, 'minJerk', pose, True)
+            self.moveLegAsync(leg, [0.0, 0.0, -0.04], 'g', 1, 'minJerk', pose, True)
             time.sleep(1.5)
             self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
-            time.sleep(3)            
+            time.sleep(3)
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force self inside main velocity self loop.
