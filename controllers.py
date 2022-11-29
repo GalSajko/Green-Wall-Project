@@ -49,7 +49,7 @@ class VelocityController:
         time.sleep(1)
 
     #region public methods
-    def self(self):
+    def controller(self):
         """Velocity self to controll all five legs continuously. Runs in separate thread.
         """
         lastQErrors = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG])
@@ -341,7 +341,7 @@ class VelocityController:
     def __initControllerThread(self):
         """Start a thread with self loop.
         """
-        thread = threading.Thread(target = self.self, name = 'velocity_controller_thread', daemon = False)
+        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
         try:
             thread.start()
             print("self thread is running.")

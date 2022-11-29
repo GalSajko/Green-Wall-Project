@@ -30,10 +30,8 @@ if __name__ == "__main__":
     goalPose = np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32)
 
     startGoalPosePairs = [
-        [np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32)],
-        [np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)],
+        [np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)],
         [np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32)],
-        [np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32)]
     ]
 
     # poses, pinsInstructions = pathplanner.createWalkingInstructions(goalPose, startPose)
