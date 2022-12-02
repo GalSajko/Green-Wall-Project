@@ -60,7 +60,8 @@ class VelocityController:
 
         fBuffer = np.zeros((10, 5, 3), dtype = np.float32)
         tauBuffer = np.zeros((10, 5, 3), dtype = np.float32)
-        counter = 0
+        fCounter = 0
+        tauCounter = 0
 
         while True:
             if self.killControllerThread:
@@ -88,8 +89,8 @@ class VelocityController:
             tauA, fA, Jhash = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.spiderGravityVector)
 
             # Filter over measured values.
-            self.fAMean, fBuffer, counter = mathTools.runningAverage(fBuffer, counter, fA)
-            self.tauAMean, tauBuffer, counter = mathTools.runningAverage(tauBuffer, counter, tauA)
+            self.fAMean, fBuffer, fCounter = mathTools.runningAverage(fBuffer, fCounter, fA)
+            self.tauAMean, tauBuffer, tauCounter = mathTools.runningAverage(tauBuffer, tauCounter, tauA)
 
             if forceMode:
                 offsets = self.__forcePositionP(self.fD, self.fAMean)
@@ -254,10 +255,12 @@ class VelocityController:
             pose (list): 1x4 array of x, y, z and yaw value of spider's pose in global origin.
         """
         detachOffset = 0.02
-        approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.01)[0]
+        approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.03)[0]
+        print(approachPosition)
         currentPinToApproachOffset = approachPosition - currentPinPosition
         approachToGoalPinOffset = goalPinPosition - approachPosition
         approachToGoalPinOffset[2] -= detachOffset
+
         self.distributeForces(np.delete(spider.LEGS_IDS, leg), 2)
         time.sleep(2.2)
         self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
@@ -269,18 +272,35 @@ class VelocityController:
         self.moveLegAsync(leg, approachToGoalPinOffset, 'g', 1, 'minJerk', pose, True)
         time.sleep(1.5)
         self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
-        time.sleep(3)    
+        time.sleep(3) 
+           
         # Check if leg successfully grabbed the pin.
         while not (leg in self.gripperController.getIdsOfAttachedLegs()):
-            print(f"LEG {leg} NOT ATTACHED")      
+            print(f"LEG {leg} NOT ATTACHED")
+            # with self.locker:
+            #     forceVector = self.fAMean[leg]
+            # # print(forceVector)
+            # forceVector = forceVector / np.linalg.norm(forceVector)
+            # offset =  (20 / forceVector)
+            # offset = (offset / np.linalg.norm(offset)) * 0.01
+
+            detachOffset = np.array([0.0, 0.0, 0.1])
+            # nextTryPositionOffset = offset - detachOffset
+            # print(nextTryPositionOffset)
+
             self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
             time.sleep(1)
-            self.moveLegAsync(leg, [0.0, 0.0, 0.03], 'g', 1, 'minJerk', pose, True)
+            self.moveLegAsync(leg, detachOffset, 'g', 1, 'minJerk', pose, True)
             time.sleep(1.5)
-            self.moveLegAsync(leg, [0.0, 0.0, -0.04], 'g', 1, 'minJerk', pose, True)
-            time.sleep(1.5)
-            self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
+            # self.moveLegAsync(leg, nextTryPositionOffset, 'g', 1, 'minJerk', pose, True)
+            # time.sleep(1.5)
+            # self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
+            # time.sleep(3)
+            self.startForceMode([leg], np.array([np.array([0.0, 0.0, -6.0], dtype = np.float32)]))
             time.sleep(3)
+            self.stopForceMode()
+            self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
+            time.sleep(3)           
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force self inside main velocity self loop.

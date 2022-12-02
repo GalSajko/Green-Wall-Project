@@ -72,9 +72,6 @@ def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMEN
     L2 = legsDimensions[1]
     L3 = legsDimensions[2]
 
-    y = endEffectorPosition[1]
-    x = endEffectorPosition[0]
-
     # Angle in first joint.
     q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
     # Allow passing from upper workspace of the leg (Xe > 0), to the lower (Xe < 0).
@@ -359,14 +356,20 @@ def getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalPinsPositions, o
     for idx, leg in enumerate(legsIds):
         goalPosition = tf.getLegInLocal(leg, globalPinsPositions[idx], spiderPose)
         goalPosition = np.array(goalPosition, dtype = np.float32)
-        jointsValues = legInverseKinematics(goalPosition)
+        legsDimensions = np.copy(spider.LEGS_DIMENSIONS)
+        legsDimensions[2] += offset
+        jointsValues = legInverseKinematics(goalPosition, legsDimensions)
         T_GA = np.dot(tf.xyzRpyToMatrix(spiderPose), spider.T_ANCHORS[leg])
-        thirdJointLocalPosition = legBaseToThirdJointForwardKinematics(jointsValues)[:,3][:3]
-        thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
+        approachPointsInLocal = legForwardKinematics(jointsValues)[:,3][:3]
+        approachPointsInGlobal[idx] = np.dot(T_GA, np.append(approachPointsInLocal, 1))[:3]
 
-        pinToThirdJoint = thirdJointGlobalPosition - globalPinsPositions[idx]
-        pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
-        approachPointsInGlobal[idx] = globalPinsPositions[idx] + pinToThirdJoint
+        # thirdJointLocalPosition = legBaseToThirdJointForwardKinematics(jointsValues)[:,3][:3]
+        # thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
+
+        # pinToThirdJoint = thirdJointGlobalPosition - globalPinsPositions[idx]
+        # pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
+        # approachPointsInGlobal[idx] = globalPinsPositions[idx] + pinToThirdJoint
+        
 
     return approachPointsInGlobal
 
