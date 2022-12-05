@@ -12,6 +12,7 @@ import simulation as sim
 import time
 import threading
 import numpy as np
+import random
 
 def forceSending(frequency):
     while True:
@@ -51,10 +52,16 @@ if __name__ == "__main__":
     _ = input("PRESS ENTER TO START WALKING")
     time.sleep(4)
     controller = controllers.VelocityController(True)
+    
+    startPose = np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)
 
-    for startGoalPose in startGoalPoses:
-        controller.walk(startGoalPose[0], startGoalPose[1])
-
-
-            
+    while True:
+        goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+        print(goalPose)
+        controller.walk(startPose, goalPose)
+        startPose = goalPose
+        # controller.startForceMode([4], [[0.0, 0.0, 5.0]])
+        # time.sleep(2)
+        # controller.startForceMode([4], [[0.0, 0.0, -5.0]])
+        # time.sleep(2)
 

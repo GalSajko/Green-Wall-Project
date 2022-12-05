@@ -256,7 +256,6 @@ class VelocityController:
         """
         detachOffset = 0.02
         approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.03)[0]
-        print(approachPosition)
         currentPinToApproachOffset = approachPosition - currentPinPosition
         approachToGoalPinOffset = goalPinPosition - approachPosition
         approachToGoalPinOffset[2] -= detachOffset
@@ -277,25 +276,11 @@ class VelocityController:
         # Check if leg successfully grabbed the pin.
         while not (leg in self.gripperController.getIdsOfAttachedLegs()):
             print(f"LEG {leg} NOT ATTACHED")
-            # with self.locker:
-            #     forceVector = self.fAMean[leg]
-            # # print(forceVector)
-            # forceVector = forceVector / np.linalg.norm(forceVector)
-            # offset =  (20 / forceVector)
-            # offset = (offset / np.linalg.norm(offset)) * 0.01
-
-            detachOffset = np.array([0.0, 0.0, 0.1])
-            # nextTryPositionOffset = offset - detachOffset
-            # print(nextTryPositionOffset)
-
+            detachOffset = np.array([0.0, 0.0, 0.05])
             self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
             time.sleep(1)
             self.moveLegAsync(leg, detachOffset, 'g', 1, 'minJerk', pose, True)
             time.sleep(1.5)
-            # self.moveLegAsync(leg, nextTryPositionOffset, 'g', 1, 'minJerk', pose, True)
-            # time.sleep(1.5)
-            # self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
-            # time.sleep(3)
             self.startForceMode([leg], np.array([np.array([0.0, 0.0, -6.0], dtype = np.float32)]))
             time.sleep(3)
             self.stopForceMode()
@@ -335,7 +320,7 @@ class VelocityController:
             print("Cannot offload more than one leg at the same time.")
             return False
 
-        print("START DISTRIBUTION")
+        # print("START DISTRIBUTION")
 
         startTime = time.perf_counter()
         elapsedTime = 0
@@ -354,7 +339,7 @@ class VelocityController:
         
         self.stopForceMode()
 
-        print("DISTRIBUTION FINISHED")
+        # print("DISTRIBUTION FINISHED")
     #endregion
 
     #region private methods
