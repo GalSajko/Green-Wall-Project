@@ -27,18 +27,17 @@ def initSendingThread():
 if __name__ == "__main__":
     pinsInstructions = wall.createGrid(True)
 
-    # startPose = np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)
-    # goalPose = np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32)
 
-    startGoalPoses = [
-        [np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)],
-        [np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32)],
-        [np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32)],
-        [np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32)],
-    ]
+    # startGoalPoses = [
+    #     [np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)],
+    #     [np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32)],
+    #     [np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32)],
+    #     [np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32)],
+    # ]
 
-
-    # poses, pinsInstructions = pathplanner.createWalkingInstructions(goalPose, startPose)
+    # startPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+    # goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+    # poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, goalPose)
 
     # print(poses)
     # print(pinsInstructions)
@@ -53,15 +52,11 @@ if __name__ == "__main__":
     time.sleep(4)
     controller = controllers.VelocityController(True)
     
-    startPose = np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)
+    startPose = np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32)
 
     while True:
         goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
         print(goalPose)
         controller.walk(startPose, goalPose)
         startPose = goalPose
-        # controller.startForceMode([4], [[0.0, 0.0, 5.0]])
-        # time.sleep(2)
-        # controller.startForceMode([4], [[0.0, 0.0, -5.0]])
-        # time.sleep(2)
 

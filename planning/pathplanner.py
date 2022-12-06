@@ -12,7 +12,7 @@ from calculations import kinematics as kin
 from calculations import dynamics as dyn
 
 
-MAX_LIN_STEP = 0.05
+MAX_LIN_STEP = 0.025
 MAX_ROT_STEP = 0.2
 MAX_LIFT_STEP = 0.3
 
@@ -33,23 +33,6 @@ def calculateSpiderBodyPath(startPose, goalPose):
     """
     path = [startPose]
 
-    # If spider is lying on the pins first lift it up on the walking height.
-    # if startPose[2] == spider.LYING_HEIGHT:
-    #     startWalkingPose = np.copy(startPose)
-    #     startWalkingPose[2] = spider.WALKING_HEIGHT
-    #     path.append(startWalkingPose)
-
-    # Rotate towards goal point.
-    # refAngle = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1]) * (-1)
-    # angleError = geometryTools.wrapToPi(refAngle - startPose[3])
-    # if angleError != 0.0:
-    #     numberOfSteps = math.ceil(abs(angleError) / maxRotStep) + 1
-    #     rotatedPose = np.copy(path[-1])
-    #     rotatedPose[3] = refAngle 
-    #     rotatePath = np.linspace(path[-1], rotatedPose, numberOfSteps)
-    #     for pose in rotatePath:
-    #         path.append(pose)
-
     # Move towards goal point.
     distToTravel = np.linalg.norm(np.array(goalPose[:2]) - np.array(startPose[:2]))
     if distToTravel != 0.0:
@@ -61,14 +44,6 @@ def calculateSpiderBodyPath(startPose, goalPose):
         for pose in linPath:
             if (pose - startPose).any():
                 path.append(pose)
-
-    # Rotate towards goal orientation.
-    # angleError = geometryTools.wrapToPi(path[-1][3] - goalPose[3])
-    # if angleError != 0.0:
-    #     numberOfSteps = math.ceil(abs(angleError) / maxRotStep) + 1
-    #     rotatePath = np.linspace(path[-1], goalPose, numberOfSteps )
-    #     for pose in rotatePath:
-    #         path.append(pose)
 
     return np.array(path)
 
