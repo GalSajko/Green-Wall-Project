@@ -19,7 +19,8 @@ def xyzRpyToMatrix(xyzrpy):
     if len(xyzrpy) == 4:
         xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
     position = xyzrpy[0:3]
-    rpy = xyzrpy[3:]
+    # rpy = xyzrpy[3:]
+    rpy = [xyzrpy[4], xyzrpy[3], xyzrpy[5]]
 
     roll = np.array([
         [math.cos(rpy[1]), 0, math.sin(rpy[1])],
@@ -37,11 +38,10 @@ def xyzRpyToMatrix(xyzrpy):
         [0, 0, 1]
     ], dtype = np.float32)
 
-    rotationMatrix = np.dot(pitch, np.dot(roll, yaw))
+    rotationMatrix = np.dot(roll, np.dot(pitch, yaw))
 
     transformMatrix = np.c_[rotationMatrix, position]
-    addRow = np.array([0, 0, 0, 1], dtype = np.float32)
-    transformMatrix = np.r_[transformMatrix, [addRow]]
+    transformMatrix = np.r_[transformMatrix, [np.array([0, 0, 0, 1], dtype = np.float32)]]
     
     return transformMatrix
 

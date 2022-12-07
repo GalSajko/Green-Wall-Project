@@ -66,8 +66,6 @@ def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMEN
     Returns:
         tuple: Angles in radians in first, second and third joint.
     """
-    # endEffectorPosition = np.array(endEffectorPosition, dtype = np.float32)
-
     L1 = legsDimensions[0]
     L2 = legsDimensions[1]
     L3 = legsDimensions[2]
@@ -98,47 +96,6 @@ def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMEN
     q2 = alpha + gamma
     
     return q1, q2, q3
-
-def platformInverseKinematics(legsIds, legsGlobalPositions, goalPose):
-    """Calculate inverse kinematics for spider platform.
-
-    Args:
-        legsIds (list): Ids of used legs.
-        legsGlobalPositions (list): Global positions of used legs.
-        goalPose (list): Goal pose in global, given as 1x6 array of xyzrpy values.
-
-    Raises:
-        ValueError: If length of legsIds and legsGlobalPositions are not the same.
-
-    Returns:
-        numpy.ndarray: nx3 matrix with joints values for all used legs, where n is number of used legs.
-    """
-    if len(legsIds) != len(legsGlobalPositions):
-        raise ValueError("Lengths of legsIds and legsGlobalPositions do not match.")
-
-    # Get transformation matrix from spiders xyzrpy.
-    globalTransformMatrix = tf.xyzRpyToMatrix(goalPose)
-
-    # Array to store calculated joints values for all legs.
-    joints = np.zeros([len(legsIds, spider.NUMBER_OF_MOTORS_IN_LEG)])
-    for idx, leg in enumerate(legsIds):
-        # Pose of leg anchor in global
-        anchorInGlobal = np.dot(globalTransformMatrix, spider.T_ANCHORS[leg])
-        # Position of leg anchor in global.
-        anchorInGlobalPosition = anchorInGlobal[:,3][:3]
-
-        # Vector from anchor to end of leg in global.
-        anchorToPinGlobal = np.array(legsGlobalPositions[idx] - anchorInGlobalPosition)
-
-        # Transform this vector in legs local origin - only rotate.
-        rotationMatrix = anchorInGlobal[:3, :3]
-        anchorToPinLocal = np.dot(np.linalg.inv(rotationMatrix), anchorToPinGlobal)
-
-        # With inverse kinematics for single leg calculate joints values.
-        q1, q2, q3 = legInverseKinematics(anchorToPinLocal)
-        joints[idx] = np.array([q1, q2, q3])
-
-    return joints
 
 def platformForwardKinematics(legsIds, legsGlobalPositions, legsLocalPoses):
     """Calculate forward kinematics of platform. Use only those legs, that are in contact with pins.
@@ -197,8 +154,9 @@ def platformForwardKinematics(legsIds, legsGlobalPositions, legsLocalPoses):
     pose = np.linalg.inv(Pglobal)
 
     yaw = math.atan2(Pglobal[1, 0], Pglobal[0, 0])
-    pitch = math.atan2(-Pglobal[2, 0], math.sqrt(math.pow(Pglobal[2, 1], 2) + math.pow(Pglobal[2, 2], 2)))
-    roll = math.atan2(Pglobal[2, 1], Pglobal[2, 2])
+    # Note that roll and pitch are swapped because of spider's axis definition.
+    roll = math.atan2(-Pglobal[2, 0], math.sqrt(math.pow(Pglobal[2, 1], 2) + math.pow(Pglobal[2, 2], 2)))
+    pitch = math.atan2(Pglobal[2, 1], Pglobal[2, 2])
 
     x, y, z = pose[:,3][:3]
     xyzrpy = [x, y, z, roll, pitch, yaw]
@@ -289,49 +247,6 @@ def spiderBaseToLegTipJacobi(legId, jointValues, angle = spider.ANGLE_BETWEEN_LE
         [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
     ], dtype = np.float32)
 
-@numba.njit
-def getQdFromOffsets(forceModeLegs, offsets, currentAngles, anchors = spider.T_ANCHORS):
-    qD = np.zeros((len(forceModeLegs), 3), dtype = np.float32)
-    for leg in forceModeLegs:
-        # Read leg's current pose in spider's origin.
-        xSpider = spiderBaseToLegTipForwardKinematics(leg, currentAngles[leg])
-        # Add calculated offset.
-        xSpider[:3][:,3] += offsets[leg]
-        # Transform into leg's origin.
-        xD = np.dot(np.linalg.inv(anchors[leg]), xSpider)[:3][:,3]
-        qD[leg] = legInverseKinematics(xD)
-
-    return qD
-            
-def getSpiderToLegReferenceVelocities(legsIds, spiderVelocity):
-    """Calculate needed legs velocities to match given spider velocity.
-
-    Args:
-        legsIds (list): Ids of used legs.
-        spiderVelocity (list): 1x6 list with velocities in global xyzrpy directions.
-
-    Returns:
-        numpy.ndarray: nx3 array of reference legs velocities in leg-based origin, where n is number of used legs.
-    """
-    
-    linearSpiderVelocity = spiderVelocity[:3]
-    anguarSpiderVelocity = spiderVelocity[3:]
-
-    # Rotate spiders reference velocity into anchors velocities which represent reference velocities for single leg.
-    anchorsVelocities = [np.dot(np.linalg.inv(spider.T_ANCHORS[leg][:3,:3]), linearSpiderVelocity) for leg in legsIds]
-    # Add angular velocities.
-    for idx, leg in enumerate(legsIds):
-        anchorPosition = spider.LEG_ANCHORS[leg]
-        wx, wy, wz = anguarSpiderVelocity
-        anchorsVelocities[idx] = np.array([
-            anchorsVelocities[0],
-            anchorsVelocities[1] + spider.BODY_RADIUS * wz,
-            anchorsVelocities[2] - anchorPosition[0] * wy + anchorPosition[1] * wx
-        ])
-    refereneceLegVelocities = np.copy(anchorsVelocities) * (-1)
-
-    return np.array(refereneceLegVelocities, dtype = np.float32)
-
 def getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalPinsPositions, offset = 0.03):
     """Calculate approach point in global origin, so that gripper would fit on pin.
 
@@ -363,14 +278,6 @@ def getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalPinsPositions, o
         approachPointsInLocal = legForwardKinematics(jointsValues)[:,3][:3]
         approachPointsInGlobal[idx] = np.dot(T_GA, np.append(approachPointsInLocal, 1))[:3]
 
-        # thirdJointLocalPosition = legBaseToThirdJointForwardKinematics(jointsValues)[:,3][:3]
-        # thirdJointGlobalPosition = np.dot(T_GA, np.append(thirdJointLocalPosition, 1))[:3]
-
-        # pinToThirdJoint = thirdJointGlobalPosition - globalPinsPositions[idx]
-        # pinToThirdJoint = (pinToThirdJoint / np.linalg.norm(pinToThirdJoint)) * offset
-        # approachPointsInGlobal[idx] = globalPinsPositions[idx] + pinToThirdJoint
-        
-
     return approachPointsInGlobal
 
 def getSpiderPose(legsIds, legsGlobalPositions, qA):
@@ -389,6 +296,9 @@ def getSpiderPose(legsIds, legsGlobalPositions, qA):
     for legsSubset in itt.combinations(legsIds, 3):
         legsSubset = np.array(legsSubset)
         subsetIdxs = [legsIds.index(leg) for leg in legsSubset]
+        # Skip calculations if all three selected legs are on the same line.
+        if not (np.diff(legsGlobalPositions[subsetIdxs][:, 0]).any() and np.diff(legsGlobalPositions[subsetIdxs][:, 1]).any()):
+            continue
         jointsValues = qA[legsSubset]
         legsPoses = np.zeros([3, 4, 4])
         for idx, leg in enumerate(legsSubset):

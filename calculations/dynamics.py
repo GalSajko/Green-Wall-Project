@@ -77,10 +77,6 @@ def calculateDistributedForces(measuredTorques, jointsValues, legsIds, offloadLe
         numpy.ndarray: 5x3 array of desired forces, to be applied on leg-tips.
     """
     W, Jx, JhashTransDiag = _getSpiderExternalForces(measuredTorques, jointsValues)
-    # A = np.eye(15)
-    # A[2, 2] = 5
-    # Jx = mathTools.weightedPseudoInverse(Jx, A)
-    # distTorquesArray = np.dot(Jx, W)
     if len(offloadLegId):
         Jx = np.delete(Jx, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 1)
         JhashTransDiag = np.delete(JhashTransDiag, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 0)

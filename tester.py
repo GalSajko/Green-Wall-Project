@@ -5,6 +5,7 @@ import controllers
 from environment import wall
 from environment import spider
 from planning import pathplanner
+from calculations import kinematics as kin
 import udpServer as udpServer
 from periphery import grippers
 import simulation as sim
@@ -27,21 +28,7 @@ def initSendingThread():
 if __name__ == "__main__":
     pinsInstructions = wall.createGrid(True)
 
-
-    # startGoalPoses = [
-    #     [np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32)],
-    #     [np.array([1.0, 0.4, 0.3, 0.0], dtype = np.float32), np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32)],
-    #     [np.array([1.0, 0.8, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32)],
-    #     [np.array([0.2, 0.8, 0.3, 0.0], dtype = np.float32), np.array([0.2, 0.4, 0.3, 0.0], dtype = np.float32)],
-    # ]
-
-    # startPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
-    # goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
     # poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, goalPose)
-
-    # print(poses)
-    # print(pinsInstructions)
-
     # plotter = sim.Plotter()
     # plotter.plotSpiderMovementSteps(poses, pinsInstructions)
 
