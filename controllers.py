@@ -284,13 +284,13 @@ class VelocityController:
         time.sleep(1.5)
         self.moveLegAsync(leg, currentPinToApproachOffset, 'g', 2, 'minJerk', pose, True)
         time.sleep(2.5)
-        self.startForceMode([leg], [approachToGoalDirection * 4])
-        # self.moveLegAsync(leg, approachToGoalPinOffset, 'g', 1, 'minJerk', pose, True)
+        # self.startForceMode([leg], [approachToGoalDirection * 4])
+        self.moveLegAsync(leg, approachToGoalPinOffset, 'g', 1, 'minJerk', pose, True)
         time.sleep(2.5)
         # self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
         self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
         time.sleep(3) 
-        self.stopForceMode()
+        # self.stopForceMode()
            
         # Check if leg successfully grabbed the pin.
         while not (leg in self.gripperController.getIdsOfAttachedLegs()):
