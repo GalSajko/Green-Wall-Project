@@ -2,7 +2,7 @@
 """
 import serial
 
-class WaterPumpController:
+class PumpsBnoArduino:
     """Class for controlling water pumps via serial communication with Arduino.
     """
     def __init__(self):
@@ -18,7 +18,7 @@ class WaterPumpController:
     
     #region public methods
     def pumpControll(self, command, pumpId):
-        """Controll water pump - turn it on of off.
+        """Controll water pump - turn it on or off.
 
         Args:
             command (str): Command to execute on water pump - '1' for on, '0' for off.

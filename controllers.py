@@ -21,7 +21,7 @@ class VelocityController:
     """
     def __init__ (self, isVertical = False):
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
-        self.gripperController = grippers.GripperController()
+        self.gripperController = grippers.GrippersArduino()
         # This line will cause 2s long pause, to initialize the sensor.
         # self.bno055 = periphery.BNO055(isVertical)
 

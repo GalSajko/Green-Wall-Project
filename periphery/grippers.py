@@ -5,7 +5,7 @@ import threading
 import time
 import numpy as np
 
-class GripperController:
+class GrippersArduino:
     """Class for controlling grippers via serial communication with Arduino.
     """
     def __init__(self):
