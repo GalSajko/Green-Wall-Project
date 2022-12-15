@@ -16,8 +16,6 @@ char GRIPPER_OPENED_RESPONSE = '1';
 char GRIPPER_CLOSED_RESPONSE = '0';
 char GRIPPER_MOVING_RESPONSE = '2';
 
-bool isInit = false;
-
 // Values when servo is in closed or open position.
 int GRIPPERS_OPEN_THRESHOLD[NUMBER_OF_LEGS] = {700, 710, 695, 685, 680};
 int GRIPPERS_CLOSE_THRESHOLD[NUMBER_OF_LEGS] = {440, 460, 440, 440, 420};

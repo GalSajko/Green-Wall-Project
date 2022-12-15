@@ -13,6 +13,7 @@ from planning import trajectoryplanner as trajPlanner
 from planning import pathplanner 
 from periphery import dynamixel as dmx
 from periphery import grippers
+from periphery import waterpumpsbno as wpb
 
 
 class VelocityController:
@@ -22,8 +23,7 @@ class VelocityController:
     def __init__ (self, isVertical = False):
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.gripperController = grippers.GrippersArduino()
-        # This line will cause 2s long pause, to initialize the sensor.
-        # self.bno055 = periphery.BNO055(isVertical)
+        self.bnoPumpsController = wpb.PumpsBnoArduino()
 
         self.legsQueues = [queue.Queue() for i in range(spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
@@ -235,6 +235,8 @@ class VelocityController:
             if step == 0:
                 self.moveLegsSync(currentLegsMovingOrder, currentPinsPositions, 'g', 3, 'minJerk', pose)
                 time.sleep(3.5)
+                self.bnoPumpsController.initBno()
+                time.sleep(1)
                 self.distributeForces(spider.LEGS_IDS, 5)
                 continue
             
@@ -271,7 +273,9 @@ class VelocityController:
         pose = kin.getSpiderPose(list(otherLegs), legsGlobalPositions[otherLegs], currentAngles)
         rotationMatrix = tf.xyzRpyToMatrix(pose)[:3, :3]
         globalZDirection = np.dot(rotationMatrix, np.array([0.0, 0.0, 1.0]))
-        print("Self-measured pose: ", np.array(pose))
+        # print("Self-measured pose: ", np.array(pose))
+        rpy, gravity = self.bnoPumpsController.getRpyAndGravity()
+        print("BNO-measured rpy: ", rpy)
 
         detachOffsetZ = 0.03
         approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.01)[0]
@@ -287,10 +291,10 @@ class VelocityController:
         # self.startForceMode([leg], [approachToGoalDirection * 4])
         self.moveLegAsync(leg, approachToGoalPinOffset, 'g', 1, 'minJerk', pose, True)
         time.sleep(2.5)
-        # self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
+        self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
         self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
         time.sleep(3) 
-        # self.stopForceMode()
+        self.stopForceMode()
            
         # Check if leg successfully grabbed the pin.
         while not (leg in self.gripperController.getIdsOfAttachedLegs()):

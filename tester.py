@@ -8,6 +8,7 @@ from planning import pathplanner
 from calculations import kinematics as kin
 import udpServer as udpServer
 from periphery import grippers
+from periphery import waterpumpsbno as wpb
 import simulation as sim
 
 import time
@@ -26,7 +27,22 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":
-    pinsInstructions = wall.createGrid(True)
+    # pinsInstructions = wall.createGrid(True)
+
+    # _ = input("PRESS ENTER TO RESET BNO")
+    # bno.initBno()
+
+    # print("Start receiving")
+    # while True:
+    #     rpy, grav = bno.getRpyAndGravity()
+    #     print(rpy)
+    #     print(grav)
+    #     print("====")
+    #     time.sleep(0.05)
+    
+
+
+    
 
     # poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, goalPose)
     # plotter = sim.Plotter()
@@ -46,4 +62,6 @@ if __name__ == "__main__":
         print(goalPose)
         controller.walk(startPose, goalPose)
         startPose = goalPose
+
+
 

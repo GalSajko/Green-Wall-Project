@@ -6,7 +6,7 @@ import numba
 
 from environment import spider
 
-def xyzRpyToMatrix(xyzrpy):
+def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     """Calculate global transformation matrix for global origin - spider relation.
 
     Args:
@@ -19,7 +19,6 @@ def xyzRpyToMatrix(xyzrpy):
     if len(xyzrpy) == 4:
         xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
     position = xyzrpy[0:3]
-    # rpy = xyzrpy[3:]
     rpy = [xyzrpy[4], xyzrpy[3], xyzrpy[5]]
 
     roll = np.array([
@@ -37,13 +36,19 @@ def xyzRpyToMatrix(xyzrpy):
         [math.sin(rpy[2]), math.cos(rpy[2]), 0],
         [0, 0, 1]
     ], dtype = np.float32)
-
     rotationMatrix = np.dot(roll, np.dot(pitch, yaw))
 
-    transformMatrix = np.c_[rotationMatrix, position]
-    transformMatrix = np.r_[transformMatrix, [np.array([0, 0, 0, 1], dtype = np.float32)]]
+    if not rotationOnly:
+        transformMatrix = np.c_[rotationMatrix, position]
+        transformMatrix = np.r_[transformMatrix, [np.array([0, 0, 0, 1], dtype = np.float32)]]
+        
+        return transformMatrix
     
-    return transformMatrix
+    return rotationMatrix
+    
+
+    
+
 
 def getLegInLocal(legId, globalLegPosition, spiderPose):
     """Calculate local leg's position from given global position.

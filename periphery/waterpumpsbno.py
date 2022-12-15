@@ -1,6 +1,8 @@
 """Module with water pumps controller class.
 """
 import serial
+import time
+import threading
 
 class PumpsBnoArduino:
     """Class for controlling water pumps via serial communication with Arduino.
@@ -8,13 +10,24 @@ class PumpsBnoArduino:
     def __init__(self):
         """Init serial communication with Arduino.
         """
-        self.ON_COMMAND = '1'
-        self.OFF_COMMAND = '0'
         self.INIT_RESPONSE = "OK"
         self.INIT_MESSAGE = "init"
+        self.PUMP_OFF_COMMAND = '0'
+        self.PUMP_ON_COMMAND = '1'
+        self.INIT_BNO = '2'
+        self.READ_BNO_RPY = '3'
+        self.RECEIVED_MESSAGE_LENGTH = 30
 
-        self.comm = serial.Serial('/dev/ttyUSB_ARDUINO_WATER_PUMP', 115200, timeout = 0)
+        self.receivedMessage = ""
+
+        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
         self.comm.reset_input_buffer()
+
+        self.locker = threading.Lock()
+
+        self.__initReadingThread()
+
+        self.__handshake()
     
     #region public methods
     def pumpControll(self, command, pumpId):
@@ -24,12 +37,37 @@ class PumpsBnoArduino:
             command (str): Command to execute on water pump - '1' for on, '0' for off.
             pumpId (int): Water pump id.
         """
-        if command in (self.ON_COMMAND, self.OFF_COMMAND):
+        if command in (self.PUMP_ON_COMMAND, self.PUMP_OFF_COMMAND):
             msg = command + str(pumpId) + '\n'
             self.__sendData(msg)
+    
+    def initBno(self):
+        self.__sendData(self.INIT_BNO)
+    
+    def getRpyAndGravity(self):
+        recMsg = ''
+        while len(recMsg) != self.RECEIVED_MESSAGE_LENGTH:
+            with self.locker:
+                recMsg = self.receivedMessage
+        roll = float(recMsg[0 : 5])
+        pitch = float(recMsg[5 : 10])
+        yaw = float(recMsg[10 : 15])
+        xGrav = float(recMsg[15 : 20])
+        yGrav = float(recMsg[20 : 25])
+        zGrav = float(recMsg[25 : 30])
+
+        return (roll, pitch, yaw), (xGrav, yGrav, zGrav)
+        # time.sleep(0.1)
+
     #endregion
 
     #region private methods
+    def __initReadingThread(self):
+        """Initialize reading data thread.
+        """
+        readingThread = threading.Thread(target = self.__readData, name = "bno_serial_reading_thread", daemon = True)
+        readingThread.start()
+
     def __sendData(self, msg):
         """Send data to Arduino.
 
@@ -39,5 +77,31 @@ class PumpsBnoArduino:
         if msg[-1] != '\n':
             msg += '\n'
         msg = msg.encode("utf-8")
-        self.comm.write(msg)
+        with self.locker:
+            self.comm.write(msg)
+    
+    def __readData(self):
+        """Constantly receiving data from Arduino. Runs in separate thread.
+        """
+        while True:
+            time.sleep(0.001)
+            with self.locker:
+                msg = self.comm.readline()
+            while '\\n' not in str(msg):
+                time.sleep(0.001)
+                with self.locker:
+                    msg += self.comm.readline()
+
+            self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
+
+    def __handshake(self):
+        """Handshake procedure with Arduino.
+        """
+        self.__sendData(self.INIT_MESSAGE)
+        time.sleep(0.01)
+        while self.receivedMessage != self.INIT_RESPONSE:
+            time.sleep(0.01)
+            self.__sendData(self.INIT_MESSAGE)
+        print("Handshake with bno Arduino successfull.")
+        
     #endregion

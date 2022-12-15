@@ -23,7 +23,7 @@ class GrippersArduino:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB2', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
@@ -72,7 +72,7 @@ class GrippersArduino:
             string: String of five characters, each represeting switch state - either '1' or '0', depends on the state of the switch.
         """
         recMsg = ''
-        while not len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
+        while len(recMsg) != self.RECEIVED_MESSAGE_LENGTH:
             with self.locker:
                 recMsg = self.receivedMessage
 
@@ -112,7 +112,7 @@ class GrippersArduino:
             time.sleep(0.001)
             with self.locker:
                 msg = self.comm.readline()
-            while not '\\n' in str(msg):
+            while '\\n' not in str(msg):
                 time.sleep(0.001)
                 with self.locker:
                     msg += self.comm.readline()
