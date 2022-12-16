@@ -209,7 +209,7 @@ void loop()
     }
   }
   // Serial.println(getEulersMessage(eulers) + '\n');
-  Serial.println(getEulersMessage(eulers) + getGravityVectorMessage(event) + '\n');
+  Serial.print(getEulersMessage(eulers) + getGravityVectorMessage(event) + '\n');
 
-  delay(100);
+  // delay(10);
 }

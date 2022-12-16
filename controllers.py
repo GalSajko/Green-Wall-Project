@@ -22,10 +22,10 @@ class VelocityController:
     """
     def __init__ (self, isVertical = False):
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
-        self.gripperController = grippers.GrippersArduino()
-        self.bnoPumpsController = wpb.PumpsBnoArduino()
+        self.grippersArduino = grippers.GrippersArduino()
+        self.pumpsBnoArduino = wpb.PumpsBnoArduino()
 
-        self.legsQueues = [queue.Queue() for i in range(spider.NUMBER_OF_LEGS)]
+        self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
         self.lastMotorsPositions = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG])
         self.locker = threading.Lock()
@@ -86,7 +86,7 @@ class VelocityController:
 
             qD, qDd = self.__getQdQddFromQueues()
 
-            tauA, fA, Jhash = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.spiderGravityVector)
+            tauA, fA, Jhash = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.pumpsBnoArduino.getGravityVector())
 
             # Filter over measured values.
             self.fAMean, fBuffer, fCounter = mathTools.runningAverage(fBuffer, fCounter, fA)
@@ -217,7 +217,7 @@ class VelocityController:
         
         return True
     
-    def walk(self, startPose, endPose):
+    def walk(self, startPose, endPose, doInitBno = False):
         """Walking procedure from start to goal pose on the wall.
 
         Args:
@@ -226,16 +226,15 @@ class VelocityController:
         """
         poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
         for step, pose in enumerate(poses):
-            print("FF pose: ", pose)
             currentPinsPositions = pinsInstructions[step, :, 1:]
             currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
-            orderList = list(currentLegsMovingOrder)
-            inverseOrder = [orderList.index(0), orderList.index(1), orderList.index(2), orderList.index(3), orderList.index(4)]
 
             if step == 0:
                 self.moveLegsSync(currentLegsMovingOrder, currentPinsPositions, 'g', 3, 'minJerk', pose)
                 time.sleep(3.5)
-                self.bnoPumpsController.initBno()
+                # This is here only temporarly. BNO reset should happened only once, not at the beginning of each point-to-point walk.
+                if doInitBno:
+                    self.pumpsBnoArduino.resetBno()
                 time.sleep(1)
                 self.distributeForces(spider.LEGS_IDS, 5)
                 continue
@@ -245,70 +244,71 @@ class VelocityController:
             time.sleep(2)
 
             pinsOffsets = currentPinsPositions - previousPinsPositions
-            legsGlobalPositions = np.copy(previousPinsPositions)
             for idx, leg in enumerate(currentLegsMovingOrder):
                 if pinsOffsets[idx].any():
-                    self.moveLegFromPinToPin(leg, currentPinsPositions[idx], previousPinsPositions[idx], legsGlobalPositions[inverseOrder])  
-                    legsGlobalPositions[idx] = currentPinsPositions[idx]          
+                    self.moveLegFromPinToPin(leg, currentPinsPositions[idx], previousPinsPositions[idx])          
             self.distributeForces(spider.LEGS_IDS, 2)
 
-    def moveLegFromPinToPin(self, leg, goalPinPosition, currentPinPosition, legsGlobalPositions):
+    def moveLegFromPinToPin(self, leg, goalPinPosition, currentPinPosition):
         """Move leg from one pin to another, including force-offloading and gripper movements.
 
         Args:
             leg (int): Leg id.
-            pinOffset (list): 1x3 array of offsets between current and next pin.
-            pose (list): 1x4 array of x, y, z and yaw value of spider's pose in global origin.
+            goalPinPosition (list): 1x3 array goal-pin position in global origin.
+            currentPinPosition (list): 1x3 array current pin position in global origin.
+
         """
         otherLegs = np.delete(spider.LEGS_IDS, leg)
         self.distributeForces(otherLegs, 2)
         time.sleep(2.5)
-        self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
+        self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)
         time.sleep(1)
-
-        # Recalculate spider's pose.
-        with self.locker:
-            currentAngles = self.qA
         
-        pose = kin.getSpiderPose(list(otherLegs), legsGlobalPositions[otherLegs], currentAngles)
-        rotationMatrix = tf.xyzRpyToMatrix(pose)[:3, :3]
-        globalZDirection = np.dot(rotationMatrix, np.array([0.0, 0.0, 1.0]))
-        # print("Self-measured pose: ", np.array(pose))
-        rpy, gravity = self.bnoPumpsController.getRpyAndGravity()
-        print("BNO-measured rpy: ", rpy)
+        # Get rpy from sensor.
+        rpy = self.pumpsBnoArduino.getRpy()
 
-        detachOffsetZ = 0.03
-        approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.01)[0]
-        currentPinToApproachOffset = approachPosition - currentPinPosition
-        approachToGoalPinOffset = goalPinPosition - approachPosition
-        approachToGoalPinOffset[2] -= detachOffsetZ
-        approachToGoalDirection = approachToGoalPinOffset / np.linalg.norm(approachToGoalPinOffset)
+        globalToSpiderRotation = tf.xyzRpyToMatrix(np.array([0, 0, 0, rpy[0], rpy[1], rpy[2]]), True)
+        globalToLegRotation = np.linalg.inv(np.dot(globalToSpiderRotation, spider.T_ANCHORS[leg][:3, :3]))
 
-        self.moveLegAsync(leg, [0.0, 0.0, detachOffsetZ], 'g', 1, 'minJerk', pose, True)
+        globalZDirectionInSpider = np.dot(np.linalg.inv(globalToSpiderRotation), np.array([0.0, 0.0, 1.0]))
+        globalZDirectionInLocal = np.dot(globalToLegRotation, np.array([0.0, 0.0, 1.0]))
+
+        pinToPinGlobal = goalPinPosition - currentPinPosition
+        pinToPinLocal = np.dot(globalToLegRotation, pinToPinGlobal)
+
+        detachOffsetZ = 0.06
+        detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
+
+        # approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.01)[0]
+        # currentPinToApproachOffset = approachPosition - currentPinPosition
+        # approachToGoalPinOffset = goalPinPosition - approachPosition
+        # approachToGoalPinOffset[2] -= detachOffsetZ
+        # approachToGoalDirection = approachToGoalPinOffset / np.linalg.norm(approachToGoalPinOffset)
+
+        self.moveLegAsync(leg, detachOffsetInLocal, 'l', 1, 'minJerk', isOffset = True)
         time.sleep(1.5)
-        self.moveLegAsync(leg, currentPinToApproachOffset, 'g', 2, 'minJerk', pose, True)
+        
+        self.moveLegAsync(leg, pinToPinLocal, 'l', 2, 'minJerk', isOffset = True)
         time.sleep(2.5)
-        # self.startForceMode([leg], [approachToGoalDirection * 4])
-        self.moveLegAsync(leg, approachToGoalPinOffset, 'g', 1, 'minJerk', pose, True)
-        time.sleep(2.5)
-        self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
-        self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
-        time.sleep(3) 
-        self.stopForceMode()
-           
-        # Check if leg successfully grabbed the pin.
-        while not (leg in self.gripperController.getIdsOfAttachedLegs()):
-            print(f"LEG {leg} NOT ATTACHED")
 
-            detachOffset = globalZDirection * detachOffsetZ
-            self.gripperController.moveGripper(leg, self.gripperController.OPEN_COMMAND)
+        self.moveLegAsync(leg, -detachOffsetInLocal, 'l', 1, 'minJerk', isOffset = True)
+        time.sleep(1.5)
+        self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
+        self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
+        time.sleep(3)
+        self.stopForceMode()
+
+        # Check if leg successfully grabbed the pin.
+        while not (leg in self.grippersArduino.getIdsOfAttachedLegs()):
+            print(f"LEG {leg} NOT ATTACHED")
+            self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)
             time.sleep(1)
-            self.moveLegAsync(leg, detachOffset, 'g', 1, 'minJerk', pose, True)
+            self.moveLegAsync(leg, detachOffsetInLocal / 2.0, 'l', 1, 'minJerk', isOffset = True)
             time.sleep(1.5)
             
-            self.startForceMode([leg], [globalZDirection * (-4)])
+            self.startForceMode([leg], [globalZDirectionInSpider * (-4)])
             time.sleep(2)
-            self.gripperController.moveGripper(leg, self.gripperController.CLOSE_COMMAND)
+            self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
             self.stopForceMode()
             time.sleep(3)           
 
@@ -321,6 +321,7 @@ class VelocityController:
         """
         if len(legsIds) != len(desiredForces):
             raise ValueError("Number of legs used in force controll does not match with number of given desired forces vectors.")
+        # self.spiderGravityVector = self.pumpsBnoArduino.getGravityVector()
         with self.locker:
             self.isForceMode = True
             self.forceModeLegsIds = legsIds
@@ -463,7 +464,7 @@ class VelocityController:
     
     def __convertIntoLocalGoalPosition(self, legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose):
         if origin == 'l':
-            localGoalPosition = goalPositionOrOffset
+            localGoalPosition = np.copy(goalPositionOrOffset)
             if isOffset:
                 localGoalPosition += legCurrentPosition
             return localGoalPosition

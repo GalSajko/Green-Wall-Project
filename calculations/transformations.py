@@ -12,9 +12,10 @@ def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     Args:
         xyzrpy (list): Global spider's pose to be transformed into matrix. Could be given as 1x4 array, representing xyzy values or 
         1x6 array, representing xyzrpy values.
+        rotationOnly (bool): If True, calculate 3x3 rotation matrix from given rpy angles, otherwise calculate 4x4 full transformation matrix. Defaults to False.
 
     Returns:
-        numpy.ndarray: 4x4 transformation matrix from global origin to spider.
+        numpy.ndarray: 4x4 transformation matrix from global origin to spider or 3x3 rotation matrix from given rpy angles.
     """
     if len(xyzrpy) == 4:
         xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
@@ -45,10 +46,6 @@ def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
         return transformMatrix
     
     return rotationMatrix
-    
-
-    
-
 
 def getLegInLocal(legId, globalLegPosition, spiderPose):
     """Calculate local leg's position from given global position.

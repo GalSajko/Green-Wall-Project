@@ -3,6 +3,7 @@
 import serial
 import time
 import threading
+import numpy as np
 
 class PumpsBnoArduino:
     """Class for controlling water pumps via serial communication with Arduino.
@@ -26,6 +27,7 @@ class PumpsBnoArduino:
         self.locker = threading.Lock()
 
         self.__initReadingThread()
+        time.sleep(1)
 
         self.__handshake()
     
@@ -41,10 +43,17 @@ class PumpsBnoArduino:
             msg = command + str(pumpId) + '\n'
             self.__sendData(msg)
     
-    def initBno(self):
+    def resetBno(self):
+        """Send command to reset BNO.
+        """
         self.__sendData(self.INIT_BNO)
     
-    def getRpyAndGravity(self):
+    def getRpy(self):
+        """Read rpy angles.
+
+        Returns:
+            numpy.ndarray: 1x3 array of roll, pitch and yaw values in radians.
+        """
         recMsg = ''
         while len(recMsg) != self.RECEIVED_MESSAGE_LENGTH:
             with self.locker:
@@ -52,13 +61,25 @@ class PumpsBnoArduino:
         roll = float(recMsg[0 : 5])
         pitch = float(recMsg[5 : 10])
         yaw = float(recMsg[10 : 15])
+
+        return np.array([roll, pitch, yaw], dtype = np.float32)
+    
+    def getGravityVector(self):
+        """Read gravity vector
+
+        Returns:
+            numpy.ndarray: 1x3 array of gravity vector.
+        """
+        recMsg = ''
+        while len(recMsg) != self.RECEIVED_MESSAGE_LENGTH:
+            with self.locker:
+                recMsg = self.receivedMessage
+
         xGrav = float(recMsg[15 : 20])
         yGrav = float(recMsg[20 : 25])
         zGrav = float(recMsg[25 : 30])
 
-        return (roll, pitch, yaw), (xGrav, yGrav, zGrav)
-        # time.sleep(0.1)
-
+        return np.array([xGrav, yGrav, zGrav], dtype = np.float32)
     #endregion
 
     #region private methods
@@ -91,8 +112,8 @@ class PumpsBnoArduino:
                 time.sleep(0.001)
                 with self.locker:
                     msg += self.comm.readline()
-
-            self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
+            with self.locker:
+                self.receivedMessage = msg.decode("utf-8", errors = "ignore").rstrip()
 
     def __handshake(self):
         """Handshake procedure with Arduino.
