@@ -280,6 +280,23 @@ def getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalPinsPositions, o
 
     return approachPointsInGlobal
 
+def getLegApproachPositionInLocal(goalPosition, offset = 0.03):
+    """Calculate approach point in leg's local origin.
+
+    Args:
+        goalPosition (list): 1x3 array of goal position, given in leg's local origin.
+        offset (float, optional): Value to be used for virtually increase length of last segment. Defaults to 0.03.
+
+    Returns:
+        numpy.ndarray: 1x3 array of approach position, given in local origin.
+    """
+    modifiedLegDimensions = np.copy(spider.LEGS_DIMENSIONS)
+    modifiedLegDimensions[2] += offset
+    jointsInApproachPosition = legInverseKinematics(goalPosition, legsDimensions = modifiedLegDimensions)
+    approachPosition = legForwardKinematics(jointsInApproachPosition)[:,3][:3]
+
+    return approachPosition
+
 def getSpiderPose(legsIds, legsGlobalPositions, qA):
     """Calculate spider's pose in global origin. If more than three legs are given, it calculates spider's pose from each
     combination of these three legs. Finally pose is determined as mean value of all calculations.

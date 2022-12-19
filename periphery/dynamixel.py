@@ -26,13 +26,14 @@ class MotorDriver:
         self.GOAL_VELOCITY_ADDR = 104
         self.PRESENT_POSITION_ADDR = 132
         self.PRESENT_CURRENT_ADDR = 126
+        self.ERROR_ADDR = 70
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
         self.USB_DEVICE_NAME = "/dev/ttyUSB0"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.PRESENT_CURRENT_DATA_LENGTH = 2
         self.GOAL_VELOCITY_DATA_LENGTH = 4
-        self.ERROR_ADDR = 70
+        self.ERROR_DATA_LENGTH = 1
 
         self.__setUSBLowLatency()
 
@@ -45,6 +46,7 @@ class MotorDriver:
 
         self.groupSyncReadPosition = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
         self.groupSyncReadCurrent = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
+        # self.groupSyncReadError = GroupSyncRead(self.portHandler, self.packetHandler, self.ERROR_ADDR, self.ERROR_DATA_LENGTH)
         self.groupSyncWrite = GroupSyncWrite(self.portHandler, self.packetHandler, self.GOAL_VELOCITY_ADDR, self.GOAL_VELOCITY_DATA_LENGTH)
 
         self.__initGroupReadWrite()
@@ -55,22 +57,25 @@ class MotorDriver:
 
     #region public methods 
     def syncReadAnglesAndCurrentsWrapper(self):
-        """Read positions and currents from all connected motors.
+        """Read positions, currents and hardware errors from all connected motors.
 
         Returns:
-            tuple: Two 5x3 numpy.ndarrays with positions in radians and currents in Ampers in each motor.
+            tuple: Three 5x3 numpy.ndarrays with positions in radians, currents in Ampers and error codes in each motor.
         """
         try:
             _ = self.groupSyncReadCurrent.fastSyncRead()
             _ = self.groupSyncReadPosition.fastSyncRead()
+            # _ = self.groupSyncReadError.fastSyncRead()
 
-            currents = np.empty([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
-            positions = np.empty([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+            currents = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+            positions = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+            # errors = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
 
             for leg in spider.LEGS_IDS:
                 for idx, motorInLeg in enumerate(self.motorsIds[leg]):
                     positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
                     currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
+                    # errors[leg][idx] = self.groupSyncReadError.getData(motorInLeg, self.ERROR_ADDR, self.ERROR_DATA_LENGTH)
                 positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
                 currents[leg] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[leg])
 
@@ -167,7 +172,16 @@ class MotorDriver:
         for motorId in self.motorsIds.flatten():
             hwError, _, _ = self.packetHandler.read1ByteTxRx(self.portHandler, motorId, self.ERROR_ADDR)
             binaryError = format(hwError, '0>8b')
-            print(f"Motor {motorId} - error code {binaryError}")
+            print(f"Motor {motorId} - error code {hwError}")
+    
+    def rebootMotor(self, motorsIds):
+        """Reboot motors with given IDs. Used only, when motors are in hardware error state.
+
+        Args:
+            motorsIds (int): Ids of a motors.
+        """
+        for motorId in motorsIds:
+            self.packetHandler.reboot(self.portHandler, motorId)
     #endregion
 
     #region private methods
@@ -189,6 +203,7 @@ class MotorDriver:
         """
         self.groupSyncReadCurrent.clearParam()
         self.groupSyncReadPosition.clearParam()
+        # self.groupSyncReadError.clearParam()
 
         resultAddParams = self.__addGroupSyncReadParams()
         if not resultAddParams:
@@ -196,9 +211,9 @@ class MotorDriver:
 
         for leg in spider.LEGS_IDS:
             initVelocities = np.zeros(spider.NUMBER_OF_MOTORS_IN_LEG)
-            encoderVelocoties = mappers.mapModelVelocitiesToVelocityEncoderValues(initVelocities).astype(int)
+            encoderVelocities = mappers.mapModelVelocitiesToVelocityEncoderValues(initVelocities).astype(int)
             for i, motor in enumerate(self.motorsIds[leg]):
-                initVelocityBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocoties[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocoties[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocoties[i]))]
+                initVelocityBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocities[i]))]
                 resultWrite = self.groupSyncWrite.addParam(motor, initVelocityBytes)
                 if not resultWrite:
                     print("Failed adding parameter %d to Group Sync Writer" % motor)
@@ -215,6 +230,7 @@ class MotorDriver:
         for motor in self.motorsIds.flatten():
             resultPosition = self.groupSyncReadPosition.addParam(motor)
             resultCurrent = self.groupSyncReadCurrent.addParam(motor)
+            # resultError = self.groupSyncReadError.addParam(motor)
             if not (resultPosition and resultCurrent):
                 print("Failed adding parameter %d to Group Sync Reader" % motor)
                 return False

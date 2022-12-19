@@ -32,8 +32,8 @@ class VelocityController:
         self.killControllerThread = False
 
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
-        self.Kp = np.array([[1.0, 1.0, 1.0]] * spider.NUMBER_OF_LEGS) * 20.0
-        self.Kd = np.array([[1.0, 1.0, 1.0]] * spider.NUMBER_OF_LEGS) * 0.2
+        self.Kp = np.ones((spider.NUMBER_OF_LEGS, 3), dtype = np.float32) * config.K_P
+        self.Kd = np.ones((spider.NUMBER_OF_LEGS, 3), dtype = np.float32) * config.K_D
 
         self.qA = []
         self.fAMean = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
@@ -83,6 +83,9 @@ class VelocityController:
                 if init:
                     self.lastMotorsPositions = currentAngles
                     init = False
+
+            if currents[currents > 3.0].any():
+                print(self.motorDriver.motorsIds[np.where(currents > 5.0)])
 
             qD, qDd = self.__getQdQddFromQueues()
 
@@ -256,8 +259,9 @@ class VelocityController:
             leg (int): Leg id.
             goalPinPosition (list): 1x3 array goal-pin position in global origin.
             currentPinPosition (list): 1x3 array current pin position in global origin.
-
         """
+        # self.motorDriver.readHardwareErrorRegister()
+
         otherLegs = np.delete(spider.LEGS_IDS, leg)
         self.distributeForces(otherLegs, 2)
         time.sleep(2.5)
@@ -276,7 +280,7 @@ class VelocityController:
         pinToPinGlobal = goalPinPosition - currentPinPosition
         pinToPinLocal = np.dot(globalToLegRotation, pinToPinGlobal)
 
-        detachOffsetZ = 0.06
+        detachOffsetZ = 0.02
         detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
 
         # approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.01)[0]
@@ -285,18 +289,30 @@ class VelocityController:
         # approachToGoalPinOffset[2] -= detachOffsetZ
         # approachToGoalDirection = approachToGoalPinOffset / np.linalg.norm(approachToGoalPinOffset)
 
-        self.moveLegAsync(leg, detachOffsetInLocal, 'l', 1, 'minJerk', isOffset = True)
-        time.sleep(1.5)
-        
-        self.moveLegAsync(leg, pinToPinLocal, 'l', 2, 'minJerk', isOffset = True)
-        time.sleep(2.5)
+        # currentPinToApproachOffset = kin.getLegApproachPositionInLocal(pinToPinLocal)
+        # approachToGoalPinOffset = pinToPinLocal - currentPinToApproachOffset
+        # approachToGoalPinOffset -= detachOffsetInLocal
 
-        self.moveLegAsync(leg, -detachOffsetInLocal, 'l', 1, 'minJerk', isOffset = True)
-        time.sleep(1.5)
+        # self.moveLegAsync(leg, detachOffsetInLocal, 'l', 1, 'minJerk', isOffset = True)
+        # time.sleep(1.5)
+        
+        # self.moveLegAsync(leg, detachToApproachOffset, 'l', 2, 'minJerk', isOffset = True)
+        # time.sleep(2.5)
+
+        # self.moveLegAsync(leg, approachToGoalOffset, 'l', 1, 'minJerk', isOffset = True)
+        # time.sleep(1.5)
+
+        # self.motorDriver.readHardwareErrorRegister()
+
+        self.moveLegAsync(leg, pinToPinLocal, 'l', 3.5, 'bezier', isOffset = True)
+        time.sleep(4)
+
         self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
         self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
         time.sleep(3)
         self.stopForceMode()
+
+        # self.motorDriver.readHardwareErrorRegister()
 
         # Check if leg successfully grabbed the pin.
         while not (leg in self.grippersArduino.getIdsOfAttachedLegs()):
@@ -310,7 +326,8 @@ class VelocityController:
             time.sleep(2)
             self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
             self.stopForceMode()
-            time.sleep(3)           
+            time.sleep(3)        
+            # self.motorDriver.readHardwareErrorRegister()   
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force self inside main velocity self loop.
@@ -321,7 +338,6 @@ class VelocityController:
         """
         if len(legsIds) != len(desiredForces):
             raise ValueError("Number of legs used in force controll does not match with number of given desired forces vectors.")
-        # self.spiderGravityVector = self.pumpsBnoArduino.getGravityVector()
         with self.locker:
             self.isForceMode = True
             self.forceModeLegsIds = legsIds

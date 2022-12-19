@@ -58,18 +58,17 @@ if __name__ == "__main__":
     startPose = np.array([0.6, 0.4, 0.3, 0.0], dtype = np.float32)
 
     # pins = wall.createGrid(True)
-    # controller.moveLegsSync([0, 1, 2, 3, 4], [pins[22], pins[15], pins[12], pins[24], pins[27]], 'g', 5, 'minJerk', startPose)
+    # controller.moveLegsSync([0, 1, 2, 3, 4], [pins[28], pins[21], pins[18], pins[30], pins[33]], 'g', 5, 'minJerk', startPose)
     # time.sleep(5.5)
 
     # controller.distributeForces([1, 2, 3, 4], 5)
     # time.sleep(6)
     # controller.grippersArduino.moveGripper(0, 'o')
-    # controller.startForceMode([0], [[0.0, 0.0, 0.0]])
     # while True:
-    #     controller.startForceMode([0], [[0.0, 0.0, 5.0]])
-    #     time.sleep(2)
-    #     controller.startForceMode([0], [[0.0, 0.0, -5.0]])
-    #     time.sleep(2)
+    #     controller.moveLegAsync(0, [0.0, 0.0, 0.2], 'l', 3, 'minJerk', isOffset = True)
+    #     time.sleep(3.5)
+    #     controller.moveLegAsync(0, [0.0, 0.0, -0.2], 'l', 3, 'minJerk', isOffset = True)
+    #     time.sleep(3.5)
 
     counter = 0
 
