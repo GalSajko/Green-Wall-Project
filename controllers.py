@@ -63,6 +63,8 @@ class VelocityController:
         fCounter = 0
         tauCounter = 0
 
+        currentLimit = 3.0
+
         while True:
             if self.killControllerThread:
                 break
@@ -79,13 +81,13 @@ class VelocityController:
                 self.qA = currentAngles
                 forceMode = self.isForceMode
                 forceModeLegs = self.forceModeLegsIds
-                # If self was just initialized, save current positions and keep legs on these positions until new command is given.
+                # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
                 if init:
                     self.lastMotorsPositions = currentAngles
                     init = False
 
-            if currents[currents > 3.0].any():
-                print(self.motorDriver.motorsIds[np.where(currents > 5.0)])
+            if currents[currents > currentLimit].any():
+                print(self.motorDriver.motorsIds[np.where(currents > currentLimit)])
 
             qD, qDd = self.__getQdQddFromQueues()
 

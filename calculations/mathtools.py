@@ -91,6 +91,7 @@ def weightedPseudoInverse(J, A):
     Jtrans = np.transpose(J).astype(np.float32)
     Ainv = np.linalg.inv(A).astype(np.float32)
     Jw = np.dot(np.dot(Ainv, Jtrans), np.linalg.inv(np.dot(J.astype(np.float32), np.dot(Ainv, Jtrans))))
+
     return Jw
 
 

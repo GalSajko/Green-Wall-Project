@@ -60,7 +60,7 @@ class MotorDriver:
         """Read positions, currents and hardware errors from all connected motors.
 
         Returns:
-            tuple: Three 5x3 numpy.ndarrays with positions in radians, currents in Ampers and error codes in each motor.
+            tuple: Two 5x3 numpy.ndarrays with positions in radians and currents in Ampers in each motor.
         """
         try:
             _ = self.groupSyncReadCurrent.fastSyncRead()

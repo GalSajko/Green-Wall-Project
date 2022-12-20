@@ -27,27 +27,6 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":
-    # pinsInstructions = wall.createGrid(True)
-
-    # _ = input("PRESS ENTER TO RESET BNO")
-    # bno.initBno()
-
-    # print("Start receiving")
-    # while True:
-    #     rpy, grav = bno.getRpyAndGravity()
-    #     print(rpy)
-    #     print(grav)
-    #     print("====")
-    #     time.sleep(0.05)
-    
-
-
-    
-
-    # poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, goalPose)
-    # plotter = sim.Plotter()
-    # plotter.plotSpiderMovementSteps(poses, pinsInstructions)
-
     # # udpServer = udpServer.UdpServer('192.168.1.41')
     # # initSendingThread()
     
@@ -57,25 +36,17 @@ if __name__ == "__main__":
     
     startPose = np.array([0.6, 0.4, 0.3, 0.0], dtype = np.float32)
 
-    # pins = wall.createGrid(True)
-    # controller.moveLegsSync([0, 1, 2, 3, 4], [pins[28], pins[21], pins[18], pins[30], pins[33]], 'g', 5, 'minJerk', startPose)
-    # time.sleep(5.5)
-
-    # controller.distributeForces([1, 2, 3, 4], 5)
-    # time.sleep(6)
-    # controller.grippersArduino.moveGripper(0, 'o')
-    # while True:
-    #     controller.moveLegAsync(0, [0.0, 0.0, 0.2], 'l', 3, 'minJerk', isOffset = True)
-    #     time.sleep(3.5)
-    #     controller.moveLegAsync(0, [0.0, 0.0, -0.2], 'l', 3, 'minJerk', isOffset = True)
-    #     time.sleep(3.5)
-
     counter = 0
 
     while True:
         goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
         print(goalPose)
         controller.walk(startPose, goalPose, doInitBno = counter == 0)
+
+        controller.startForceMode([0, 1, 2, 3, 4], [[0.0, -1.0, 0.0]] * 5)
+        time.sleep(5)
+        controller.stopForceMode()
+
         startPose = goalPose
         counter += 1
 
