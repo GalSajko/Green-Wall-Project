@@ -45,6 +45,8 @@ class VelocityController:
 
         self.spiderGravityVector = np.array([0.0, -9.81, 0.0], dtype = np.float32) if isVertical else np.array([0.0, 0.0, -9.81], dtype = np.float32)
 
+        self.currents = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG))
+
         self.__initControllerThread()
         time.sleep(1)
 
@@ -63,7 +65,7 @@ class VelocityController:
         fCounter = 0
         tauCounter = 0
 
-        currentLimit = 3.0
+        currentLimit = 4.0
 
         while True:
             if self.killControllerThread:
@@ -74,7 +76,8 @@ class VelocityController:
             # Get current data.
             with self.locker:
                 try:
-                    currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                    currentAngles, self.currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                    currents = self.currents
                 except KeyError:
                     print("COMM READING ERROR")
                     continue
@@ -237,13 +240,18 @@ class VelocityController:
             if step == 0:
                 self.moveLegsSync(currentLegsMovingOrder, currentPinsPositions, 'g', 3, 'minJerk', pose)
                 time.sleep(3.5)
-                # This is here only temporarly. BNO reset should happened only once, not at the beginning of each point-to-point walk.
                 if doInitBno:
                     self.pumpsBnoArduino.resetBno()
                 time.sleep(1)
                 self.distributeForces(spider.LEGS_IDS, 5)
                 continue
             
+            if step % 3 == 0 and step != 0:
+                self.startForceMode([0, 1, 2, 3, 4], [[0.0, -1.0, 0.0]] * 5)
+                time.sleep(5)
+                self.stopForceMode()
+                time.sleep(30)
+
             previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
             self.moveLegsSync(currentLegsMovingOrder, previousPinsPositions, 'g', 1.5, 'minJerk', pose)
             time.sleep(2)
@@ -262,13 +270,11 @@ class VelocityController:
             goalPinPosition (list): 1x3 array goal-pin position in global origin.
             currentPinPosition (list): 1x3 array current pin position in global origin.
         """
-        # self.motorDriver.readHardwareErrorRegister()
-
         otherLegs = np.delete(spider.LEGS_IDS, leg)
-        self.distributeForces(otherLegs, 2)
-        time.sleep(2.5)
+        self.distributeForces(otherLegs, 1)
+        time.sleep(1.5)
         self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)
-        time.sleep(1)
+        time.sleep(2)
         
         # Get rpy from sensor.
         rpy = self.pumpsBnoArduino.getRpy()
@@ -285,36 +291,25 @@ class VelocityController:
         detachOffsetZ = 0.02
         detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
 
-        # approachPosition = kin.getLegsApproachPositionsInGlobal([leg], pose, [goalPinPosition], offset = 0.01)[0]
-        # currentPinToApproachOffset = approachPosition - currentPinPosition
-        # approachToGoalPinOffset = goalPinPosition - approachPosition
-        # approachToGoalPinOffset[2] -= detachOffsetZ
-        # approachToGoalDirection = approachToGoalPinOffset / np.linalg.norm(approachToGoalPinOffset)
+        with self.locker:
+            currentKp = self.Kp[leg]
+            currentKd = self.Kd[leg]
+            self.Kp[leg] = np.ones(spider.NUMBER_OF_MOTORS_IN_LEG, dtype = np.float32) * config.K_P_LEG
+            self.Kd[leg] = np.ones(spider.NUMBER_OF_MOTORS_IN_LEG, dtype = np.float32) * config.K_D_LEG
 
-        # currentPinToApproachOffset = kin.getLegApproachPositionInLocal(pinToPinLocal)
-        # approachToGoalPinOffset = pinToPinLocal - currentPinToApproachOffset
-        # approachToGoalPinOffset -= detachOffsetInLocal
+        self.moveLegAsync(leg, pinToPinLocal, 'l', 3, 'bezier', isOffset = True)
+        time.sleep(3.5)
 
-        # self.moveLegAsync(leg, detachOffsetInLocal, 'l', 1, 'minJerk', isOffset = True)
-        # time.sleep(1.5)
-        
-        # self.moveLegAsync(leg, detachToApproachOffset, 'l', 2, 'minJerk', isOffset = True)
-        # time.sleep(2.5)
-
-        # self.moveLegAsync(leg, approachToGoalOffset, 'l', 1, 'minJerk', isOffset = True)
-        # time.sleep(1.5)
-
-        # self.motorDriver.readHardwareErrorRegister()
-
-        self.moveLegAsync(leg, pinToPinLocal, 'l', 3.5, 'bezier', isOffset = True)
-        time.sleep(4)
+        with self.locker:
+            self.Kp[leg] = currentKp
+            self.Kd[leg] = currentKd
 
         self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
         self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
         time.sleep(3)
         self.stopForceMode()
 
-        # self.motorDriver.readHardwareErrorRegister()
+        self.motorDriver.readHardwareErrorRegister()
 
         # Check if leg successfully grabbed the pin.
         while not (leg in self.grippersArduino.getIdsOfAttachedLegs()):
@@ -322,14 +317,13 @@ class VelocityController:
             self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)
             time.sleep(1)
             self.moveLegAsync(leg, detachOffsetInLocal / 2.0, 'l', 1, 'minJerk', isOffset = True)
-            time.sleep(1.5)
+            time.sleep(1)
             
-            self.startForceMode([leg], [globalZDirectionInSpider * (-4)])
-            time.sleep(2)
+            self.startForceMode([leg], [globalZDirectionInSpider * (-6.0)])
+            time.sleep(1)
             self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
             self.stopForceMode()
-            time.sleep(3)        
-            # self.motorDriver.readHardwareErrorRegister()   
+            time.sleep(3)         
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force self inside main velocity self loop.
@@ -410,16 +404,16 @@ class VelocityController:
             try:
                 queueData = self.legsQueues[leg].get(False)
                 with self.locker:
-                    self.lastMotorsPositions[leg] = self.qA[leg]
+                    self.lastMotorsPositions[leg] = np.copy(self.qA[leg])
                 if queueData is self.sentinel:
-                    qD[leg] = self.lastMotorsPositions[leg]
+                    qD[leg] = np.copy(self.lastMotorsPositions[leg])
                     qDd[leg] = ([0, 0, 0])
                 else:
                     qD[leg] = queueData[0]
                     qDd[leg] = queueData[1]
             except queue.Empty:
                 with self.locker:
-                    qD[leg] = self.lastMotorsPositions[leg]
+                    qD[leg] = np.copy(self.lastMotorsPositions[leg])
                 qDd[leg] = ([0, 0, 0])
 
         return qD, qDd
@@ -459,7 +453,8 @@ class VelocityController:
         """
         qErrors = np.array(desiredAngles - currentAngles)
         dQe = (qErrors - lastErrors) / self.period
-        qCds = self.Kp * qErrors + self.Kd * dQe + ffVelocity
+        with self.locker:
+            qCds = self.Kp * qErrors + self.Kd * dQe + ffVelocity
         lastErrors = qErrors
 
         return qCds, lastErrors

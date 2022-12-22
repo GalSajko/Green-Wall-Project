@@ -78,27 +78,19 @@ def calculateDistributedForces(measuredTorques, jointsValues, legsIds, offloadLe
     """
     W, Jx, JhashTransDiag = _getSpiderExternalForces(measuredTorques, jointsValues)
 
+    Weights = np.eye(15)
+    Weights[9, 9] = 1
+    Weights[12, 12] = 1
     
     if len(offloadLegId):
         Jx = np.delete(Jx, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 1)
+        Weights = np.delete(Weights, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 0)
+        Weights = np.delete(Weights, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 1)
         JhashTransDiag = np.delete(JhashTransDiag, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 0)
         JhashTransDiag = np.delete(JhashTransDiag, range(offloadLegId[0] * 3, (offloadLegId[0] * 3) + 3), axis = 1)
 
-        if offloadLegId in (3, 4):
-            A = np.eye(12)
-            A[9, 9] = 10
-            Jxw = mathTools.weightedPseudoInverse(Jx, A)
-            distTorquesArray = np.dot(Jxw, W)
-        else:
-            distTorquesArray = np.dot(np.linalg.pinv(Jx), W)
-    
-    else:
-        A = np.eye(15)
-        A[9, 9] = 10
-        A[12, 12] = 10
-        Jxw = mathTools.weightedPseudoInverse(Jx, A)
-        distTorquesArray = np.dot(Jxw, W)
-
+    Jxw = mathTools.weightedPseudoInverse(Jx, Weights)
+    distTorquesArray = np.dot(Jxw, W)
     distForcesArray = np.dot(JhashTransDiag, distTorquesArray)
 
     return np.reshape(distForcesArray, (len(legsIds), 3))

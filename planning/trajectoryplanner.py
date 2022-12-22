@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 
 import config
 
@@ -85,6 +86,18 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         trajectoryRow[-1] = t
         trajectory[idx] = trajectoryRow
         velocities[idx] = velocityRow
+
+    plt.plot(trajectory[:, 0])
+    plt.plot(trajectory[:, 1])
+    plt.plot(trajectory[:, 2])
+    plt.legend(['x', 'y', 'z'])
+    plt.show()
+    plt.plot(velocities[:, 0])
+    plt.plot(velocities[:, 1])
+    plt.plot(velocities[:, 2])
+    plt.legend(['x', 'y', 'z'])
+    plt.show()
+
     return trajectory, velocities
 
 def _bezierTrajectory(startPosition, goalPosition, duration):
@@ -116,7 +129,7 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
     timeVector = np.linspace(0, duration, numberOfSteps)
 
     # Ratio beween height of trajectory and distance between start and goal points.
-    heightPercent = 0.6
+    heightPercent = 0.4
 
     startToGoalDirection = np.array(goalPosition - startPosition)
     midPoint = np.array(startToGoalDirection / 2.0)
@@ -153,12 +166,24 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
         param = time / duration
         trajectoryPoint = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
         trajectory[idx] = [trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], time]
+        # velocity[idx] = (3 * (-controlPoints[0] * (time - duration)**2 + controlPoints[1] * (3 * time**2 - 4 * time * duration + duration**2) + time * (-3 * controlPoints[2] * time + 2 * controlPoints[2] * duration + controlPoints[3] * time))) / duration**3
         if 0 <= time <= t1:
             velocity[idx] = a * time
         elif t1 < time < t2:
             velocity[idx] = vMax
         elif t2 <= time <= duration:
             velocity[idx] = vMax - a * (time - t2)
+
+    plt.plot(trajectory[:, 0])
+    plt.plot(trajectory[:, 1])
+    plt.plot(trajectory[:, 2])
+    plt.legend(['x', 'y', 'z'])
+    plt.show()
+    plt.plot(velocity[:, 0])
+    plt.plot(velocity[:, 1])
+    plt.plot(velocity[:, 2])
+    plt.legend(['x', 'y', 'z'])
+    plt.show()
 
     return trajectory, velocity
 #endregion

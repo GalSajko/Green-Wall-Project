@@ -18,7 +18,7 @@ import random
 
 def forceSending(frequency):
     while True:
-        udpServer.send(controller.fAMean)
+        udpServer.send(controller.currents)
         time.sleep(1.0 / frequency)
 
 def initSendingThread():
@@ -27,28 +27,31 @@ def initSendingThread():
     print("UDP thread is running.")
 
 if __name__ == "__main__":
-    # # udpServer = udpServer.UdpServer('192.168.1.41')
-    # # initSendingThread()
-    
     _ = input("PRESS ENTER TO START WALKING")
     time.sleep(4)
     controller = controllers.VelocityController(True)
+
+    # udpServer = udpServer.UdpServer('192.168.1.8')
+    # initSendingThread()
     
     startPose = np.array([0.6, 0.4, 0.3, 0.0], dtype = np.float32)
 
     counter = 0
 
     while True:
-        goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
-        print(goalPose)
-        controller.walk(startPose, goalPose, doInitBno = counter == 0)
+        # goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+        # print(goalPose)
+        # controller.walk(startPose, goalPose, doInitBno = counter == 0)
 
-        controller.startForceMode([0, 1, 2, 3, 4], [[0.0, -1.0, 0.0]] * 5)
-        time.sleep(5)
-        controller.stopForceMode()
+        # controller.startForceMode([0, 1, 2, 3, 4], [[0.0, -1.0, 0.0]] * 5)
+        # time.sleep(5)
+        # controller.stopForceMode()
+        # time.sleep(30)
 
-        startPose = goalPose
-        counter += 1
-
-
+        # startPose = goalPose
+        # counter += 1
+        controller.moveLegAsync(0, [0.2, 0.0, 0.0], 'l', 0.5, 'bezier', isOffset=True)
+        time.sleep(2)
+        controller.moveLegAsync(0, [-0.2, 0.0, 0.0], 'l', 1, 'minJerk', isOffset=True)
+        time.sleep(4)
 
