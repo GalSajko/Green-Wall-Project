@@ -89,8 +89,8 @@ class VelocityController:
                     self.lastMotorsPositions = currentAngles
                     init = False
 
-            if currents[currents > currentLimit].any():
-                print(self.motorDriver.motorsIds[np.where(currents > currentLimit)])
+            # if currents[currents > currentLimit].any():
+            #     print(self.motorDriver.motorsIds[np.where(currents > currentLimit)])
 
             qD, qDd = self.__getQdQddFromQueues()
 
