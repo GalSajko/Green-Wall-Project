@@ -36,22 +36,20 @@ if __name__ == "__main__":
     
     startPose = np.array([0.6, 0.4, 0.3, 0.0], dtype = np.float32)
 
-    counter = 0
+    controller.moveLegAsync(1, [0.25, 0.0, 0.0], 'l', 3, 'minJerk', isOffset=False)
+    time.sleep(3)
+    # controller.moveLegAsync(1, [0.4, 0.0, 0.1], 'l', 3, 'minJerk', isOffset=False)
+    # time.sleep(2)
+    # controller.moveLegAsync(1, [0.3, 0.0, 0.15], 'l', 3, 'minJerk', isOffset=False)
+    # time.sleep(4)
 
     while True:
-        # goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
-        # print(goalPose)
-        # controller.walk(startPose, goalPose, doInitBno = counter == 0)
+        controller.moveLegAsync(1, [0.4, 0.0, 0.0], 'l', 2, 'bezier', isOffset=False)
+        time.sleep(3.5)
+        controller.moveLegAsync(1, [0.25, 0.0, 0.0], 'l', 2, 'bezier', isOffset=False)
+        time.sleep(3.5)
 
-        # controller.startForceMode([0, 1, 2, 3, 4], [[0.0, -1.0, 0.0]] * 5)
-        # time.sleep(5)
-        # controller.stopForceMode()
-        # time.sleep(30)
-
-        # startPose = goalPose
-        # counter += 1
-        controller.moveLegAsync(0, [0.2, 0.0, 0.0], 'l', 0.5, 'bezier', isOffset=True)
-        time.sleep(2)
-        controller.moveLegAsync(0, [-0.2, 0.0, 0.0], 'l', 1, 'minJerk', isOffset=True)
-        time.sleep(4)
-
+        controller.moveLegAsync(1, [0.25, -0.1, 0.0], 'l', 2, 'bezier', isOffset=False)
+        time.sleep(3.5)
+        controller.moveLegAsync(1, [0.25, 0.1, 0.0], 'l', 2, 'bezier', isOffset=False)
+        time.sleep(3.5)

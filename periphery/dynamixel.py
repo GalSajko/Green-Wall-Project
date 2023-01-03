@@ -67,8 +67,8 @@ class MotorDriver:
             _ = self.groupSyncReadPosition.fastSyncRead()
             # _ = self.groupSyncReadError.fastSyncRead()
 
-            currents = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
-            positions = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
+            currents = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
+            positions = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
             # errors = np.zeros([spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG], dtype = np.float32)
 
             for leg in spider.LEGS_IDS:

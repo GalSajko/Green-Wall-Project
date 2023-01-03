@@ -9,32 +9,46 @@ from environment import spider
 from calculations import transformations as tf
 from calculations import mathtools as mathTools
 
-
-def legForwardKinematics(jointsValues):
+# @numba.njit
+def legForwardKinematics(jointsValues, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate forward kinematics for spiders leg, using transformation matrices.  
 
     :param jointValues: Joint values in radians.
     :return: Transformation matrix from base to end effector.
 
     Args:
-        legId (int):Leg id.
         jointsValues (list): Joints values in radians.
 
     Returns:
         numpy.ndarray: 4x4 transformation matrix from base to end effector.
     """
     q1, q2, q3 = jointsValues
-    L1 = spider.LEGS_DIMENSIONS[0]
-    L2 = spider.LEGS_DIMENSIONS[1]
-    L3 = spider.LEGS_DIMENSIONS[2]
+    L1 = legsDimensions[0]
+    L2 = legsDimensions[1]
+    L3 = legsDimensions[2]
 
     return np.array([
         [math.cos(q1) * math.cos(q2 + q3), -math.cos(q1) * math.sin(q2 + q3), math.sin(q1), math.cos(q1) * (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3))],
         [math.cos(q2 + q3) * math.sin(q1), -math.sin(q1) * math.sin(q2 + q3), -math.cos(q1), (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1)],
-        [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
-        [0, 0, 0, 1]
+        [math.sin(q2 + q3), math.cos(q2 + q3), 0.0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
+        [0.0, 0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
+# @numba.njit
+def legTipForwardKinematicsMultipleLegs(jointsValues, legs = spider.LEGS_IDS):
+    """Calculate legs' positions in legs's origin, for all five legs.
+
+    Args:
+        jointsValues (list): 5x3 array of joints values in radians.
+
+    Returns:
+        numpy.ndarray: 5x3 array of legs' positions in legs's origin.
+    """
+    xA = np.zeros((len(legs), 3), dtype = np.float32)
+    for leg in legs:
+        xA[leg] = legForwardKinematics(jointsValues[leg])[:,3][:3]
+    return xA
+    
 def legBaseToThirdJointForwardKinematics(jointValues):
     """Calculate forward kinematics from leg base to third joint.
 
@@ -163,7 +177,8 @@ def platformForwardKinematics(legsIds, legsGlobalPositions, legsLocalPoses):
     
     return xyzrpy
 
-def legJacobi(jointValues):
+# @numba.njit
+def legJacobi(jointValues, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate Jacobian matrix for given leg.
 
     Args:
@@ -174,9 +189,9 @@ def legJacobi(jointValues):
         numpy.ndarray: 3x3 Jacobian matrix.
     """
     q1, q2, q3 = jointValues
-    L1 = spider.LEGS_DIMENSIONS[0]
-    L2 = spider.LEGS_DIMENSIONS[1]
-    L3 = spider.LEGS_DIMENSIONS[2]
+    L1 = legsDimensions[0]
+    L2 = legsDimensions[1]
+    L3 = legsDimensions[2]
 
     return np.array([
         [-(L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1), -math.cos(q1) * (L2 * math.sin(q2) + L3 * math.sin(q2 + q3)), -L3 * math.cos(q1) * math.sin(q2 + q3)],
@@ -205,7 +220,7 @@ def spiderBaseToLegTipForwardKinematics(legId, jointsValues, angleBetweenLegs = 
     return np.array([
         [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), math.sin(q1 + qb), r * math.cos(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.cos(q1 + qb)],
         [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), -math.cos(q1 + qb), r * math.sin(qb) + (L1 + L2 * math.cos(q2) + L3 * math.cos(q2 + q3)) * math.sin(q1 + qb)],
-        [math.sin(q2 + q3), math.cos(q2 + q3), 0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
+        [math.sin(q2 + q3), math.cos(q2 + q3), 0.0, L2 * math.sin(q2) + L3 * math.sin(q2 + q3)],
         [0.0, 0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
@@ -220,8 +235,8 @@ def spiderBaseToLegTipForwardKinematicsMultipleLegs(jointsValues, legs = spider.
         numpy.ndarray: 5x3 array of legs' positions in spider's origin.
     """
     xA = np.zeros((len(legs), 3), dtype = np.float32)
-    for idx, leg in enumerate(legs):
-        xA[idx] = spiderBaseToLegTipForwardKinematics(leg, jointsValues[idx])[:,3][:3]
+    for leg in legs:
+        xA[leg] = spiderBaseToLegTipForwardKinematics(leg, jointsValues[leg])[:,3][:3]
     return xA
 
 @numba.njit

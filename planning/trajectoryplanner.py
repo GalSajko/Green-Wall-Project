@@ -87,17 +87,6 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         trajectory[idx] = trajectoryRow
         velocities[idx] = velocityRow
 
-    plt.plot(trajectory[:, 0])
-    plt.plot(trajectory[:, 1])
-    plt.plot(trajectory[:, 2])
-    plt.legend(['x', 'y', 'z'])
-    plt.show()
-    plt.plot(velocities[:, 0])
-    plt.plot(velocities[:, 1])
-    plt.plot(velocities[:, 2])
-    plt.legend(['x', 'y', 'z'])
-    plt.show()
-
     return trajectory, velocities
 
 def _bezierTrajectory(startPosition, goalPosition, duration):
@@ -173,17 +162,6 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
             velocity[idx] = vMax
         elif t2 <= time <= duration:
             velocity[idx] = vMax - a * (time - t2)
-
-    plt.plot(trajectory[:, 0])
-    plt.plot(trajectory[:, 1])
-    plt.plot(trajectory[:, 2])
-    plt.legend(['x', 'y', 'z'])
-    plt.show()
-    plt.plot(velocity[:, 0])
-    plt.plot(velocity[:, 1])
-    plt.plot(velocity[:, 2])
-    plt.legend(['x', 'y', 'z'])
-    plt.show()
 
     return trajectory, velocity
 #endregion
