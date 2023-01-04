@@ -46,9 +46,6 @@ class VelocityController:
         """Velocity self to controll all five legs continuously. Runs in separate thread.
         """
         lastXErrors = np.zeros([spider.NUMBER_OF_LEGS, 3])
-        xDd = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-        xD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-        qCds = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         init = True
 
         while True:
@@ -56,12 +53,11 @@ class VelocityController:
                 break
             
             startTime = time.perf_counter()
-
             # Get current data.
             with self.locker:
                 try:
                     currentAngles, _ = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
-                    self.xA = kin.legTipForwardKinematicsMultipleLegs(currentAngles)
+                    self.xA = kin.allLegsPositions(currentAngles, config.LEG_ORIGIN)
                     xA = self.xA
                 except KeyError:
                     print("COMM READING ERROR")
@@ -73,11 +69,8 @@ class VelocityController:
                 
             xD, xDd = self.__getXdXddFromQueues()
 
-            xCds, lastXErrors = self.__positionVelocityEePd(xD, xA, xDd, lastXErrors)
-
-            for legId, xCd in enumerate(xCds):
-                J_inv = np.linalg.inv(kin.legJacobi(currentAngles[legId]))
-                qCds[legId] = np.dot(J_inv, xCd)
+            xCds, lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, lastXErrors)
+            qCds = kin.getJointsVelocities(currentAngles, xCds)
 
             # Send new commands to motors.
             with self.locker:
@@ -113,13 +106,11 @@ class VelocityController:
             raise TypeError("Parameter spiderPose should not be None.")
 
         self.legsQueues[legId] = queue.Queue()
-        # self.legsQueues[legId].put(self.sentinel)
 
         with self.locker:
             legCurrentPosition = self.xA[legId]
 
         localGoalPosition = self.__convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
-
         positionTrajectory, velocityTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
 
         for idx, position in enumerate(positionTrajectory):
@@ -159,28 +150,24 @@ class VelocityController:
         # Stop all of the given legs.
         for leg in legsIds:
             self.legsQueues[leg] = queue.Queue()
-            self.legsQueues[leg].put(self.sentinel)
-        
-        qDs = []
-        qDds = []
 
         with self.locker:
-            currentAngles = self.qA
+            legsCurrentPositions = self.xA
 
-        for idx, leg in enumerate(legsIds):
-            # Get current leg position in local.
-            legCurrentPosition = kin.legForwardKinematics(currentAngles[leg])[:,3][:3]            
-            localGoalPosition = self.__convertIntoLocalGoalPosition(leg, legCurrentPosition, goalPositionsOrOffsets[idx], origin, isOffset, spiderPose)
+        xDs = np.zeros((len(legsIds), int(duration / self.period), 3), dtype = np.float32)
+        xDds = np.zeros((len(legsIds), int(duration / self.period), 3), dtype = np.float32)
+        for idx, leg in enumerate(legsIds):          
+            localGoalPosition = self.__convertIntoLocalGoalPosition(leg, legsCurrentPositions[idx], goalPositionsOrOffsets[idx], origin, isOffset, spiderPose)
             
-            positionTrajectory, velocityTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
-            
-            qD, qDd = self.__getQdQddLegFF(positionTrajectory, velocityTrajectory)
-            qDs.append(qD)
-            qDds.append(qDd)
+            positionTrajectory, velocityTrajectory = self.__getTrajectory(legsCurrentPositions[idx], localGoalPosition, duration, trajectoryType)
+
+            xDs[idx] = positionTrajectory[:, :3]
+            xDds[idx] = velocityTrajectory[:, :3]
         
-        for i in range(len(qDs[0])):
+        for i in range(len(xDs[0])):
             for idx, leg in enumerate(legsIds):
-                self.legsQueues[leg].put([qDs[idx][i], qDds[idx][i]])
+                self.legsQueues[leg].put([xDs[idx][i], xDds[idx][i]])
+
         for leg in legsIds:
             self.legsQueues[leg].put(self.sentinel)
         
@@ -337,8 +324,6 @@ class VelocityController:
             elapsedTime = time.perf_counter() - startTime
         
         self.stopForceMode()
-
-        # print("DISTRIBUTION FINISHED")
     #endregion
 
     #region private methods
@@ -379,51 +364,10 @@ class VelocityController:
 
         return xD, xDd
 
-    def __getQdQddLegFF(self, xD, xDd):
-        """(Feed-forward) calculate and write reference joints positions and velocities for single leg movement into leg-queue.
-
-        Args:
-            legId (int): Leg id.
-            xD (list): nx7 array of position (6 values for xyzrpy) trajectory and time stamps (7th value in a row), where n is number of steps in trajectory.
-            xDd (list): nx6 array for xyzrpy values of velocity trajectory, where n is number of steps in trajectory.
-
-        Returns:
-            tuple: Two nx3 numpy.ndarrays of reference joints positions and velocities, where n is number of steps in trajectory.
-        """
-
-        qDs = np.zeros([len(xD), spider.NUMBER_OF_MOTORS_IN_LEG])
-        qDds = np.zeros([len(xD), spider.NUMBER_OF_MOTORS_IN_LEG])
-        for idx, pose in enumerate(xD):
-            qDs[idx] = kin.legInverseKinematics(np.array(pose[:3], dtype = np.float32))
-            J = kin.legJacobi(qDs[idx])
-            qDds[idx] = np.dot(np.linalg.inv(J), xDd[idx][:3])
-
-        return qDs, qDds
-    
-    def __positionVelocityJointsPD(self, desiredAngles, currentAngles, ffVelocity, lastErrors):
-        """Position-velocity PD. Calculate commanded velocities from position input and add feed-forward calculated velocities.
-
-        Args:
-            desiredAngles (list): 5x3 array of desired angles in joints.
-            currentAngles (list): 5x3 array of measured current angles in joints.
-            ffVelocity (list): 5x3 array of feed forward calculated joints velocities.
-            lastErrors (list): 5x3 array of last position errors.
-
-        Returns:
-            tuple: 5x3 numpy.ndarray of commanded joints velocities and updated errors.
-        """
-        qErrors = np.array(desiredAngles - currentAngles)
-        dQe = (qErrors - lastErrors) / self.period
-        with self.locker:
-            qCds = self.Kp * qErrors + self.Kd * dQe + ffVelocity
-        lastErrors = qErrors
-
-        return qCds, lastErrors
-    
-    def __positionVelocityEePd(self, xD, xA, xDd, lastErrors):
+    def __eePositionVelocityPd(self, xD, xA, xDd, lastErrors):
         xErrors = np.array(xD - xA)
         dXe = (xErrors - lastErrors) / self.period
-        xCd = self.Kp * xErrors + self.Kd * dXe + xDd
+        xCd = np.array(self.Kp * xErrors + self.Kd * dXe + xDd, dtype = np.float32)
 
         return xCd, xErrors
 
@@ -444,7 +388,7 @@ class VelocityController:
         return offsets
     
     def __convertIntoLocalGoalPosition(self, legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose):
-        if origin == 'l':
+        if origin == config.LEG_ORIGIN:
             localGoalPosition = np.copy(goalPositionOrOffset)
             if isOffset:
                 localGoalPosition += legCurrentPosition
