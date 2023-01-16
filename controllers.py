@@ -22,12 +22,13 @@ class VelocityController:
     """
     def __init__ (self, isVertical = False):
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
-        # self.grippersArduino = grippers.GrippersArduino()
-        # self.pumpsBnoArduino = wpb.PumpsBnoArduino()
+        self.grippersArduino = grippers.GrippersArduino()
+        self.pumpsBnoArduino = wpb.PumpsBnoArduino()
 
         self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
 
+        self.qA = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         self.xA = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.lastLegsPositions = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
@@ -38,6 +39,11 @@ class VelocityController:
         self.Kp = np.ones((spider.NUMBER_OF_LEGS, 3), dtype = np.float32) * config.K_P
         self.Kd = np.ones((spider.NUMBER_OF_LEGS, 3), dtype = np.float32) * config.K_D
 
+        self.isForceMode = False
+        self.forceModeLegsIds = None
+        self.fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
+        self.tauAMean = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
+
         self.__initControllerThread()
         time.sleep(1)
 
@@ -46,6 +52,12 @@ class VelocityController:
         """Velocity self to controll all five legs continuously. Runs in separate thread.
         """
         lastXErrors = np.zeros([spider.NUMBER_OF_LEGS, 3])
+
+        fBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
+        tauBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
+        fCounter = 0
+        tauCounter = 0
+
         init = True
 
         while True:
@@ -56,18 +68,32 @@ class VelocityController:
             # Get current data.
             with self.locker:
                 try:
-                    currentAngles, _ = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                    currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                    self.qA = currentAngles
                     self.xA = kin.allLegsPositions(currentAngles, config.LEG_ORIGIN)
                     xA = self.xA
+                    fD = self.fD
                 except KeyError:
                     print("COMM READING ERROR")
                     continue
+                forceMode = self.isForceMode
+                forceModeLegs = self.forceModeLegsIds
                 # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
                 if init:
                     self.lastLegsPositions = xA
                     init = False
                 
             xD, xDd = self.__getXdXddFromQueues()
+
+            tauA, fA, _ = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.pumpsBnoArduino.getGravityVector())
+            fAMean, fBuffer, fCounter = mathTools.runningAverage(fBuffer, fCounter, fA)
+            self.tauAMean, tauBuffer, tauCounter = mathTools.runningAverage(tauBuffer, tauCounter, tauA)
+
+            if forceMode:
+                legOffsetsInSpider, legVelocitiesInSpider = self.__forcePositionP(fD, fAMean)
+                localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegs, legOffsetsInSpider, legVelocitiesInSpider)
+                xD[forceModeLegs] += localOffsets
+                xDd[forceModeLegs] = localVelocities
 
             xCds, lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, lastXErrors)
             qCds = kin.getJointsVelocities(currentAngles, xCds)
@@ -77,9 +103,10 @@ class VelocityController:
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(spider.LEGS_IDS, qCds)
 
             elapsedTime = time.perf_counter() - startTime
+
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
-                time.sleep(0)
+                # time.sleep(0)
 
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -112,6 +139,12 @@ class VelocityController:
 
         localGoalPosition = self.__convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
         positionTrajectory, velocityTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
+
+        for i in range(3):
+            norms = []
+            for j in range(1, len(positionTrajectory)):
+                norms.append(np.linalg.norm(positionTrajectory[j][i] - positionTrajectory[j - 1][i]))
+            print(np.mean(norms))
 
         for idx, position in enumerate(positionTrajectory):
             self.legsQueues[legId].put([position[:3], velocityTrajectory[idx][:3]])
@@ -239,18 +272,8 @@ class VelocityController:
         detachOffsetZ = 0.02
         detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
 
-        with self.locker:
-            currentKp = self.Kp[leg]
-            currentKd = self.Kd[leg]
-            self.Kp[leg] = np.ones(spider.NUMBER_OF_MOTORS_IN_LEG, dtype = np.float32) * config.K_P_LEG
-            self.Kd[leg] = np.ones(spider.NUMBER_OF_MOTORS_IN_LEG, dtype = np.float32) * config.K_D_LEG
-
         self.moveLegAsync(leg, pinToPinLocal, 'l', 3, 'bezier', isOffset = True)
         time.sleep(3.5)
-
-        with self.locker:
-            self.Kp[leg] = currentKp
-            self.Kd[leg] = currentKd
 
         self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
         self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
@@ -372,20 +395,20 @@ class VelocityController:
         return xCd, xErrors
 
     def __forcePositionP(self, desiredForces, currentForces):
-        """Force-position P self. Calculate position offsets from desired forces.
+        """Force-position P self. Calculate position offsets and desired legs velocities in spider's origin from desired forces.
 
         Args:
             desiredForces (list): 5x3 array of desired forces in spider's origin.
             currentForces (list): 5x3 array of measured current forces in spider's origin.
 
         Returns:
-            numpy.ndarray: 5x3 array of of position offsets of leg-tips, given in spider's origin.
+            tuple: Two 5x3 array of of position offsets of leg-tips and leg-tips velocities, given in spider's origin.
         """
         fErrors = desiredForces - currentForces
         dXSpider = fErrors * config.K_P_FORCE
         offsets = dXSpider * self.period
 
-        return offsets
+        return offsets, dXSpider
     
     def __convertIntoLocalGoalPosition(self, legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose):
         if origin == config.LEG_ORIGIN:

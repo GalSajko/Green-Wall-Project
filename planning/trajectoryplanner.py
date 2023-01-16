@@ -24,10 +24,8 @@ def calculateTrajectory(start, goal, duration, trajectoryType):
         Position and velocity trajectory if trajectory calculation was succesfull.
     """
     if trajectoryType == BEZIER_TRAJECTORY:
-        # return self.__bezierTrajectory(start, goal, duration)
         return _bezierTrajectory(start, goal, duration)
     if trajectoryType == MINJERK_TRAJECTORY:
-        # return self.__minJerkTrajectory(start, goal, duration)
         return _minJerkTrajectory(start, goal, duration)
 
     raise ValueError("Unknown trajectory type!")
@@ -86,6 +84,12 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         trajectoryRow[-1] = t
         trajectory[idx] = trajectoryRow
         velocities[idx] = velocityRow
+
+    # print("PLOTTING")
+    # plt.plot(timeVector, trajectory[:, 0], 'g-')
+    # plt.plot(timeVector, trajectory[:, 1], 'r.')
+    # plt.plot(timeVector, trajectory[:, 2], 'b*')
+    # plt.show()
 
     return trajectory, velocities
 
@@ -162,6 +166,12 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
             velocity[idx] = vMax
         elif t2 <= time <= duration:
             velocity[idx] = vMax - a * (time - t2)
+
+    # print("PLOTTING")
+    # plt.plot(timeVector, trajectory[:, 0], 'g-')
+    # plt.plot(timeVector, trajectory[:, 1], 'r.')
+    # plt.plot(timeVector, trajectory[:, 2], 'b*')
+    # plt.show()
 
     return trajectory, velocity
 #endregion

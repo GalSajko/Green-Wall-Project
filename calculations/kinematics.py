@@ -308,6 +308,30 @@ def getJointsVelocities(currentAngles, xCds, numberOfLegs = spider.NUMBER_OF_LEG
         qCds[leg] = np.dot(J_inv, xCd)
     
     return qCds
+
+@numba.njit
+def getXdXddFromOffsets(forceModeLegs, offsetsInSpiderOrigin, velocitiesInSpiderOrigin, spiderToLegTransforms = spider.T_ANCHORS):
+    """Rotate position offets and velocities, calculated from force controller into leg-local origins.
+
+    Args:
+        forceModeLegs (list): List of legs' ids, that are used in force controll.
+        offsetsInSpiderOrigin (list): Calculated offsets from force-position P controller.
+        velocitiesInSpiderOrigin (list): Calculated velocities from force-position P controller.
+
+    Returns:
+        Tuple: Two nx3 numpy.ndarrays with (x, y, z) offsets and velocities for each leg used in force mode, where n is number of used legs.
+    """
+    offsetsInLegsOrigins = np.zeros((len(forceModeLegs), 3), dtype = np.float32)
+    velocitiesInLegsOrigins = np.zeros((len(forceModeLegs), 3), dtype = np.float32)
+
+    for i, leg in enumerate(forceModeLegs):
+        # Rotate offset and velocity vector in spider's origin into leg-local origin.
+        spiderToLegRotation= np.linalg.inv(spiderToLegTransforms[leg][:3, :3])
+        offsetsInLegsOrigins[i] = np.dot(spiderToLegRotation, offsetsInSpiderOrigin[leg])
+        velocitiesInLegsOrigins[i] = np.dot(spiderToLegRotation, velocitiesInSpiderOrigin[leg])
+
+
+    return offsetsInLegsOrigins, velocitiesInLegsOrigins
 #endregion
 
 def getLegsApproachPositionsInGlobal(legsIds, spiderPose, globalPinsPositions, offset = 0.03):
