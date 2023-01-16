@@ -84,6 +84,7 @@ class VelocityController:
                     init = False
                 
             xD, xDd = self.__getXdXddFromQueues()
+            print(xA[1])
 
             tauA, fA, _ = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.pumpsBnoArduino.getGravityVector())
             fAMean, fBuffer, fCounter = mathTools.runningAverage(fBuffer, fCounter, fA)
@@ -106,7 +107,7 @@ class VelocityController:
 
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
-                # time.sleep(0)
+                time.sleep(0)
 
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -139,12 +140,6 @@ class VelocityController:
 
         localGoalPosition = self.__convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
         positionTrajectory, velocityTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
-
-        for i in range(3):
-            norms = []
-            for j in range(1, len(positionTrajectory)):
-                norms.append(np.linalg.norm(positionTrajectory[j][i] - positionTrajectory[j - 1][i]))
-            print(np.mean(norms))
 
         for idx, position in enumerate(positionTrajectory):
             self.legsQueues[legId].put([position[:3], velocityTrajectory[idx][:3]])
@@ -190,8 +185,7 @@ class VelocityController:
         xDs = np.zeros((len(legsIds), int(duration / self.period), 3), dtype = np.float32)
         xDds = np.zeros((len(legsIds), int(duration / self.period), 3), dtype = np.float32)
         for idx, leg in enumerate(legsIds):          
-            localGoalPosition = self.__convertIntoLocalGoalPosition(leg, legsCurrentPositions[idx], goalPositionsOrOffsets[idx], origin, isOffset, spiderPose)
-            
+            localGoalPosition = self.__convertIntoLocalGoalPosition(leg, legsCurrentPositions[idx], goalPositionsOrOffsets[idx], origin, isOffset, spiderPose) 
             positionTrajectory, velocityTrajectory = self.__getTrajectory(legsCurrentPositions[idx], localGoalPosition, duration, trajectoryType)
 
             xDs[idx] = positionTrajectory[:, :3]
@@ -356,7 +350,7 @@ class VelocityController:
         thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
         try:
             thread.start()
-            print("self thread is running.")
+            print("Controller thread is running.")
         except RuntimeError as re:
             print(re)
 
@@ -373,7 +367,9 @@ class VelocityController:
             try:
                 queueData = self.legsQueues[leg].get(False)
                 with self.locker:
-                    self.lastLegsPositions[leg] = np.copy(self.xA[leg])
+                    if queueData is not self.sentinel:
+                        self.lastLegsPositions[leg] = queueData[0]
+                    # self.lastLegsPositions[leg] = np.copy(self.xA[leg])
                 if queueData is self.sentinel:
                     xD[leg] = np.copy(self.lastLegsPositions[leg])
                     xDd[leg] = np.zeros(3, dtype = np.float32)
@@ -382,7 +378,7 @@ class VelocityController:
                     xDd[leg] = queueData[1]
             except queue.Empty:
                 with self.locker:
-                    xD[leg] = np.copy(self.xA[leg])
+                    xD[leg] = np.copy(self.lastLegsPositions[leg])
                 xDd[leg] = np.zeros(3, dtype = np.float32)
 
         return xD, xDd
@@ -390,6 +386,7 @@ class VelocityController:
     def __eePositionVelocityPd(self, xD, xA, xDd, lastErrors):
         xErrors = np.array(xD - xA)
         dXe = (xErrors - lastErrors) / self.period
+        xDd = 0
         xCd = np.array(self.Kp * xErrors + self.Kd * dXe + xDd, dtype = np.float32)
 
         return xCd, xErrors

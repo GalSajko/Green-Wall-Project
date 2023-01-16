@@ -33,12 +33,14 @@ if __name__ == "__main__":
     # udpServer = udpServer.UdpServer('192.168.1.8')
     # initSendingThread()
 
-    controller.moveLegsSync(spider.LEGS_IDS, [[0.0, 0.0, 0.05]] * 5, 'l', 1, 'minJerk', isOffset=True)
+    t = 1
+    controller.moveLegAsync(1, [0.3, 0.0, 0.05], 'l', 1, 'minJerk', isOffset=False)
     time.sleep(2)
-    controller.grippersArduino.moveGripper(0, 'o')
-    controller.startForceMode([3], [np.zeros(3, dtype = np.float32)])
+    print(controller.xA[1])
     while True:
-        controller.moveLegAsync(1, [0.2, 0.0, 0.0], 'l', 1, 'minJerk', isOffset=True)
-        time.sleep(3)
-        controller.moveLegAsync(1, [-0.2, 0.0, 0.0], 'l', 1, 'minJerk', isOffset=True)
-        time.sleep(3)
+        controller.moveLegAsync(1, [0.45, 0.0, 0.05], 'l', t, 'bezier', isOffset=False)
+        time.sleep(t + 1)
+        print(controller.xA[1])
+        controller.moveLegAsync(1, [0.3, -0.0, 0.05], 'l', t, 'bezier', isOffset=False)
+        time.sleep(t + 1)
+        print(controller.xA[1])

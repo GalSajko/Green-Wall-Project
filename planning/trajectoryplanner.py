@@ -41,7 +41,7 @@ def _minJerkTrajectory(startPose, goalPose, duration):
             - 4 for representing x, y, z and rotZ, where rotZ is rotation around global z axis,
             - 6 for representing x, y, z, r, p and y pose given in global origin.
         goalPose (list): 1xn array of goal pose, where n can be: 
-            - 3 for representing x, y, and z starting position,
+            - 3 for representing x, y, and z goal position,
             - 4 for representing x, y, z and rotZ, where rotZ is rotation around global z axis,
             - 6 for representing x, y, z, r, p and y pose given in global origin.
         duration (float): Duration of trajectory.
@@ -84,12 +84,6 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         trajectoryRow[-1] = t
         trajectory[idx] = trajectoryRow
         velocities[idx] = velocityRow
-
-    # print("PLOTTING")
-    # plt.plot(timeVector, trajectory[:, 0], 'g-')
-    # plt.plot(timeVector, trajectory[:, 1], 'r.')
-    # plt.plot(timeVector, trajectory[:, 2], 'b*')
-    # plt.show()
 
     return trajectory, velocities
 
@@ -135,18 +129,24 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
     else:
         orthogonalDirection = np.array([0, 0, 1])
     orthogonalDirectionUnit = orthogonalDirection / np.linalg.norm(orthogonalDirection)
-    
-    firstInterPoint = np.copy(startPosition)
-    firstInterPoint[2] += heightPercent * np.linalg.norm(startToGoalDirection)
-    secondInterPoint = np.copy(goalPosition)
-    secondInterPoint[2] += heightPercent * np.linalg.norm(startToGoalDirection)
-    controlPoints =  np.array([startPosition, firstInterPoint, secondInterPoint, goalPosition])
 
     d = np.array([
         startToGoalDirection[0],
         startToGoalDirection[1],
         (midPoint + orthogonalDirectionUnit * heightPercent)[2]
     ], dtype = np.float32)
+
+    
+    firstInterPoint = np.copy(startPosition)
+    firstInterPoint[:2] += 0.4 * startToGoalDirection[:2]
+    firstInterPoint[2] += heightPercent * np.linalg.norm(startToGoalDirection)
+
+    secondInterPoint = np.copy(goalPosition)
+    secondInterPoint[:2] -= 0.4 * startToGoalDirection[:2]
+    secondInterPoint[2] += heightPercent * np.linalg.norm(startToGoalDirection)
+    controlPoints =  np.array([startPosition, firstInterPoint, secondInterPoint, goalPosition])
+
+    print(controlPoints)
 
     vMax = 2 * (d / duration)
     a = 3 * vMax / duration
@@ -159,7 +159,6 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
         param = time / duration
         trajectoryPoint = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
         trajectory[idx] = [trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], time]
-        # velocity[idx] = (3 * (-controlPoints[0] * (time - duration)**2 + controlPoints[1] * (3 * time**2 - 4 * time * duration + duration**2) + time * (-3 * controlPoints[2] * time + 2 * controlPoints[2] * duration + controlPoints[3] * time))) / duration**3
         if 0 <= time <= t1:
             velocity[idx] = a * time
         elif t1 < time < t2:
@@ -167,11 +166,11 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
         elif t2 <= time <= duration:
             velocity[idx] = vMax - a * (time - t2)
 
-    # print("PLOTTING")
-    # plt.plot(timeVector, trajectory[:, 0], 'g-')
-    # plt.plot(timeVector, trajectory[:, 1], 'r.')
-    # plt.plot(timeVector, trajectory[:, 2], 'b*')
-    # plt.show()
+    plt.plot(timeVector, trajectory[:, 0], 'g-')
+    plt.plot(timeVector, trajectory[:, 1], 'r.')
+    plt.plot(timeVector, trajectory[:, 2], 'b*')
+
+    plt.show()
 
     return trajectory, velocity
 #endregion
