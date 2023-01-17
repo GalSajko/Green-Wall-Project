@@ -27,16 +27,14 @@ def getTorquesAndForcesOnLegsTips(jointsValues, currentsInMotors, spiderGravityV
         tuple: 5x3 array of forces, applied to leg tips in x, y, z direction of spider's origin and 5x3x3 array of damped pseudo inverses of jacobian matrices.
     """
     torques = _getTorquesInLegs(jointsValues, currentsInMotors, spiderGravityVector)
-
     forces = np.zeros((numberOfLegs, 3), dtype = np.float32)
-    dampedPseudoInverses = np.zeros((numberOfLegs, 3, 3), dtype = np.float32)
+
     for legId, jointValues in enumerate(jointsValues):
         J = kin.spiderBaseToLegTipJacobi(legId, jointValues)
         Jhash = mathTools.dampedPseudoInverse(J)
-        dampedPseudoInverses[legId] = Jhash
         forces[legId] = np.dot(np.transpose(Jhash), torques[legId])
     
-    return torques, forces, dampedPseudoInverses
+    return torques, forces
     
 def getForceEllipsoidLengthInGivenDirection(legId, jointsValues, direction):
     """Calculate size of vector from center to the surface of force manipulability ellipsoid, in given direction.'

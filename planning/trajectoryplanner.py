@@ -4,9 +4,6 @@ import matplotlib.pyplot as plt
 
 import config
 
-BEZIER_TRAJECTORY = 'bezier'
-MINJERK_TRAJECTORY = 'minJerk'
-
 #region public methods
 def calculateTrajectory(start, goal, duration, trajectoryType):
     """Wrapper for calcuating trajectories of desired type.
@@ -21,11 +18,11 @@ def calculateTrajectory(start, goal, duration, trajectoryType):
         ValueError: If trajectory type is unknown.      
 
     Returns:
-        Position and velocity trajectory if trajectory calculation was succesfull.
+        Position trajectory if trajectory calculation was succesfull.
     """
-    if trajectoryType == BEZIER_TRAJECTORY:
+    if trajectoryType == config.BEZIER_TRAJECTORY:
         return _bezierTrajectory(start, goal, duration)
-    if trajectoryType == MINJERK_TRAJECTORY:
+    if trajectoryType == config.MINJERK_TRAJECTORY:
         return _minJerkTrajectory(start, goal, duration)
 
     raise ValueError("Unknown trajectory type!")
@@ -51,8 +48,7 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         ValueError: If value of duration parameter is smaller or equal to 0.
 
     Returns:
-        tuple: nx7 array, representing pose trajectory with x, y, z, r, p, y and t values, where t are time stamps and 
-        nx6 array representing velocity trajectory with x, y, z, r, p, y velocities, where n is the number of steps in trajectory.
+        numpy.ndarray: nx7 array, representing pose trajectory with x, y, z, r, p, y and t values, where t are time stamps and n is the number of steps in trajectory.
     """
     if len(startPose) == 3:
         startPose = [startPose[0], startPose[1], startPose[2], 0.0 , 0.0, 0.0]
@@ -74,18 +70,18 @@ def _minJerkTrajectory(startPose, goalPose, duration):
     timeVector = np.linspace(0, duration, numberOfSteps)
 
     trajectory = np.empty([len(timeVector), len(startPose) + 1], dtype = np.float32)
-    velocities = np.empty([len(timeVector), len(startPose)], dtype = np.float32)
+    # velocities = np.empty([len(timeVector), len(startPose)], dtype = np.float32)
     for idx, t in enumerate(timeVector):
         trajectoryRow = np.empty([len(startPose) + 1], dtype = np.float32)
-        velocityRow = np.empty([len(startPose)], dtype = np.float32)
+        # velocityRow = np.empty([len(startPose)], dtype = np.float32)
         for i in range(len(startPose)):
             trajectoryRow[i] = startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(t / duration, 5) - 15 * math.pow(t / duration, 4) + 10 * math.pow(t / duration, 3))
-            velocityRow[i] = (30 * math.pow(t, 2) * math.pow(duration - t, 2) * (goalPose[i] - startPose[i])) / math.pow(duration, 5)
+            # velocityRow[i] = (30 * math.pow(t, 2) * math.pow(duration - t, 2) * (goalPose[i] - startPose[i])) / math.pow(duration, 5)
         trajectoryRow[-1] = t
         trajectory[idx] = trajectoryRow
-        velocities[idx] = velocityRow
+        # velocities[idx] = velocityRow
 
-    return trajectory, velocities
+    return trajectory
 
 def _bezierTrajectory(startPosition, goalPosition, duration):
     """Calculate cubic bezier trajectory between start and goal point with fixed intermediat control points.
@@ -100,8 +96,7 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
         ValueError: If value of duration parameter is smaller or equal to 0.
 
     Returns:
-        tuple: nx4 array, representing position trajectory with x, y, z and t values, where t are time stamps and 
-        nx3 array representing velocity trajectory with x, y and z velocities, where n is the number of steps in trajectory.
+        numpy.ndarray: nx4 array, representing position trajectory with x, y, z and t values, where t are time stamps and n is the number of steps in trajectory.
     """
 
     if len(startPosition) != 3 or len(goalPosition) != 3:
@@ -116,7 +111,7 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
     timeVector = np.linspace(0, duration, numberOfSteps)
 
     # Ratio beween height of trajectory and distance between start and goal points.
-    heightPercent = 0.4
+    heightPercent = 0.8
 
     startToGoalDirection = np.array(goalPosition - startPosition)
     midPoint = np.array(startToGoalDirection / 2.0)
@@ -138,39 +133,34 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
 
     
     firstInterPoint = np.copy(startPosition)
-    firstInterPoint[:2] += 0.4 * startToGoalDirection[:2]
     firstInterPoint[2] += heightPercent * np.linalg.norm(startToGoalDirection)
-
     secondInterPoint = np.copy(goalPosition)
-    secondInterPoint[:2] -= 0.4 * startToGoalDirection[:2]
     secondInterPoint[2] += heightPercent * np.linalg.norm(startToGoalDirection)
     controlPoints =  np.array([startPosition, firstInterPoint, secondInterPoint, goalPosition])
 
-    print(controlPoints)
-
-    vMax = 2 * (d / duration)
-    a = 3 * vMax / duration
-    t1 = duration / 3.0
-    t2 = 2 * t1
+    # vMax = 2 * (d / duration)
+    # a = 3 * vMax / duration
+    # t1 = duration / 3.0
+    # t2 = 2 * t1
 
     trajectory = np.empty([len(timeVector), len(startPosition) + 1], dtype = np.float32)
-    velocity = np.empty([len(timeVector), len(startPosition)], dtype = np.float32)
+    # velocity = np.empty([len(timeVector), len(startPosition)], dtype = np.float32)
     for idx, time in enumerate(timeVector):
         param = time / duration
         trajectoryPoint = controlPoints[0] * math.pow(1 - param, 3) + controlPoints[1] * 3 * param * math.pow(1 - param, 2) + controlPoints[2] * 3 * math.pow(param, 2) * (1 - param) + controlPoints[3] * math.pow(param, 3)
         trajectory[idx] = [trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], time]
-        if 0 <= time <= t1:
-            velocity[idx] = a * time
-        elif t1 < time < t2:
-            velocity[idx] = vMax
-        elif t2 <= time <= duration:
-            velocity[idx] = vMax - a * (time - t2)
+        # if 0 <= time <= t1:
+        #     velocity[idx] = a * time
+        # elif t1 < time < t2:
+        #     velocity[idx] = vMax
+        # elif t2 <= time <= duration:
+        #     velocity[idx] = vMax - a * (time - t2)
 
-    plt.plot(timeVector, trajectory[:, 0], 'g-')
-    plt.plot(timeVector, trajectory[:, 1], 'r.')
-    plt.plot(timeVector, trajectory[:, 2], 'b*')
+    # plt.plot(timeVector, trajectory[:, 0], 'g-')
+    # plt.plot(timeVector, trajectory[:, 1], 'r.')
+    # plt.plot(timeVector, trajectory[:, 2], 'b*')
 
-    plt.show()
+    # plt.show()
 
-    return trajectory, velocity
+    return trajectory
 #endregion
