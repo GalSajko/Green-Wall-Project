@@ -83,8 +83,7 @@ class VelocityController:
                     self.lastLegsPositions = xA
                     init = False
                 
-            xD = self.__getXdFromQueues()
-            xDd = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
+            xD, xDd = self.__getXdXddFromQueues()
 
             tauA, fA = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.pumpsBnoArduino.getGravityVector())
             fAMean, fBuffer, fCounter = mathTools.runningAverage(fBuffer, fCounter, fA)
@@ -130,9 +129,9 @@ class VelocityController:
         Returns:
             bool: False if ValueError is catched during trajectory calculation, True otherwise.
         """
-        if origin not in ('l', 'g'):
+        if origin not in (config.LEG_ORIGIN, config.GLOBAL_ORIGIN):
             raise ValueError("Unknown origin.")
-        if origin == 'g' and spiderPose is None:
+        if origin == config.GLOBAL_ORIGIN and spiderPose is None:
             raise TypeError("Parameter spiderPose should not be None.")
 
         self.legsQueues[legId] = queue.Queue()
@@ -141,10 +140,10 @@ class VelocityController:
             legCurrentPosition = self.xA[legId]
 
         localGoalPosition = self.__convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
-        positionTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
+        positionTrajectory, velocityTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
 
-        for position in positionTrajectory:
-            self.legsQueues[legId].put(position[:3])
+        for idx, position in enumerate(positionTrajectory):
+            self.legsQueues[legId].put([position[:3], velocityTrajectory[idx][:3]])
         self.legsQueues[legId].put(self.sentinel)
 
         return True
@@ -170,9 +169,9 @@ class VelocityController:
         Returns:
             bool: False if ValueError is catched during trajectory calculations, True otherwise.
         """
-        if origin not in ('l', 'g'):
+        if origin not in (config.LEG_ORIGIN, config.GLOBAL_ORIGIN):
             raise ValueError(f"Unknown origin {origin}.")
-        if origin == 'g' and spiderPose is None:
+        if origin == config.GLOBAL_ORIGIN and spiderPose is None:
             raise TypeError("If origin is global, spider pose should be given.")  
         if len(legsIds) != len(goalPositionsOrOffsets):
             raise ValueError("Number of legs and given goal positions should be the same.")
@@ -185,16 +184,18 @@ class VelocityController:
             legsCurrentPositions = self.xA
 
         xDs = np.zeros((len(legsIds), int(duration / self.period), 3), dtype = np.float32)
+        xDds = np.zeros((len(legsIds), int(duration / self.period), 3), dtype = np.float32)
 
         for idx, leg in enumerate(legsIds):          
             localGoalPosition = self.__convertIntoLocalGoalPosition(leg, legsCurrentPositions[leg], goalPositionsOrOffsets[idx], origin, isOffset, spiderPose) 
-            positionTrajectory = self.__getTrajectory(legsCurrentPositions[leg], localGoalPosition, duration, trajectoryType)
+            positionTrajectory, velocityTrajectory = self.__getTrajectory(legsCurrentPositions[leg], localGoalPosition, duration, trajectoryType)
 
             xDs[idx] = positionTrajectory[:, :3]
+            xDds[idx] = velocityTrajectory[:, :3]
         
         for i in range(len(xDs[0])):
             for idx, leg in enumerate(legsIds):
-                self.legsQueues[leg].put(xDs[idx][i])
+                self.legsQueues[leg].put([xDs[idx][i], xDds[idx][i]])
 
         for leg in legsIds:
             self.legsQueues[leg].put(self.sentinel)
@@ -353,29 +354,39 @@ class VelocityController:
         except RuntimeError as re:
             print(re)
 
-    def __getXdFromQueues(self):
+    def __getXdXddFromQueues(self):
         """Read current xD from queues for each leg. If leg-queue is empty, keep leg on latest position.
 
         Returns:
-            numpy.ndarray: 5x3 array of current desired positions of legs.
+            tuple: Two 5x3 arrays of current desired positions and velocities of legs.
         """
-        xD = np.empty((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
+        xD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
+        xDd = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
         for leg in spider.LEGS_IDS:
             try:
                 queueData = self.legsQueues[leg].get(False)
                 with self.locker:
                     if queueData is not self.sentinel:
-                        self.lastLegsPositions[leg] = queueData
+                        self.lastLegsPositions[leg] = queueData[0]
                 if queueData is self.sentinel:
                     xD[leg] = np.copy(self.lastLegsPositions[leg])
+                    xDd[leg] = np.zeros(3, dtype = np.float32)
+                    if leg == 3:
+                        print("=========")
+                        print(self.xA[3])
+                        print("=======")
                 else:
-                    xD[leg] = queueData
+                    xD[leg] = queueData[0]
+                    xDd[leg] = queueData[1]
             except queue.Empty:
                 with self.locker:
+                    if leg == 3:
+                        print(self.xA[leg])
                     xD[leg] = np.copy(self.lastLegsPositions[leg])
+                xDd[leg] = np.zeros(3, dtype = np.float32)
 
-        return xD
+        return xD, xDd
 
     def __eePositionVelocityPd(self, xD, xA, xDd, lastErrors):
         """PD controller. Feed-forward velocity is used only in force mode, otherwise its values are zeros.
@@ -428,10 +439,10 @@ class VelocityController:
         legGoalPosition = np.array(legGoalPosition, dtype = np.float32)
         if xSigns[0] != xSigns[1] and 0 not in xSigns:
             interPoint = np.array([0.0, 0.0, (legCurrentPosition[2] + legGoalPosition[2]) / 2.0])
-            firstPositionTrajectory = trajPlanner.calculateTrajectory(legCurrentPosition, interPoint, duration / 2, trajectoryType)
-            secondPositionTrajectory = trajPlanner.calculateTrajectory(interPoint, legGoalPosition, duration / 2, trajectoryType)
+            firstPositionTrajectory, firstVelocityTrajectory= trajPlanner.calculateTrajectory(legCurrentPosition, interPoint, duration / 2, trajectoryType)
+            secondPositionTrajectory, secondVelocityTrajectory = trajPlanner.calculateTrajectory(interPoint, legGoalPosition, duration / 2, trajectoryType)
 
-            return np.append(firstPositionTrajectory, secondPositionTrajectory, axis = 0)
+            return np.append(firstPositionTrajectory, secondPositionTrajectory, axis = 0), np.append(firstVelocityTrajectory, secondVelocityTrajectory, axis = 0)
 
         return trajPlanner.calculateTrajectory(legCurrentPosition, legGoalPosition, duration, trajectoryType)
     #endregion

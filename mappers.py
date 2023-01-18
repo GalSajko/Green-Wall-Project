@@ -104,14 +104,13 @@ def mapModelVelocitiesToVelocityEncoderValues(modelVelocities):
     Returns:
         numpy.ndarray: 1x3 array of encoded motors' velocities, matching given leg-model velocities.
     """
-    encoderVelocityLimit = 1023
-    jointVelocitiyRpmLimit = 234.27
+    rpmPerUnit = 0.229
     modelVelocities = np.array(modelVelocities)
     # Rad/s to rad/min.
-    jointVelocitiesRpm = (60 / (2*math.pi)) * modelVelocities
+    jointVelocitiesRpm = (60 / (2 * math.pi)) * modelVelocities
 
     # Convert to encoder values.
-    encoderValues = jointVelocitiesRpm * (encoderVelocityLimit / jointVelocitiyRpmLimit)
+    encoderValues = jointVelocitiesRpm / rpmPerUnit
     encoderValues[1] = -encoderValues[1]
 
     return encoderValues
