@@ -40,13 +40,14 @@ if __name__ == "__main__":
     # print(controller.xA[1])
     # controller.startForceMode([3], [[0.0, 0.0, 0.0]])
     # time.sleep(3)
+    controller.collectData = True
     while True:
-        controller.moveLegAsync(3, [0.4, 0.1, 0.05], 'l', 1, 'bezier', isOffset=False)
+        controller.moveLegAsync(3, [0.4, 0.1, 0.05], 'l', 2.0, 'bezier', isOffset=False)
         input()
         print("===")
         print(controller.xA[3])
         print("===")
-        controller.moveLegAsync(3, [0.4, -0.1, 0.05], 'l', 1, 'bezier', isOffset=False)
+        controller.moveLegAsync(3, [0.4, -0.1, 0.05], 'l', 2.0, 'bezier', isOffset=False)
         input()
         print("===")
         print(controller.xA[3])

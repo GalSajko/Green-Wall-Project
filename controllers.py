@@ -2,6 +2,7 @@ import numpy as np
 import time
 import threading
 import queue
+import matplotlib.pyplot as plt
 
 import config
 from environment import spider
@@ -44,6 +45,8 @@ class VelocityController:
         self.fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.tauAMean = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
 
+        self.collectData = False
+
         self.__initControllerThread()
         time.sleep(1)
 
@@ -59,6 +62,13 @@ class VelocityController:
         tauCounter = 0
 
         init = True
+
+        nMeas = 2500
+        qCds3 = np.zeros((nMeas, 3))
+        xAmeas = np.zeros((nMeas, 3))
+        xDmeas = np.zeros((nMeas, 3))
+        currentMeas = np.zeros((nMeas, 3))
+        i = 0
 
         while True:
             if self.killControllerThread:
@@ -82,13 +92,13 @@ class VelocityController:
                 if init:
                     self.lastLegsPositions = xA
                     init = False
-                
+        
             xD, xDd = self.__getXdXddFromQueues()
-
-            tauA, fA = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.pumpsBnoArduino.getGravityVector())
+            
+            tauA, fA = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, np.array([0.0, 0.0, -9.81], dtype = np.float32))
             fAMean, fBuffer, fCounter = mathTools.runningAverage(fBuffer, fCounter, fA)
             self.tauAMean, tauBuffer, tauCounter = mathTools.runningAverage(tauBuffer, tauCounter, tauA)
-
+            
             if forceMode:
                 legOffsetsInSpider, legVelocitiesInSpider = self.__forcePositionP(fD, fAMean)
                 localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegs, legOffsetsInSpider, legVelocitiesInSpider)
@@ -100,6 +110,15 @@ class VelocityController:
             xCds, lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, lastXErrors)
             qCds = kin.getJointsVelocities(currentAngles, xCds)
 
+            if self.collectData:
+                qCds3[i] = qCds[3]
+                xAmeas[i] = xA[3]
+                xDmeas[i] = xD[3]
+                currentMeas[i] = currents[3]
+                i += 1
+                if i >= len(qCds3):
+                    break
+
             # Send new commands to motors.
             with self.locker:
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(spider.LEGS_IDS, qCds)
@@ -109,6 +128,38 @@ class VelocityController:
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
+        
+        # plt.subplot(6, 1, 1)
+        # plt.plot(qCds3[:, 0], 'g')
+        # plt.title("1st joint")
+        # plt.subplot(6, 1, 2)
+        # plt.plot(qCds3[:, 1], 'r')
+        # plt.title("2nd joint")
+        # plt.subplot(6, 1, 3)
+        # plt.plot(qCds3[:, 2], 'b')
+        # plt.title("3rd joint")
+
+        timeVector = np.linspace(0, nMeas * 1 / config.CONTROLLER_FREQUENCY, nMeas)
+        plt.subplot(3, 1, 1)
+        plt.plot(timeVector, xAmeas[:, 0], 'g')
+        plt.plot(timeVector, xDmeas[:, 0], 'r')
+        plt.title("X coordinate")
+        plt.legend(['xA', 'xD'])
+
+        plt.subplot(3, 1, 2)
+        plt.plot(timeVector, xAmeas[:, 1], 'g')
+        plt.plot(timeVector, xDmeas[:, 1], 'r')
+        plt.title("Y coordinate")
+        plt.legend(['xA', 'xD'])
+
+        plt.subplot(3, 1, 3)
+        plt.plot(timeVector, xAmeas[:, 2], 'g')
+        plt.plot(timeVector, xDmeas[:, 2], 'r')
+        plt.title("Z coordinate")
+        plt.legend(['xA', 'xD'])
+
+        plt.show()
+
 
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -372,17 +423,17 @@ class VelocityController:
                 if queueData is self.sentinel:
                     xD[leg] = np.copy(self.lastLegsPositions[leg])
                     xDd[leg] = np.zeros(3, dtype = np.float32)
-                    if leg == 3:
-                        print("=========")
-                        print(self.xA[3])
-                        print("=======")
+                    # if leg == 3:
+                    #     print("=========")
+                    #     print(self.xA[3])
+                    #     print("=======")
                 else:
                     xD[leg] = queueData[0]
                     xDd[leg] = queueData[1]
             except queue.Empty:
                 with self.locker:
-                    if leg == 3:
-                        print(self.xA[leg])
+                    # if leg == 3:
+                    #     print(self.xA[leg])
                     xD[leg] = np.copy(self.lastLegsPositions[leg])
                 xDd[leg] = np.zeros(3, dtype = np.float32)
 
@@ -402,7 +453,7 @@ class VelocityController:
         """
         xErrors = np.array(xD - xA)
         dXe = (xErrors - lastErrors) / self.period
-        xCd = np.array(self.Kp * xErrors + self.Kd * dXe + xDd, dtype = np.float32)
+        xCd = np.array(self.Kp * xErrors + self.Kd * dXe + 0.3 * xDd, dtype = np.float32)
 
         return xCd, xErrors
 

@@ -140,20 +140,20 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
                 t * (t * (-7 * P6 * t + P7 * t + 6 * P6 * duration) + 3 * P5 * (7 * t**2 - 12 * t * duration + 5 * duration**2))))))) / duration**7
     
 
-    plt.subplot(1, 2, 1)
-    plt.plot(timeVector, trajectory[:, 0], 'g*')
-    plt.plot(timeVector, trajectory[:, 1], 'r*')
-    plt.plot(timeVector, trajectory[:, 2], 'b*')   
-    plt.legend(['x', 'y', 'z'])
-    plt.title("Positions")
-    plt.subplot(1, 2, 2)
-    plt.plot(timeVector, velocity[:, 0], 'g*')
-    plt.plot(timeVector, velocity[:, 1], 'r*')
-    plt.plot(timeVector, velocity[:, 2], 'b*')
-    plt.legend(['x', 'y', 'z'])
-    plt.title("Velocities")
+    # plt.subplot(1, 2, 1)
+    # plt.plot(timeVector, trajectory[:, 0], 'g*')
+    # plt.plot(timeVector, trajectory[:, 1], 'r*')
+    # plt.plot(timeVector, trajectory[:, 2], 'b*')   
+    # plt.legend(['x', 'y', 'z'])
+    # plt.title("Positions")
+    # plt.subplot(1, 2, 2)
+    # plt.plot(timeVector, velocity[:, 0], 'g*')
+    # plt.plot(timeVector, velocity[:, 1], 'r*')
+    # plt.plot(timeVector, velocity[:, 2], 'b*')
+    # plt.legend(['x', 'y', 'z'])
+    # plt.title("Velocities")
 
-    plt.show()
+    # plt.show()
 
     return trajectory, velocity
 #endregion
