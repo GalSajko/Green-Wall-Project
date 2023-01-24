@@ -64,24 +64,36 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         raise ValueError("Lengths of startPose and goalPose do not match.")
     if duration <= 0:
         raise ValueError("Movement duration cannot be shorter than 0 seconds.")
+    
+    startPose = np.array(startPose, dtype = np.float32)
+    goalPose = np.array(goalPose, dtype = np.float32)
 
     timeStep = 1 / config.CONTROLLER_FREQUENCY
     numberOfSteps = int(duration / timeStep)
     timeVector = np.linspace(0, duration, numberOfSteps)
 
-    trajectory = np.empty([len(timeVector), len(startPose) + 1], dtype = np.float32)
-    velocities = np.empty([len(timeVector), len(startPose)], dtype = np.float32)
-    for idx, t in enumerate(timeVector):
-        trajectoryRow = np.empty([len(startPose) + 1], dtype = np.float32)
-        velocityRow = np.empty([len(startPose)], dtype = np.float32)
-        for i in range(len(startPose)):
-            trajectoryRow[i] = startPose[i] + (goalPose[i] - startPose[i]) * (6 * math.pow(t / duration, 5) - 15 * math.pow(t / duration, 4) + 10 * math.pow(t / duration, 3))
-            velocityRow[i] = (30 * math.pow(t, 2) * math.pow(duration - t, 2) * (goalPose[i] - startPose[i])) / math.pow(duration, 5)
-        trajectoryRow[-1] = t
-        trajectory[idx] = trajectoryRow
-        velocities[idx] = velocityRow
+    trajectory = np.zeros((len(timeVector), len(startPose) + 1), dtype = np.float32)
+    velocities = np.zeros((len(timeVector), len(startPose)), dtype = np.float32)
+    accelerations = np.zeros((len(timeVector), len(startPose)), dtype = np.float32)
 
-    return trajectory, velocities
+    for idx, t in enumerate(timeVector):
+        # trajectoryRow = np.empty((len(startPose) + 1), dtype = np.float32)
+        # velocityRow = np.empty((len(startPose)), dtype = np.float32)
+        # accelerationRow = np.empty((len(startPose)), dtype = np.float32)
+        # for i in range(len(startPose)):
+        #     trajectoryRow[i] = startPose[i] + (goalPose[i] - startPose[i]) * (6 * (t / duration)**5 - 15 * (t / duration)**4 + 10 * (t / duration)**3)
+        #     velocityRow[i] = (30 * t**2 * (duration - t)**2 * (goalPose[i] - startPose[i])) / duration**5
+        #     accelerationRow[i] = -(60 * (startPose[i] - goalPose[i]) * t * (2 * t**2 - 3 * t * duration + duration**2)) / duration**5
+        # trajectoryRow[-1] = t
+        # trajectory[idx] = trajectoryRow
+        # velocities[idx] = velocityRow
+        # accelerations[idx] = accelerationRow
+        trajectory[idx, :-1] = startPose + (goalPose - startPose) * (6 * (t / duration)**5 - 15 * (t / duration)**4 + 10 * (t / duration)**3)
+        trajectory[idx, -1] = t
+        velocities[idx] = (30 * t**2 * (duration - t)**2 * (goalPose - startPose)) / duration**5
+        accelerations[idx] = -(60 * (startPose - goalPose) * t * (2 * t**2 - 3 * t * duration + duration**2)) / duration**5
+
+    return trajectory, velocities, accelerations
 
 def _bezierTrajectory(startPosition, goalPosition, duration):
     """Calculate cubic bezier trajectory between start and goal point with fixed intermediat control points.
@@ -118,16 +130,20 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
     P0 = np.copy(startPosition)
     P1 = np.copy(startPosition)
     P2 = np.copy(startPosition)
+
     P3 = np.copy(startPosition)
     P3[2] += heightPercent * np.linalg.norm(startToGoalDirection)
     P4 = np.copy(goalPosition)
     P4[2] += heightPercent * np.linalg.norm(startToGoalDirection)
+
     P5 = np.copy(goalPosition)
     P6 = np.copy(goalPosition)
     P7 = np.copy(goalPosition)
 
     trajectory = np.empty([len(timeVector), len(startPosition) + 1], dtype = np.float32)
     velocity = np.empty([len(timeVector), len(startPosition)], dtype = np.float32)
+    accelerations = np.empty([len(timeVector), len(startPosition)], dtype = np.float32)
+
     for idx, t in enumerate(timeVector):
         param = t / duration
 
@@ -138,22 +154,34 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
         velocity[idx] = -(7 * (P0 * (t - duration)**6 - P1 * (t - duration)**5 * (7 * t - duration) + t * (3 * P2 * (7 * t - 2 * duration) * (t - duration)**4 - \
             t * (5 * P3 * ( 7 * t - 3 * duration) * (t - duration)**3 + t * (-5 * P4 * (7 * t - 4 * duration) * (t - duration)**2 + \
                 t * (t * (-7 * P6 * t + P7 * t + 6 * P6 * duration) + 3 * P5 * (7 * t**2 - 12 * t * duration + 5 * duration**2))))))) / duration**7
+
+        accelerations[idx] = 42 * (-21 * P2 * t**5 + 35 * P3 * t**5 - 35 * P4 * t**5 + 21 * P5 * t**5 - 7 * P6 * t**5 + P7 * t**5 + P1 * (7 * t - 2 * duration) * (t - duration)**4 - \
+            P0 * (t - duration)**5 + 75 * P2 * t**4 * duration - 100 * P3 * t**4 * duration + 75 * P4 * t**4 * duration - 30 * P5 * t**4 * duration + \
+                  5 * P6 * t**4 * duration - 100 * P2 * t**3 * duration**2 + 100 * P3 * t**3 * duration**2 - 50 * P4 * t**3 * duration**2 + \
+                    10 * P5 * t**3 * duration**2 + 60 * P2 * t**2 * duration**3 - 40 * P3 * t**2 * duration**3 + \
+                        10 * P4 * t**2 * duration**3 - 15 * P2 * t * duration**4 + 5 * P3 * t * duration**4 + P2 * duration**5) / duration**7
     
 
-    # plt.subplot(1, 2, 1)
+    # plt.subplot(1, 3, 1)
     # plt.plot(timeVector, trajectory[:, 0], 'g*')
     # plt.plot(timeVector, trajectory[:, 1], 'r*')
     # plt.plot(timeVector, trajectory[:, 2], 'b*')   
     # plt.legend(['x', 'y', 'z'])
     # plt.title("Positions")
-    # plt.subplot(1, 2, 2)
+    # plt.subplot(1, 3, 2)
     # plt.plot(timeVector, velocity[:, 0], 'g*')
     # plt.plot(timeVector, velocity[:, 1], 'r*')
     # plt.plot(timeVector, velocity[:, 2], 'b*')
     # plt.legend(['x', 'y', 'z'])
     # plt.title("Velocities")
+    # plt.subplot(1, 3, 3)
+    # plt.plot(timeVector, acceleration[:, 0], 'g*')
+    # plt.plot(timeVector, acceleration[:, 1], 'r*')
+    # plt.plot(timeVector, acceleration[:, 2], 'b*')
+    # plt.legend(['x', 'y', 'z'])
+    # plt.title("Acceleration")
 
     # plt.show()
 
-    return trajectory, velocity
+    return trajectory, velocity, accelerations
 #endregion
