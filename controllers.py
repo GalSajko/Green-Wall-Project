@@ -63,11 +63,6 @@ class VelocityController:
 
         init = True
 
-        nMeas = 5000
-        xAmeas = np.zeros((nMeas, 3))
-        xDmeas = np.zeros((nMeas, 3))
-        i = 0
-
         while True:
             if self.killControllerThread:
                 break
@@ -76,11 +71,12 @@ class VelocityController:
             # Get current data.
             with self.locker:
                 try:
-                    currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                    currentAngles, self.currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
                     self.qA = currentAngles
                     self.xA = kin.allLegsPositions(currentAngles, config.LEG_ORIGIN)
                     xA = self.xA
                     fD = self.fD
+                    currents = self.currents
                 except KeyError:
                     print("COMM READING ERROR")
                     continue
@@ -91,9 +87,9 @@ class VelocityController:
                     self.lastLegsPositions = xA
                     init = False
         
-            xD, xDd, xDdd = self.__getXdXddFromQueues()
+            xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
             
-            tauA, fA = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, np.array([0.0, 0.0, -9.81], dtype = np.float32))
+            tauA, fA = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.pumpsBnoArduino.getGravityVector())
             fAMean, fBuffer, fCounter = mathTools.runningAverage(fBuffer, fCounter, fA)
             self.tauAMean, tauBuffer, tauCounter = mathTools.runningAverage(tauBuffer, tauCounter, tauA)
             
@@ -108,14 +104,6 @@ class VelocityController:
             xCds, lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, xDdd, lastXErrors)
             qCds = kin.getJointsVelocities(currentAngles, xCds)
 
-            if self.collectData:
-                xAmeas[i] = xA[3]
-                xDmeas[i] = xD[3]
-                i += 1
-                if i >= nMeas:
-
-                    break
-
             # Send new commands to motors.
             with self.locker:
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(spider.LEGS_IDS, qCds)
@@ -125,28 +113,6 @@ class VelocityController:
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
-
-        timeVector = np.linspace(0, nMeas * 1 / config.CONTROLLER_FREQUENCY, nMeas)
-        plt.subplot(3, 1, 1)
-        plt.plot(timeVector, xAmeas[:, 0], 'g')
-        plt.plot(timeVector, xDmeas[:, 0], 'r')
-        plt.title("X coordinate")
-        plt.legend(['xA', 'xD'])
-
-        plt.subplot(3, 1, 2)
-        plt.plot(timeVector, xAmeas[:, 1], 'g')
-        plt.plot(timeVector, xDmeas[:, 1], 'r')
-        plt.title("Y coordinate")
-        plt.legend(['xA', 'xD'])
-
-        plt.subplot(3, 1, 3)
-        plt.plot(timeVector, xAmeas[:, 2], 'g')
-        plt.plot(timeVector, xDmeas[:, 2], 'r')
-        plt.title("Z coordinate")
-        plt.legend(['xA', 'xD'])
-
-        plt.show()
-
 
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -394,7 +360,7 @@ class VelocityController:
         except RuntimeError as re:
             print(re)
 
-    def __getXdXddFromQueues(self):
+    def __getXdXddXdddFromQueues(self):
         """Read current desired position, velocity and acceleration from queues for each leg. If leg-queue is empty, keep leg on latest position.
 
         Returns:

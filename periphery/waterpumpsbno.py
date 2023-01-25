@@ -21,7 +21,7 @@ class PumpsBnoArduino:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB2', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB1', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
