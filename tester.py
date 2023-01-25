@@ -39,35 +39,34 @@ if __name__ == "__main__":
         [0.6, 0.5, 0.2, 0.0],
         [0.6, 0.5, 0.4, 0.0]
     ]
-    
-    print(kin.getXdXddFromOffsets.nopython_signatures)
+
     _ = input("PRESS ENTER TO START WALKING")
 
-    
+    kin.getXdXddFromOffsets(spider.LEGS_IDS, np.zeros((5, 3), dtype = np.float32), np.zeros((5, 3), dtype = np.float32))
 
-    # controller = controllers.VelocityController(False)
-    # # controller.distributeForces(spider.LEGS_IDS, 0)
-    # # udpServer = udpServer.UdpServer('192.168.1.25')
-    # # initSendingThread()
-    # time.sleep(10)
-
-
-    # controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 3, 'minJerk', startPose)
-    # time.sleep(6)
-    # controller.pumpsBnoArduino.resetBno()
-    # time.sleep(2)
-    # # controller.grippersArduino.moveGripper(0, 'o')
-    # # time.sleep(1)
-    # # controller.moveLegAsync(0, [0.0, 0.0, 0.1], 'l', 1, 'minJerk', isOffset = True)
-    # # time.sleep(3)
-    # controller.distributeForces(spider.LEGS_IDS, 1)
-    # time.sleep(2)
+    controller = controllers.VelocityController(False)
+    # controller.distributeForces(spider.LEGS_IDS, 0)
+    # udpServer = udpServer.UdpServer('192.168.1.25')
+    # initSendingThread()
+    time.sleep(30)
 
 
+    controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 3, 'minJerk', startPose)
+    time.sleep(6)
+    controller.pumpsBnoArduino.resetBno()
+    time.sleep(2)
+    # controller.grippersArduino.moveGripper(0, 'o')
+    # time.sleep(1)
+    # controller.moveLegAsync(0, [0.0, 0.0, 0.1], 'l', 1, 'minJerk', isOffset = True)
+    # time.sleep(3)
+    controller.distributeForces(spider.LEGS_IDS, 1)
+    time.sleep(2)
 
-    # while True:
-    #     for pose in poses:
-    #         controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 2, 'minJerk', pose)
-    #         time.sleep(3.5)
-    #         controller.distributeForces(spider.LEGS_IDS, 1)
-    #         time.sleep(2)
+
+
+    while True:
+        for pose in poses:
+            controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 2, 'minJerk', pose)
+            time.sleep(3.5)
+            controller.distributeForces(spider.LEGS_IDS, 1)
+            time.sleep(2)
