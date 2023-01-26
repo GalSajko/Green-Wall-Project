@@ -29,44 +29,30 @@ def initSendingThread():
 
 if __name__ == "__main__":
     pins = wall.createGrid(True)
-    selectedPins = [pins[22], pins[9], pins[7], pins[31], pins[33]]
+    selectedPins = [pins[22], pins[15], pins[12], pins[24], pins[27]]
     startPose = [0.6, 0.5, 0.3, 0.0]
     poses = [
-        [0.75, 0.5, 0.3, 0.0],
+        [0.7, 0.5, 0.3, 0.0],
         [0.6, 0.6, 0.3, 0.0],
-        [0.45, 0.5, 0.3, 0.0],
+        [0.5, 0.5, 0.3, 0.0],
         [0.6, 0.4, 0.3, 0.0],
-        [0.6, 0.5, 0.2, 0.0],
-        [0.6, 0.5, 0.4, 0.0]
     ]
 
     _ = input("PRESS ENTER TO START WALKING")
 
-    kin.getXdXddFromOffsets(spider.LEGS_IDS, np.zeros((5, 3), dtype = np.float32), np.zeros((5, 3), dtype = np.float32))
+    # kin.getXdXddFromOffsets(spider.LEGS_IDS, np.zeros((5, 3), dtype = np.float32), np.zeros((5, 3), dtype = np.float32))
 
-    controller = controllers.VelocityController(False)
+    controller = controllers.VelocityController()
     # controller.distributeForces(spider.LEGS_IDS, 0)
-    # udpServer = udpServer.UdpServer('192.168.1.25')
-    # initSendingThread()
-    time.sleep(30)
-
-
-    controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 3, 'minJerk', startPose)
-    time.sleep(6)
-    controller.pumpsBnoArduino.resetBno()
-    time.sleep(2)
-    # controller.grippersArduino.moveGripper(0, 'o')
-    # time.sleep(1)
-    # controller.moveLegAsync(0, [0.0, 0.0, 0.1], 'l', 1, 'minJerk', isOffset = True)
-    # time.sleep(3)
-    controller.distributeForces(spider.LEGS_IDS, 1)
+    udpServer = udpServer.UdpServer('192.168.1.25')
     time.sleep(2)
 
 
-
+    counter = 0
     while True:
-        for pose in poses:
-            controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 2, 'minJerk', pose)
-            time.sleep(3.5)
-            controller.distributeForces(spider.LEGS_IDS, 1)
-            time.sleep(2)
+        goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+        print(goalPose)
+        controller.walk(startPose, goalPose, initBno = counter == 0)
+        startPose = goalPose
+        counter += 1
+

@@ -77,17 +77,6 @@ def _minJerkTrajectory(startPose, goalPose, duration):
     accelerations = np.zeros((len(timeVector), len(startPose)), dtype = np.float32)
 
     for idx, t in enumerate(timeVector):
-        # trajectoryRow = np.empty((len(startPose) + 1), dtype = np.float32)
-        # velocityRow = np.empty((len(startPose)), dtype = np.float32)
-        # accelerationRow = np.empty((len(startPose)), dtype = np.float32)
-        # for i in range(len(startPose)):
-        #     trajectoryRow[i] = startPose[i] + (goalPose[i] - startPose[i]) * (6 * (t / duration)**5 - 15 * (t / duration)**4 + 10 * (t / duration)**3)
-        #     velocityRow[i] = (30 * t**2 * (duration - t)**2 * (goalPose[i] - startPose[i])) / duration**5
-        #     accelerationRow[i] = -(60 * (startPose[i] - goalPose[i]) * t * (2 * t**2 - 3 * t * duration + duration**2)) / duration**5
-        # trajectoryRow[-1] = t
-        # trajectory[idx] = trajectoryRow
-        # velocities[idx] = velocityRow
-        # accelerations[idx] = accelerationRow
         trajectory[idx, :-1] = startPose + (goalPose - startPose) * (6 * (t / duration)**5 - 15 * (t / duration)**4 + 10 * (t / duration)**3)
         trajectory[idx, -1] = t
         velocities[idx] = (30 * t**2 * (duration - t)**2 * (goalPose - startPose)) / duration**5
@@ -123,7 +112,7 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
     timeVector = np.linspace(0, duration, numberOfSteps)
 
     # Ratio beween height of trajectory and distance between start and goal points.
-    heightPercent = 0.8
+    heightPercent = 1.0
 
     startToGoalDirection = np.array(goalPosition - startPosition)
 

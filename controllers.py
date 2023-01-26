@@ -21,7 +21,7 @@ class VelocityController:
     """ Class for velocity-control of spider's movement. All legs are controlled with same self, but can be moved separately and independently
     from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop self takes first values from all of the legs-queues.
     """
-    def __init__ (self, isVertical = False):
+    def __init__ (self):
         self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.grippersArduino = grippers.GrippersArduino()
         self.pumpsBnoArduino = wpb.PumpsBnoArduino()
@@ -99,7 +99,7 @@ class VelocityController:
                 xD[forceModeLegs] += localOffsets
                 xDd[forceModeLegs] = localVelocities
                 with self.locker:
-                    self.lastLegsPositions[forceModeLegs] = xD[forceModeLegs]
+                    self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
 
             xCds, lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, xDdd, lastXErrors)
             qCds = kin.getJointsVelocities(currentAngles, xCds)
@@ -225,15 +225,15 @@ class VelocityController:
                 time.sleep(3.5)
                 if initBno:
                     self.pumpsBnoArduino.resetBno()
-                time.sleep(1)
-                self.distributeForces(spider.LEGS_IDS, 5)
+                    time.sleep(1)
+                self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
                 continue
             
-            if step % 3 == 0 and step != 0:
-                self.startForceMode(spider.LEGS_IDS, [[0.0, -1.0, 0.0]] * spider.NUMBER_OF_LEGS)
-                time.sleep(5)
-                self.stopForceMode()
-                time.sleep(30)
+            # if step % 3 == 0 and step != 0:
+            #     self.startForceMode(spider.LEGS_IDS, [[0.0, -1.0, 0.0]] * spider.NUMBER_OF_LEGS)
+            #     time.sleep(5)
+            #     self.stopForceMode()
+            #     time.sleep(30)
 
             previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
             self.moveLegsSync(currentLegsMovingOrder, previousPinsPositions, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, pose)
@@ -243,7 +243,7 @@ class VelocityController:
             for idx, leg in enumerate(currentLegsMovingOrder):
                 if pinsOffsets[idx].any():
                     self.moveLegFromPinToPin(leg, currentPinsPositions[idx], previousPinsPositions[idx])          
-            self.distributeForces(spider.LEGS_IDS, 2)
+            self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
 
     def moveLegFromPinToPin(self, leg, goalPinPosition, currentPinPosition):
         """Move leg from one pin to another, including force-offloading and gripper movements.
@@ -254,8 +254,7 @@ class VelocityController:
             currentPinPosition (list): 1x3 array current pin position in global origin.
         """
         otherLegs = np.delete(spider.LEGS_IDS, leg)
-        self.distributeForces(otherLegs, 1)
-        time.sleep(1.5)
+        self.distributeForces(otherLegs, config.FORCE_DISTRIBUTION_DURATION)
         self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)
         time.sleep(2)
         
@@ -282,8 +281,6 @@ class VelocityController:
         time.sleep(3)
         self.stopForceMode()
 
-        self.motorDriver.readHardwareErrorRegister()
-
         # Check if leg successfully grabbed the pin.
         while not (leg in self.grippersArduino.getIdsOfAttachedLegs()):
             print(f"LEG {leg} NOT ATTACHED")
@@ -292,7 +289,7 @@ class VelocityController:
             self.moveLegAsync(leg, detachOffsetInLocal / 2.0, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY, isOffset = True)
             time.sleep(1)
             
-            self.startForceMode([leg], [globalZDirectionInSpider * (-6.0)])
+            self.startForceMode([leg], [globalZDirectionInSpider * (-4.0)])
             time.sleep(1)
             self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
             self.stopForceMode()
