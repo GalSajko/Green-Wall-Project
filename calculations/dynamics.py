@@ -152,11 +152,11 @@ def _getTorquesInLegs(jointsValues, currentsInMotors, spiderGravityVector):
     Returns:
         numpy.ndarray: 5x3 array of torques in motors.
     """
-    currentsInMotors[:,1] *= -1
+    currentsInMotors[:, 1] *= -1
 
     gravityTorques = _getGravityCompensationTorques(jointsValues, spiderGravityVector)
     torques = (A_TORQUE_POLYNOM + B_TORQUE_POLYNOM * currentsInMotors + C_TORQUE_POLYNOM * currentsInMotors**2) - gravityTorques
-    torquesArray = np.zeros((5, 3), dtype = np.float32)
+    torquesArray = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
     for i in range(len(torques)):
         torquesArray[i] = torques[i]
 

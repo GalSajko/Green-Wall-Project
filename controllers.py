@@ -45,7 +45,9 @@ class VelocityController:
         self.fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.tauAMean = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
 
-        self.collectData = False
+        self.isCorrectionMode = False
+        self.correctionDirection = np.zeros(3, dtype = np.float32)
+        self.correctionLegId = None
 
         self.__initControllerThread()
         time.sleep(1)
@@ -71,17 +73,19 @@ class VelocityController:
             # Get current data.
             with self.locker:
                 try:
-                    currentAngles, self.currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                    currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
                     self.qA = currentAngles
                     self.xA = kin.allLegsPositions(currentAngles, config.LEG_ORIGIN)
                     xA = self.xA
                     fD = self.fD
-                    currents = self.currents
                 except KeyError:
                     print("COMM READING ERROR")
                     continue
                 forceMode = self.isForceMode
                 forceModeLegs = self.forceModeLegsIds
+                correctionMode = self.isCorrectionMode
+                correctionDirection = self.correctionDirection
+                correctionLegId = self.correctionLegId
                 # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
                 if init:
                     self.lastLegsPositions = xA
@@ -98,6 +102,11 @@ class VelocityController:
                 localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegs, legOffsetsInSpider, legVelocitiesInSpider)
                 xD[forceModeLegs] += localOffsets
                 xDd[forceModeLegs] = localVelocities
+                with self.locker:
+                    self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
+            
+            if correctionMode:
+                xDd[correctionLegId] = correctionDirection * 0.1 * int(np.linalg.norm(fAMean[correctionLegId]) < 2.0)
                 with self.locker:
                     self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
 
@@ -264,14 +273,11 @@ class VelocityController:
         globalToSpiderRotation = tf.xyzRpyToMatrix(np.array([0, 0, 0, rpy[0], rpy[1], rpy[2]]), True)
         globalToLegRotation = np.linalg.inv(np.dot(globalToSpiderRotation, spider.T_ANCHORS[leg][:3, :3]))
 
-        globalZDirectionInSpider = np.dot(np.linalg.inv(globalToSpiderRotation), np.array([0.0, 0.0, 1.0]))
+        # globalZDirectionInSpider = np.dot(np.linalg.inv(globalToSpiderRotation), np.array([0.0, 0.0, 1.0]))
         globalZDirectionInLocal = np.dot(globalToLegRotation, np.array([0.0, 0.0, 1.0]))
 
         pinToPinGlobal = goalPinPosition - currentPinPosition
         pinToPinLocal = np.dot(globalToLegRotation, pinToPinGlobal)
-
-        detachOffsetZ = 0.02
-        detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
 
         self.moveLegAsync(leg, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
         time.sleep(3.5)
@@ -281,19 +287,33 @@ class VelocityController:
         time.sleep(3)
         self.stopForceMode()
 
-        # Check if leg successfully grabbed the pin.
+        detachOffsetZ = 0.03
+        detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
+        # Check if leg successfully grabbed the pin and correct if neccessary.
         while not (leg in self.grippersArduino.getIdsOfAttachedLegs()):
             print(f"LEG {leg} NOT ATTACHED")
             self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)
             time.sleep(1)
-            self.moveLegAsync(leg, detachOffsetInLocal / 2.0, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY, isOffset = True)
+            self.moveLegAsync(leg, detachOffsetInLocal, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY, isOffset = True)
             time.sleep(1)
-            
-            self.startForceMode([leg], [globalZDirectionInSpider * (-4.0)])
-            time.sleep(1)
+
+            with self.locker:
+                self.isCorrectionMode = True
+                self.correctionDirection = -globalZDirectionInLocal
+                self.correctionLegId = leg
+            time.sleep(3)
             self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
-            self.stopForceMode()
-            time.sleep(3)         
+            time.sleep(1)
+                
+        with self.locker:
+            self.isCorrectionMode = False
+
+            
+            # self.startForceMode([leg], [globalZDirectionInSpider * (-4.0)])
+            # time.sleep(1)
+            # self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
+            # self.stopForceMode()
+            # time.sleep(3)         
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force self inside main velocity self loop.
