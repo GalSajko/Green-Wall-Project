@@ -91,7 +91,7 @@ def getLegsInGlobal(legsIds, localLegsPositions, spiderPose):
 
     return legsGlobalPositions
 
-@numba.njit
+@numba.jit(nopython = True, cache = True)
 def R_B1(qb, q1):
     """Rotation matrix from spider's to 1st segment's origin.
 
@@ -108,7 +108,7 @@ def R_B1(qb, q1):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-@numba.njit
+@numba.jit(nopython = True, cache = True)
 def R_12(q2):
     """Rotation matrix from 1st to 2nd leg-segment.
 
@@ -124,7 +124,7 @@ def R_12(q2):
         [math.sin(q2), math.cos(q2), 0.0]
     ], dtype = np.float32)
 
-@numba.njit
+@numba.jit(nopython = True, cache = True)
 def R_23(q3):
     """Rotation matrix from 2nd to 3rd leg-segment.
 
@@ -140,7 +140,7 @@ def R_23(q3):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-@numba.njit
+@numba.jit(nopython = True, cache = True)
 def R_B2(qb, q1, q2):
     """Rotation matrix from spider's to 2nd segment's origin.
 
@@ -158,7 +158,7 @@ def R_B2(qb, q1, q2):
         [math.sin(q2), math.cos(q2), 0.0]
     ], dtype = np.float32)
 
-@numba.njit
+@numba.jit(nopython = True, cache = True)
 def R_B3(qb, q1, q2, q3):
     return np.array([
         [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), math.sin(q1 + qb)],

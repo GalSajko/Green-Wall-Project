@@ -93,15 +93,3 @@ def weightedPseudoInverse(J, A):
     Jw = np.dot(np.dot(Ainv, Jtrans), np.linalg.inv(np.dot(J.astype(np.float32), np.dot(Ainv, Jtrans))))
 
     return Jw
-
-
-def centerOfPolygon(vertices):
-    """Calculate x and y of geometric center of polygon from given vertices.
-
-    Args:
-        points (list): nx3 array of vertices.
-
-    Returns:
-        numpy.ndarray: 1x2 array of x and y coordinate of polygon's geometric center.
-    """
-    return np.array([np.mean(vertices[:,0]), np.mean(vertices[:,1])])
