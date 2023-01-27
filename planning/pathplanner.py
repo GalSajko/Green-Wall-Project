@@ -12,7 +12,7 @@ from calculations import kinematics as kin
 from calculations import dynamics as dyn
 
 
-MAX_LIN_STEP = 0.025
+MAX_LIN_STEP = 0.06
 MAX_ROT_STEP = 0.2
 MAX_LIFT_STEP = 0.3
 
@@ -75,9 +75,9 @@ def calculateSelectedPinsMaxYDistance(path):
             return 0 if xDist < 0.0 else 1 / (abs(xDist) + 10e-5)
         
         if legIdx == lowerLeftLeg:
-            return 0 if xDist > 0.0 else 1 / (abs(xDist) + 10e-5)
+            return -100 if xDist > -0.1 else 1 / (abs(xDist) + 10e-5)
         if legIdx == lowerRightLeg:
-            return 0 if xDist < 0.0 else 1 / (abs(xDist) + 10e-5)
+            return -100 if xDist < 0.1 else 1 / (abs(xDist) + 10e-5)
 
     for step, pose in enumerate(path):
         pinsInSearchRadius = pins[(np.sum(np.abs(pins - pose[:3])**2, axis = -1))**(0.5) < searchRadius]
@@ -95,11 +95,12 @@ def calculateSelectedPinsMaxYDistance(path):
                     continue
                 rotatedIdealLegVector = np.dot(T_GS[:3,:3], np.append(spider.IDEAL_LEG_VECTORS[idx], 0))
                 angleBetweenIdealVectorAndPin = mt.calculateSignedAngleBetweenTwoVectors(
-                    rotatedIdealLegVector[:2], 
+                    rotatedIdealLegVector[:2],
                     np.array(np.array(pin) - np.array(anchorPosition))[:2])               
                 if not (abs(angleBetweenIdealVectorAndPin) < spider.CONSTRAINS[2]):
                     continue
-                criterion = (5 if idx in (upperLeftLeg, upperMiddleLeg, upperRightLeg) else -5) * (pin[1] - anchorPosition[1]) + \
+                yAmp = 5 if idx in (upperLeftLeg, upperMiddleLeg, upperRightLeg) else -1
+                criterion = yAmp * (pin[1] - anchorPosition[1]) + \
                      (1 / (abs(anchorPosition[0] - pin[0]) + 10e-5)) + xCrit(pin, idx)
 
                 potentialPinsForSingleLeg.append([pin, criterion])
