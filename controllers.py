@@ -65,6 +65,8 @@ class VelocityController:
 
         init = True
 
+        # Enable watchdogs when controller starts.
+        self.motorDriver.setBusWatchdog(10)
         while True:
             if self.killControllerThread:
                 break
@@ -83,9 +85,9 @@ class VelocityController:
                     continue
                 forceMode = self.isForceMode
                 forceModeLegs = self.forceModeLegsIds
-                correctionMode = self.isImpedanceMode
-                correctionDirection = self.impedanceDirection
-                correctionLegId = self.impedanceLegId
+                impedanceMode = self.isImpedanceMode
+                impedanceDirection = self.impedanceDirection
+                impedanceLegId = self.impedanceLegId
                 # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
                 if init:
                     self.lastLegsPositions = xA
@@ -105,8 +107,8 @@ class VelocityController:
                 with self.locker:
                     self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
             
-            if correctionMode:
-                xDd[correctionLegId] = 0.1 * correctionDirection * int(np.linalg.norm(fAMean[correctionLegId]) < 3.0)
+            if impedanceMode:
+                xDd[impedanceLegId] = 0.1 * impedanceDirection * int(np.linalg.norm(fAMean[impedanceLegId]) < 3.0)
                 with self.locker:
                     self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
 
@@ -235,7 +237,7 @@ class VelocityController:
                 if initBno:
                     self.pumpsBnoArduino.resetBno()
                     time.sleep(1)
-                self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
+                # self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
                 continue
             
             # if step % 3 == 0 and step != 0:
@@ -252,7 +254,7 @@ class VelocityController:
             for idx, leg in enumerate(currentLegsMovingOrder):
                 if pinsOffsets[idx].any():
                     self.moveLegFromPinToPin(leg, currentPinsPositions[idx], previousPinsPositions[idx])        
-            self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
+            # self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
 
     def moveLegFromPinToPin(self, leg, goalPinPosition, currentPinPosition):
         """Move leg from one pin to another, including force-offloading and gripper movements.

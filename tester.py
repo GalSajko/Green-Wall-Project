@@ -31,61 +31,42 @@ def initSendingThread():
 if __name__ == "__main__":
     pins = wall.createGrid(True)
     selectedPins = [pins[22], pins[15], pins[12], pins[24], pins[27]]
-    startPose = [0.6, 0.5, 0.3, 0.0]
+    startPose = [0.4, 0.5, 0.3, 0.0]
     plotter = sim.Plotter()
 
     _ = input("PRESS ENTER TO START WALKING")
 
     controller = controllers.VelocityController()
 
-    udpServer = udpServer.UdpServer('192.168.1.25')
+    # udpServer = udpServer.UdpServer('192.168.1.25')
     # initSendingThread()
     time.sleep(2)
 
     counter = 0
-    while True:
-        goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
-        # poses, pinsOnPath = pathplanner.createWalkingInstructions(startPose, goalPose)
-        # plotter.plotSpiderMovementSteps(poses, pinsOnPath)
-        controller.walk(startPose, goalPose, initBno = counter == 0)
-        startPose = goalPose
-        counter += 1
+    # while True:
+    #     goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+    #     poses, pinsOnPath = pathplanner.createWalkingInstructions(startPose, goalPose)
+    #     # plotter.plotSpiderMovementSteps(poses, pinsOnPath)
+    #     controller.walk(startPose, goalPose, initBno = counter == 0)
+    #     startPose = goalPose
+    #     counter += 1
 
-    # rollRotation = [0.6, 0.62, 0.3, 0.1, 0.0, 0.0]
-    # pitchRotation = [0.6, 0.62, 0.3, 0.0, 0.1, 0.0]
-    # yawRotation = [0.6, 0.62, 0.3, 0.0, 0.0, 0.1]
+    # rollRotation = [0.55, 0.4, 0.3, 0.1, 0.0, 0.0]
+    # pitchRotation = [0.65, 0.5, 0.3, 0.0, 0.1, 0.0]
+    # yawRotation = [0.6, 0.45, 0.3, 0.0, 0.0, 0.1]
     # poses = [rollRotation, pitchRotation, yawRotation]
 
     # controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 3, 'minJerk', startPose)
     # time.sleep(4)
-    # controller.pumpsBnoArduino.resetBno()
-    # time.sleep(1)
-    # print(controller.pumpsBnoArduino.getRpy())
-    # leg = 0
     # while True:
     #     for pose in poses:
-    #         controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 3, 'minJerk', pose)
-    #         time.sleep(4)
-    #         rpy = controller.pumpsBnoArduino.getRpy()
-    #         print(rpy)
-
-    #         globalToSpiderRotation = tf.xyzRpyToMatrix(np.array([0, 0, 0, rpy[0], rpy[1], rpy[2]]), True)
-    #         globalToLegRotation = np.linalg.inv(np.dot(globalToSpiderRotation, spider.T_ANCHORS[leg][:3, :3]))
-    #         globalZDirectionInLocal = np.dot(globalToLegRotation, np.array([0.0, 0.0, 1.0], dtype = np.float32))
-
-    #         # pinToPinGlobal = pins[23] - pins[22]
-    #         # pinToPinLocal = np.dot(globalToLegRotation, pinToPinGlobal)
-
-    #         controller.grippersArduino.moveGripper(leg, 'o')
-    #         time.sleep(1)
-    #         controller.moveLegAsync(leg, globalZDirectionInLocal * 0.1, 'l', 3, 'minJerk', isOffset = True)
-    #         time.sleep(4)
-    #         controller.grippersArduino.moveGripper(leg, 'c')
-    #         time.sleep(1)
-    #         controller.grippersArduino.moveGripper(leg, 'o')
-    #         time.sleep(1)
-    #         controller.moveLegAsync(leg, -globalZDirectionInLocal * 0.1, 'l', 3, 'minJerk', isOffset = True)
-    #         time.sleep(4)
-    #         controller.grippersArduino.moveGripper(leg, 'c')
-    #         time.sleep(1)
-    #         input()
+    #         controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 1.5, 'minJerk', pose)
+    #         time.sleep(2.5)
+    leg = 2
+    while True:
+        for leg in spider.LEGS_IDS:
+            controller.moveLegAsync(leg, [0.3, 0.0, 0.1], 'l', 2, 'minJerk')
+        time.sleep(4)
+        for leg in spider.LEGS_IDS:
+            controller.moveLegAsync(leg, [0.4, 0.0, 0.0], 'l', 2, 'minJerk')
+        time.sleep(4)

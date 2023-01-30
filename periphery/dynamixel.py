@@ -26,10 +26,11 @@ class MotorDriver:
         self.GOAL_VELOCITY_ADDR = 104
         self.PRESENT_POSITION_ADDR = 132
         self.PRESENT_CURRENT_ADDR = 126
+        self.BUS_WATCHDOG_ADDR = 98
         self.ERROR_ADDR = 70
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
-        self.USB_DEVICE_NAME = "/dev/ttyUSB3"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.PRESENT_CURRENT_DATA_LENGTH = 2
         self.GOAL_VELOCITY_DATA_LENGTH = 4
@@ -54,6 +55,9 @@ class MotorDriver:
         self.__initPort()
         if enableMotors:
             self.enableMotors()
+        
+        # Disable (reset) watchdogs on motors.
+        self.setBusWatchdog(0)
 
     #region public methods 
     def syncReadAnglesAndCurrentsWrapper(self):
@@ -109,6 +113,17 @@ class MotorDriver:
             print("Failed to write velocities to motors.")
             return False
         return True
+
+    def setBusWatchdog(self, value):
+        """Set watchdog on all motors to 60ms.
+        """
+        motorsArray = self.motorsIds.flatten()
+        for motorId in motorsArray:
+            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.BUS_WATCHDOG_ADDR, value)
+            comm = self.__commResultAndErrorReader(result, error)
+            if comm:
+                print("Watchdog on motor %d has been successfully enabled" % motorId)
+
 
     def enableMotors(self):
         """ Enable all of the motors, given at class initialization, if they are connected.
