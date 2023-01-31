@@ -60,10 +60,10 @@ def _getTransformMatricesToAnchors():
     for i in range(NUMBER_OF_LEGS):
         rotationAngle = i * ANGLE_BETWEEN_LEGS + constantRotation
         T.append(np.array([
-            [math.cos(rotationAngle), -math.sin(rotationAngle), 0, LEG_ANCHORS[i][0]],
-            [math.sin(rotationAngle), math.cos(rotationAngle), 0, LEG_ANCHORS[i][1]],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
+            [math.cos(rotationAngle), -math.sin(rotationAngle), 0.0, LEG_ANCHORS[i][0]],
+            [math.sin(rotationAngle), math.cos(rotationAngle), 0.0, LEG_ANCHORS[i][1]],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0]
         ], dtype = np.float32))
 
     return np.array(T, dtype = np.float32)

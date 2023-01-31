@@ -49,7 +49,10 @@ class VelocityController:
         self.impedanceDirection = np.zeros(3, dtype = np.float32)
         self.impedanceLegId = None
 
+        self.hardwareErrors = None
+
         self.__initControllerThread()
+        self.__initSafetyThread()
         time.sleep(1)
 
     #region public methods
@@ -63,7 +66,11 @@ class VelocityController:
         fCounter = 0
         tauCounter = 0
 
+        hwErrorCounter = 0
+
         init = True
+
+        self.hardwareErrorTest = 0
 
         # Enable watchdogs when controller starts.
         self.motorDriver.setBusWatchdog(10)
@@ -73,9 +80,13 @@ class VelocityController:
             
             startTime = time.perf_counter()
             # Get current data.
+            readErrors = hwErrorCounter % (config.CONTROLLER_FREQUENCY / 2)
+            if readErrors:
+                hwErrorCounter = 0
+            hwErrorCounter += 1
             with self.locker:
                 try:
-                    currentAngles, currents = self.motorDriver.syncReadAnglesAndCurrentsWrapper()
+                    currentAngles, currents, _ = self.motorDriver.syncReadAnglesAndCurrentsWrapper(readErrors)
                     self.qA = currentAngles
                     self.xA = kin.allLegsPositions(currentAngles, config.LEG_ORIGIN)
                     xA = self.xA
@@ -92,7 +103,7 @@ class VelocityController:
                 if init:
                     self.lastLegsPositions = xA
                     init = False
-        
+
             xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
             
             tauA, fA = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.pumpsBnoArduino.getGravityVector())
@@ -120,10 +131,11 @@ class VelocityController:
                 self.motorDriver.syncWriteMotorsVelocitiesInLegs(spider.LEGS_IDS, qCds)
 
             elapsedTime = time.perf_counter() - startTime
-
             while elapsedTime < self.period:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
+        
+        print("STOP")
 
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -271,7 +283,7 @@ class VelocityController:
         
         # Get rpy from sensor.
         rpy = self.pumpsBnoArduino.getRpy()
-        globalToSpiderRotation = tf.xyzRpyToMatrix(np.array([0, 0, 0, rpy[0], rpy[1], rpy[2]]), True)
+        globalToSpiderRotation = tf.xyzRpyToMatrix(np.concatenate((np.zeros(3, dtype = np.float32), rpy)), True)
         globalToLegRotation = np.linalg.inv(np.dot(globalToSpiderRotation, spider.T_ANCHORS[leg][:3, :3]))
         globalZDirectionInLocal = np.dot(globalToLegRotation, np.array([0.0, 0.0, 1.0], dtype = np.float32))
 
@@ -281,7 +293,7 @@ class VelocityController:
         self.moveLegAsync(leg, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
         time.sleep(3.5)
         
-        self.startForceMode([leg], np.array([np.zeros(3, dtype = np.float32)]))
+        self.startForceMode(np.array([leg]), np.array([np.zeros(3, dtype = np.float32)]))
         self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
         time.sleep(3)
         self.stopForceMode()
@@ -369,6 +381,27 @@ class VelocityController:
             print("Controller thread is running.")
         except RuntimeError as re:
             print(re)
+    
+    def __initSafetyThread(self):
+        thread = threading.Thread(target = self.__safetyManager, name = 'safety_thread', daemon = True)
+        try:
+            thread.start()
+            print("Safety thread is running.")
+        except RuntimeError as re:
+            print(re)
+    
+    def __safetyManager(self):
+        while True:
+            with self.locker:
+                hardwareErrors = self.hardwareErrors
+            if hardwareErrors is not None and hardwareErrors.any():
+                self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
+                attachedLegs = self.grippersArduino.getIdsOfAttachedLegs()
+                self.startForceMode(attachedLegs, np.array([[0.0, 0.0, -0.5]] * len(attachedLegs)))
+                time.sleep(5)
+                self.killControllerThread = True
+            time.sleep(0.4)
+
 
     def __getXdXddXdddFromQueues(self):
         """Read current desired position, velocity and acceleration from queues for each leg. If leg-queue is empty, keep leg on latest position.

@@ -31,7 +31,7 @@ def initSendingThread():
 if __name__ == "__main__":
     pins = wall.createGrid(True)
     selectedPins = [pins[22], pins[15], pins[12], pins[24], pins[27]]
-    startPose = [0.4, 0.5, 0.3, 0.0]
+    startPose = [0.6, 0.5, 0.3, 0.0]
     plotter = sim.Plotter()
 
     _ = input("PRESS ENTER TO START WALKING")
@@ -40,9 +40,9 @@ if __name__ == "__main__":
 
     # udpServer = udpServer.UdpServer('192.168.1.25')
     # initSendingThread()
-    time.sleep(2)
+    # time.sleep(2)
 
-    counter = 0
+    # counter = 0
     # while True:
     #     goalPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
     #     poses, pinsOnPath = pathplanner.createWalkingInstructions(startPose, goalPose)
@@ -56,17 +56,16 @@ if __name__ == "__main__":
     # yawRotation = [0.6, 0.45, 0.3, 0.0, 0.0, 0.1]
     # poses = [rollRotation, pitchRotation, yawRotation]
 
-    # controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 3, 'minJerk', startPose)
+    controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 3, 'minJerk', startPose)
+    time.sleep(5)
+    controller.grippersArduino.moveGripper(0, 'o')
+    time.sleep(1)
+    controller.moveLegAsync(0, [0.4, 0.0, 0.1], 'l', 4, 'minJerk')
+    time.sleep(3)
+    controller.hardwareErrors = np.random.rand(5, 3)
     # time.sleep(4)
     # while True:
     #     for pose in poses:
     #         controller.moveLegsSync(spider.LEGS_IDS, selectedPins, 'g', 1.5, 'minJerk', pose)
     #         time.sleep(2.5)
-    leg = 2
-    while True:
-        for leg in spider.LEGS_IDS:
-            controller.moveLegAsync(leg, [0.3, 0.0, 0.1], 'l', 2, 'minJerk')
-        time.sleep(4)
-        for leg in spider.LEGS_IDS:
-            controller.moveLegAsync(leg, [0.4, 0.0, 0.0], 'l', 2, 'minJerk')
-        time.sleep(4)
+
