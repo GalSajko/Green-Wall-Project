@@ -5,7 +5,35 @@ import matplotlib.pyplot as plt
 import config
 
 #region public methods
-def calculateTrajectory(start, goal, duration, trajectoryType):
+def getTrajectory(legCurrentPosition, legGoalPosition, duration, trajectoryType):
+    """Get trajectory for leg's movements. If planned movement goes through point X = 0 split the movement on two separate movements: one to the point X, Y = 0 and 
+    second from this point to the goal position. 
+
+    Args:
+        legCurrentPosition (list): 1x3 array of leg's current position.
+        legGoalPosition (list): 1x3 array of leg's goal position.
+        duration (float): Desired duration of the movement.
+        trajectoryType (str): Type of trajectory.
+
+    Returns:
+        Tuple: Position, velocity and acceleration trajectories.
+    """
+    # If movement goes over x = 0, add additional point at (0, 0, dz/2).
+    xSigns = [np.sign(legCurrentPosition[0]), np.sign(legGoalPosition[0])]
+    legCurrentPosition = np.array(legCurrentPosition, dtype = np.float32)
+    legGoalPosition = np.array(legGoalPosition, dtype = np.float32)
+    if xSigns[0] != xSigns[1] and 0 not in xSigns:
+        interPoint = np.array([0.0, 0.0, (legCurrentPosition[2] + legGoalPosition[2]) / 2.0])
+        firstPositionTrajectory, firstVelocityTrajectory, firstAccelerationTrajectory = _calculateTrajectoryWrapper(legCurrentPosition, interPoint, duration / 2, trajectoryType)
+        secondPositionTrajectory, secondVelocityTrajectory, secondAccelerationTrajectory = _calculateTrajectoryWrapper(interPoint, legGoalPosition, duration / 2, trajectoryType)
+
+        return np.append(firstPositionTrajectory, secondPositionTrajectory, axis = 0), np.append(firstVelocityTrajectory, secondVelocityTrajectory, axis = 0), np.append(firstAccelerationTrajectory, secondAccelerationTrajectory, axis = 0)
+
+    return _calculateTrajectoryWrapper(legCurrentPosition, legGoalPosition, duration, trajectoryType)
+#endregion
+
+#region private methods
+def _calculateTrajectoryWrapper(start, goal, duration, trajectoryType):
     """Wrapper for calcuating trajectories of desired type.
 
     Args:
@@ -18,7 +46,7 @@ def calculateTrajectory(start, goal, duration, trajectoryType):
         ValueError: If trajectory type is unknown.      
 
     Returns:
-        Position trajectory if trajectory calculation was succesfull.
+        Tuple: Position, velocity and acceleration trajectory, if calculation was succesfull.
     """
     if trajectoryType == config.BEZIER_TRAJECTORY:
         return _bezierTrajectory(start, goal, duration)
@@ -26,9 +54,7 @@ def calculateTrajectory(start, goal, duration, trajectoryType):
         return _minJerkTrajectory(start, goal, duration)
 
     raise ValueError("Unknown trajectory type!")
-#endregion
 
-#region private methods
 def _minJerkTrajectory(startPose, goalPose, duration):
     """Calculate minimum jerk trajectory of positions and velocities between two points.
 
@@ -48,7 +74,8 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         ValueError: If value of duration parameter is smaller or equal to 0.
 
     Returns:
-        numpy.ndarray: nx7 array, representing pose trajectory with x, y, z, r, p, y and t values, where t are time stamps and n is the number of steps in trajectory.
+        Tuple: Three nx7 array, representing pose trajectory with x, y, z, r, p, y and t values, where t are time stamps, 
+        velocity trajectory and acceleration trajectory, where n is the number of steps in trajectory.
     """
     if len(startPose) == 3:
         startPose = [startPose[0], startPose[1], startPose[2], 0.0 , 0.0, 0.0]
@@ -97,7 +124,8 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
         ValueError: If value of duration parameter is smaller or equal to 0.
 
     Returns:
-        numpy.ndarray: nx4 array, representing position trajectory with x, y, z and t values, where t are time stamps and n is the number of steps in trajectory.
+        numpy.ndarray: nx4 array, representing position trajectory with x, y, z and t values, where t are time stamps,
+        velocity trajectory and acceleration trajectory, where n is the number of steps in trajectory.
     """
 
     if len(startPosition) != 3 or len(goalPosition) != 3:

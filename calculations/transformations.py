@@ -4,6 +4,7 @@ import numpy as np
 import math
 import numba
 
+import config
 from environment import spider
 
 def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
@@ -90,6 +91,29 @@ def getLegsInGlobal(legsIds, localLegsPositions, spiderPose):
         legsGlobalPositions[idx] = legInGlobal[:3]
 
     return legsGlobalPositions
+
+def convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose):
+    """Transform given leg's goal position into local origin.
+
+    Args:
+        legId (int): Leg id.
+        legCurrentPosition (list): 1x3 array of current leg's position, given in local origin
+        goalPositionOrOffset (list): 1x3 array of leg's goal position given as absolute position or offset. 
+        origin (str): Origin that goal position or offset is given in.
+        isOffset (bool): If True, goal position is given as an offset, otherwise as an absolute position.
+        spiderPose (list): Spider's pose given in global origin.
+
+    Returns:
+        numpy.ndarray: 1x3 array of leg's goal position, given in local origin.
+    """
+    if origin == config.LEG_ORIGIN:
+        localGoalPosition = np.copy(goalPositionOrOffset)
+        if isOffset:
+            localGoalPosition += legCurrentPosition
+        return localGoalPosition
+    if not isOffset:
+        return getLegInLocal(legId, goalPositionOrOffset, spiderPose)
+    return np.array(legCurrentPosition + getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset), dtype = np.float32)
 
 @numba.jit(nopython = True, cache = True)
 def R_B1(qb, q1):

@@ -31,7 +31,7 @@ class MotorDriver:
 
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
-        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB3"
 
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.PRESENT_CURRENT_DATA_LENGTH = 2
@@ -63,11 +63,17 @@ class MotorDriver:
         self.setBusWatchdog(0)
 
     #region public methods 
-    def syncReadAnglesAndCurrentsWrapper(self, readErrors = False):
-        """Read positions, currents and hardware errors from all connected motors.
+    def syncReadMotorsData(self, readErrors = False):
+        """Read positions, currents and hardware errors registers from all connected motors.
+
+        Args:
+            readErrors (bool, optional): If True, read hardware error registers. Defaults to False.
+
+        Raises:
+            ke: If error in fastSyncRead() function.
 
         Returns:
-            tuple: Two 5x3 numpy.ndarrays with positions in radians and currents in Ampers in each motor.
+            tuple: Three 5x3 numpy.ndarrays of positions, currents and harware error codes, if readErrors is True. Otherwise hardware errors is None.
         """
         try:
             _ = self.groupSyncReadCurrent.fastSyncRead()

@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import threading
+import multiprocessing
 import queue
 import matplotlib.pyplot as plt
 
@@ -11,7 +12,7 @@ from calculations import transformations as tf
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
 from planning import trajectoryplanner as trajPlanner
-from planning import pathplanner 
+from planning import pathplanner
 from periphery import dynamixel as dmx
 from periphery import grippers
 from periphery import waterpumpsbno as wpb
@@ -34,7 +35,9 @@ class VelocityController:
         self.lastLegsPositions = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
         self.locker = threading.Lock()
-        self.killControllerThread = False
+        self.killControllerThreadEvent = threading.Event()
+        self.killSafetyThreadEvent = threading.Event()
+        self.killWalkingThreadEvent = threading.Event()
 
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
         self.Kp = np.ones((spider.NUMBER_OF_LEGS, 3), dtype = np.float32) * config.K_P
@@ -51,13 +54,15 @@ class VelocityController:
 
         self.hardwareErrors = None
 
-        self.__initControllerThread()
-        self.__initSafetyThread()
+        self.isWalking = False
+
+        self.__initThread(self.controller, "controller_thread", True)
+        self.__initThread(self.__hardwareErrorsHandler, "safety_thread", False)
         time.sleep(1)
 
     #region public methods
     def controller(self):
-        """Velocity self to controll all five legs continuously. Runs in separate thread.
+        """Velocity controller to controll all five legs continuously. Runs in separate thread.
         """
         lastXErrors = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
@@ -69,13 +74,11 @@ class VelocityController:
         hwErrorCounter = 0
 
         init = True
-
-        self.hardwareErrorTest = 0
-
         # Enable watchdogs when controller starts.
         self.motorDriver.setBusWatchdog(10)
+
         while True:
-            if self.killControllerThread:
+            if self.killControllerThreadEvent.is_set():
                 break
             
             startTime = time.perf_counter()
@@ -86,7 +89,7 @@ class VelocityController:
             hwErrorCounter += 1
             with self.locker:
                 try:
-                    currentAngles, currents, _ = self.motorDriver.syncReadAnglesAndCurrentsWrapper(readErrors)
+                    currentAngles, currents, _ = self.motorDriver.syncReadMotorsData(readErrors)
                     self.qA = currentAngles
                     self.xA = kin.allLegsPositions(currentAngles, config.LEG_ORIGIN)
                     xA = self.xA
@@ -135,7 +138,32 @@ class VelocityController:
                 elapsedTime = time.perf_counter() - startTime
                 time.sleep(0)
         
-        print("STOP")
+        print("Controller thread stopped.")
+    
+    def walk(self, startPose, endPose, initBno = False):
+        """Initialize walking procedure in separate thread.
+
+        Args:
+            startPose (list): Spider's start pose.
+            endPose (list): Spider's end pose.
+            initBno (bool, optional): Whether or not to reset bno sensor. Defaults to False.
+        """
+        # walkingThread = self.__initThread(self.__walkProcedure, "walking_thread", True, False, (startPose, endPose, initBno, ))
+        walkingThread = threading.Thread(target = self.__walkProcedure, name = "child_walking_thread", daemon = True, args = (startPose, endPose, initBno, ))
+
+        def startWalkThread():
+            walkingThread.start()
+            while True:
+                if self.killWalkingThreadEvent.is_set():
+                    break
+                time.sleep(0.1)
+            print("Parent walking thread stopped.")
+
+        # parentThread = self.__initThread(startWalkThread, "parent_walk_thread", False, True)
+        parentThread = threading.Thread(target = startWalkThread, name = "parent_walking_thread", daemon = False).start()
+
+        return parentThread
+        
 
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -166,8 +194,8 @@ class VelocityController:
         with self.locker:
             legCurrentPosition = self.xA[legId]
 
-        localGoalPosition = self.__convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
-        positionTrajectory, velocityTrajectory, accelerationTrajectory = self.__getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
+        localGoalPosition = tf.convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
+        positionTrajectory, velocityTrajectory, accelerationTrajectory = trajPlanner.getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
 
         for idx, position in enumerate(positionTrajectory):
             self.legsQueues[legId].put([position[:3], velocityTrajectory[idx][:3], accelerationTrajectory[idx][:3]])
@@ -215,8 +243,8 @@ class VelocityController:
         xDdds = np.zeros((len(legsIds), int(duration / self.period), 3) , dtype = np.float32)
 
         for idx, leg in enumerate(legsIds):          
-            localGoalPosition = self.__convertIntoLocalGoalPosition(leg, legsCurrentPositions[leg], goalPositionsOrOffsets[idx], origin, isOffset, spiderPose) 
-            positionTrajectory, velocityTrajectory, accelerationTrajectory = self.__getTrajectory(legsCurrentPositions[leg], localGoalPosition, duration, trajectoryType)
+            localGoalPosition = tf.convertIntoLocalGoalPosition(leg, legsCurrentPositions[leg], goalPositionsOrOffsets[idx], origin, isOffset, spiderPose) 
+            positionTrajectory, velocityTrajectory, accelerationTrajectory = trajPlanner.getTrajectory(legsCurrentPositions[leg], localGoalPosition, duration, trajectoryType)
 
             xDs[idx] = positionTrajectory[:, :3]
             xDds[idx] = velocityTrajectory[:, :3]
@@ -231,43 +259,6 @@ class VelocityController:
         
         return True
     
-    def walk(self, startPose, endPose, initBno = False):
-        """Walking procedure from start to goal pose on the wall.
-
-        Args:
-            startPose (list): 1x4 array of x, y, z and yaw values of starting spider's pose in global origin.
-            endPose (_type_): 1x4 array of x, y, z and yaw values of goal spider's pose in global origin.
-        """
-        poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
-        for step, pose in enumerate(poses):
-            currentPinsPositions = pinsInstructions[step, :, 1:]
-            currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
-
-            if step == 0:
-                self.moveLegsSync(currentLegsMovingOrder, currentPinsPositions, config.GLOBAL_ORIGIN, 3, config.MINJERK_TRAJECTORY, pose)
-                time.sleep(3.5)
-                if initBno:
-                    self.pumpsBnoArduino.resetBno()
-                    time.sleep(1)
-                # self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
-                continue
-            
-            # if step % 3 == 0 and step != 0:
-            #     self.startForceMode(spider.LEGS_IDS, [[0.0, -1.0, 0.0]] * spider.NUMBER_OF_LEGS)
-            #     time.sleep(5)
-            #     self.stopForceMode()
-            #     time.sleep(30)
-
-            previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
-            self.moveLegsSync(currentLegsMovingOrder, previousPinsPositions, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, pose)
-            time.sleep(2)
-
-            pinsOffsets = currentPinsPositions - previousPinsPositions
-            for idx, leg in enumerate(currentLegsMovingOrder):
-                if pinsOffsets[idx].any():
-                    self.moveLegFromPinToPin(leg, currentPinsPositions[idx], previousPinsPositions[idx])        
-            # self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
-
     def moveLegFromPinToPin(self, leg, goalPinPosition, currentPinPosition):
         """Move leg from one pin to another, including force-offloading and gripper movements.
 
@@ -321,7 +312,7 @@ class VelocityController:
             self.isCorrectionMode = False      
 
     def startForceMode(self, legsIds, desiredForces):
-        """Start force self inside main velocity self loop.
+        """Start force mode inside main velocity controller loop.
 
         Args:
             legsIds (list): Ids of leg, which is to be force-controlled.
@@ -335,15 +326,10 @@ class VelocityController:
             self.fD[legsIds] = desiredForces
     
     def stopForceMode(self):
-        """Stop force self inside main velocity self loop.
+        """Stop force mode inside main velocity self loop.
         """
         with self.locker:
             self.isForceMode = False
-
-    def endControllerThread(self):
-        """Set flag to kill a self thread.
-        """
-        self.killControllerThread = True
 
     def distributeForces(self, legsIds, duration):
         """Run force distribution process in a loop for a given duration.
@@ -369,39 +355,52 @@ class VelocityController:
             elapsedTime = time.perf_counter() - startTime
         
         self.stopForceMode()
+
+    def stopThread(self, killThreadEvent):
+        killThreadEvent.set()
     #endregion
 
     #region private methods
-    def __initControllerThread(self):
-        """Start a thread with self loop.
+    def __initThread(self, function, name, isDaemon, start = True, arguments = ()):
+        """Initialize thread with given target function.
+
+        Args:
+            function (function): Function to run in separate thread.
+            name (str): Name of the thread.
+            isDaemon (bool): Whether or not a thread to be a dameon.
+            arguments(iterable, optional): Needed arguments for called function.
         """
-        thread = threading.Thread(target = self.controller, name = 'velocity_controller_thread', daemon = False)
+        thread = threading.Thread(target = function, args = arguments, name = name, daemon = isDaemon)
         try:
-            thread.start()
-            print("Controller thread is running.")
+            if start:
+                thread.start()
+            print(f"Thread with name {name} is running.")
         except RuntimeError as re:
             print(re)
+
+        return thread
     
-    def __initSafetyThread(self):
-        thread = threading.Thread(target = self.__safetyManager, name = 'safety_thread', daemon = True)
-        try:
-            thread.start()
-            print("Safety thread is running.")
-        except RuntimeError as re:
-            print(re)
-    
-    def __safetyManager(self):
+    def __hardwareErrorsHandler(self):
+        """Handle potential hardware errors on motors. In case of hardware error, stop all the legs and use force mode to slowly 
+        lower the spider's body into resting position and than stop the controller loop.
+        """
         while True:
+            if self.killSafetyThreadEvent.is_set():
+                break
             with self.locker:
                 hardwareErrors = self.hardwareErrors
             if hardwareErrors is not None and hardwareErrors.any():
-                self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
-                attachedLegs = self.grippersArduino.getIdsOfAttachedLegs()
-                self.startForceMode(attachedLegs, np.array([[0.0, 0.0, -0.5]] * len(attachedLegs)))
-                time.sleep(5)
-                self.killControllerThread = True
-            time.sleep(0.4)
+                self.stopThread(self.killWalkingThreadEvent)
+                # self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
+                # attachedLegs = self.grippersArduino.getIdsOfAttachedLegs()
+                # gravityVector = self.pumpsBnoArduino.getGravityVector()
+                # unitGravityVector = gravityVector / np.linalg.norm(gravityVector)
+                # self.startForceMode(attachedLegs, np.array([unitGravityVector * -0.5] * len(attachedLegs)))
+                # time.sleep(5)
+                # self.stopThread(self.killControllerThreadEvent)
+            time.sleep(0.2)
 
+        print("Safety thread stopped.")
 
     def __getXdXddXdddFromQueues(self):
         """Read current desired position, velocity and acceleration from queues for each leg. If leg-queue is empty, keep leg on latest position.
@@ -470,27 +469,46 @@ class VelocityController:
 
         return offsets, dXSpider
     
-    def __convertIntoLocalGoalPosition(self, legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose):
-        if origin == config.LEG_ORIGIN:
-            localGoalPosition = np.copy(goalPositionOrOffset)
-            if isOffset:
-                localGoalPosition += legCurrentPosition
-            return localGoalPosition
-        if not isOffset:
-            return tf.getLegInLocal(legId, goalPositionOrOffset, spiderPose)
-        return np.array(legCurrentPosition + tf.getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset), dtype = np.float32)
-    
-    def __getTrajectory(self, legCurrentPosition, legGoalPosition, duration, trajectoryType):
-        # If movement goes over x = 0, add additional point at (0, 0, dz/2).
-        xSigns = [np.sign(legCurrentPosition[0]), np.sign(legGoalPosition[0])]
-        legCurrentPosition = np.array(legCurrentPosition, dtype = np.float32)
-        legGoalPosition = np.array(legGoalPosition, dtype = np.float32)
-        if xSigns[0] != xSigns[1] and 0 not in xSigns:
-            interPoint = np.array([0.0, 0.0, (legCurrentPosition[2] + legGoalPosition[2]) / 2.0])
-            firstPositionTrajectory, firstVelocityTrajectory, firstAccelerationTrajectory = trajPlanner.calculateTrajectory(legCurrentPosition, interPoint, duration / 2, trajectoryType)
-            secondPositionTrajectory, secondVelocityTrajectory, secondAccelerationTrajectory = trajPlanner.calculateTrajectory(interPoint, legGoalPosition, duration / 2, trajectoryType)
+    def __walkProcedure(self, startPose, endPose, initBno = False):
+        """Walking procedure from start to goal pose on the wall.
 
-            return np.append(firstPositionTrajectory, secondPositionTrajectory, axis = 0), np.append(firstVelocityTrajectory, secondVelocityTrajectory, axis = 0), np.append(firstAccelerationTrajectory, secondAccelerationTrajectory, axis = 0)
+        Args:
+            startPose (list): 1x4 array of x, y, z and yaw values of starting spider's pose in global origin.
+            endPose (list): 1x4 array of x, y, z and yaw values of goal spider's pose in global origin.
+        """
+        poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
+        for step, pose in enumerate(poses):
+            # if self.killWalkingThreadEvent.is_set():
+            #     break
+            print(threading.current_thread())
+            currentPinsPositions = pinsInstructions[step, :, 1:]
+            currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
 
-        return trajPlanner.calculateTrajectory(legCurrentPosition, legGoalPosition, duration, trajectoryType)
+            if step == 0:
+                self.moveLegsSync(currentLegsMovingOrder, currentPinsPositions, config.GLOBAL_ORIGIN, 3, config.MINJERK_TRAJECTORY, pose)
+                time.sleep(3.5)
+                if initBno:
+                    self.pumpsBnoArduino.resetBno()
+                    time.sleep(1)
+                # self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
+                continue
+            
+            # if step % 3 == 0 and step != 0:
+            #     self.startForceMode(spider.LEGS_IDS, [[0.0, -1.0, 0.0]] * spider.NUMBER_OF_LEGS)
+            #     time.sleep(5)
+            #     self.stopForceMode()
+            #     time.sleep(30)
+
+            previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
+            self.moveLegsSync(currentLegsMovingOrder, previousPinsPositions, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, pose)
+            time.sleep(2)
+
+            pinsOffsets = currentPinsPositions - previousPinsPositions
+            for idx, leg in enumerate(currentLegsMovingOrder):
+                if pinsOffsets[idx].any():
+                    self.moveLegFromPinToPin(leg, currentPinsPositions[idx], previousPinsPositions[idx])        
+            # self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
+        
+        # self.isWalking = False
+        # print("Walking thread stopped.")
     #endregion
