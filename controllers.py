@@ -23,7 +23,7 @@ class VelocityController:
     from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop self takes first values from all of the legs-queues.
     """
     def __init__ (self):
-        self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
+        # self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.grippersArduino = grippers.GrippersArduino()
         self.pumpsBnoArduino = wpb.PumpsBnoArduino()
 
@@ -140,31 +140,35 @@ class VelocityController:
         
         print("Controller thread stopped.")
     
-    def walk(self, startPose, endPose, initBno = False):
-        """Initialize walking procedure in separate thread.
+    def jointsVelocityController(self, qA, xA, fA, tauA, referenceQueues, mode, forceModeLegs = None, impedanceLegs = None, impedanceDirection = None):
+        # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
+        if init:
+            self.lastLegsPositions = xA
+            init = False
 
-        Args:
-            startPose (list): Spider's start pose.
-            endPose (list): Spider's end pose.
-            initBno (bool, optional): Whether or not to reset bno sensor. Defaults to False.
-        """
-        # walkingThread = self.__initThread(self.__walkProcedure, "walking_thread", True, False, (startPose, endPose, initBno, ))
-        walkingThread = threading.Thread(target = self.__walkProcedure, name = "child_walking_thread", daemon = True, args = (startPose, endPose, initBno, ))
-
-        def startWalkThread():
-            walkingThread.start()
-            while True:
-                if self.killWalkingThreadEvent.is_set():
-                    break
-                time.sleep(0.1)
-            print("Parent walking thread stopped.")
-
-        # parentThread = self.__initThread(startWalkThread, "parent_walk_thread", False, True)
-        parentThread = threading.Thread(target = startWalkThread, name = "parent_walking_thread", daemon = False).start()
-
-        return parentThread
+        xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
+                
+        if mode == config.FORCE_MODE:
+            legOffsetsInSpider, legVelocitiesInSpider = self.__forcePositionP(fD, fA)
+            localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegs, legOffsetsInSpider, legVelocitiesInSpider)
+            xD[forceModeLegs] += localOffsets
+            xDd[forceModeLegs] = localVelocities
+            with self.locker:
+                self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
         
+        if mode == config.IMPEDANCE_MODE:
+            xDd[impedanceLegs] = 0.1 * impedanceDirection * int(np.linalg.norm(fA[impedanceLegs]) < 3.0)
+            with self.locker:
+                self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
 
+        xCds, lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, xDdd, lastXErrors)
+        qCds = kin.getJointsVelocities(qA, xCds)
+
+        # Send new commands to motors.
+        with self.locker:
+            self.motorDriver.syncWriteMotorsVelocitiesInLegs(spider.LEGS_IDS, qCds)
+
+    
     def moveLegAsync(self, legId, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
 

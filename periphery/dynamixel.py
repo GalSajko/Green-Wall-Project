@@ -7,6 +7,7 @@ import numpy as np
 from dynamixel_sdk import *
 
 import mappers
+import threadmanager
 from environment import spider
 
 class MotorDriver:
@@ -41,7 +42,6 @@ class MotorDriver:
         self.__setUSBLowLatency()
 
         self.locker = threading.Lock()
-        self.readingThreadRunning = False
 
         self.motorsIds = np.array(motorsIds)
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
@@ -63,7 +63,7 @@ class MotorDriver:
         self.setBusWatchdog(0)
 
     #region public methods 
-    def syncReadMotorsData(self, readErrors = False):
+    def syncReadMotorsData(self):
         """Read positions, currents and hardware errors registers from all connected motors.
 
         Args:
@@ -78,22 +78,16 @@ class MotorDriver:
         try:
             _ = self.groupSyncReadCurrent.fastSyncRead()
             _ = self.groupSyncReadPosition.fastSyncRead()
-
-            if readErrors:
-                _ = self.groupSyncReadHardwareError.fastSyncRead()
-                hardwareErrors = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
-            else:
-                hardwareErrors = None
+            _ = self.groupSyncReadHardwareError.fastSyncRead()
 
             currents = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
             positions = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
-            
+            hardwareErrors = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)           
             for leg in spider.LEGS_IDS:
                 for idx, motorInLeg in enumerate(self.motorsIds[leg]):
                     positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
                     currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
-                    if readErrors:
-                        hardwareErrors[leg][idx] = self.groupSyncReadHardwareError.getData(motorInLeg, self.HARDWARE_ERROR_ADDR, self.HARDWARE_ERROR_DATA_LENGTH)
+                    hardwareErrors[leg][idx] = self.groupSyncReadHardwareError.getData(motorInLeg, self.HARDWARE_ERROR_ADDR, self.HARDWARE_ERROR_DATA_LENGTH)
                 positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
                 currents[leg] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[leg])
 
@@ -101,19 +95,18 @@ class MotorDriver:
         except KeyError as ke:
             raise ke
 
-    def syncWriteMotorsVelocitiesInLegs(self, legIds, qCd):
+    def syncWriteMotorsVelocitiesInLegs(self, qCd):
         """Write velocities to motors in given legs with sync writer.
 
         Args:
-            legId (list): Legs ids.
-            qCd (list): nx3 array of desired velocities, where n is number of given legs.
+            qCd (list): 5x3 array of desired velocities, where n is number of given legs.
 
         Returns:
             bool: True if writing was successfull, False otherwise.
         """
-        for idx, leg in enumerate(legIds):
+        for leg in spider.LEGS_IDS:
             motorsInLeg = self.motorsIds[leg]
-            encoderVelocities = mappers.mapModelVelocitiesToVelocityEncoderValues(qCd[idx]).astype(int)
+            encoderVelocities = mappers.mapModelVelocitiesToVelocityEncoderValues(qCd[leg]).astype(int)
             for i, motor in enumerate(motorsInLeg):
                 qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocities[i]))]
                 with self.locker:
