@@ -16,7 +16,6 @@ class PumpsBnoArduino:
         self.PUMP_OFF_COMMAND = '0'
         self.PUMP_ON_COMMAND = '1'
         self.INIT_BNO = '2'
-        self.READ_BNO_RPY = '3'
         self.RECEIVED_MESSAGE_LENGTH = 30
 
         self.receivedMessage = ""

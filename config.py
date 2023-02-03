@@ -3,9 +3,12 @@
 CONTROLLER_FREQUENCY = 100.0
 FORCE_DAMPING = 0.01
 K_P_FORCE = 0.01
-K_P = 25.0
-K_D = 1.8
-K_ACC = 0.18
+# K_P = 25.0
+# K_D = 1.8
+# K_ACC = 0.18
+K_P = 15.0
+K_D = 1.0
+K_ACC = 0.13
 
 SPIDER_ORIGIN = 's'
 LEG_ORIGIN = 'l'

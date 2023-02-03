@@ -32,7 +32,7 @@ class MotorDriver:
 
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
-        self.USB_DEVICE_NAME = "/dev/ttyUSB3"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
 
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.PRESENT_CURRENT_DATA_LENGTH = 2
@@ -76,18 +76,20 @@ class MotorDriver:
             tuple: Three 5x3 numpy.ndarrays of positions, currents and harware error codes, if readErrors is True. Otherwise hardware errors is None.
         """
         try:
-            _ = self.groupSyncReadCurrent.fastSyncRead()
-            _ = self.groupSyncReadPosition.fastSyncRead()
-            _ = self.groupSyncReadHardwareError.fastSyncRead()
+            with self.locker:
+                _ = self.groupSyncReadCurrent.fastSyncRead()
+                _ = self.groupSyncReadPosition.fastSyncRead()
+                _ = self.groupSyncReadHardwareError.fastSyncRead()
 
             currents = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
             positions = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
             hardwareErrors = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)           
             for leg in spider.LEGS_IDS:
                 for idx, motorInLeg in enumerate(self.motorsIds[leg]):
-                    positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
-                    currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
-                    hardwareErrors[leg][idx] = self.groupSyncReadHardwareError.getData(motorInLeg, self.HARDWARE_ERROR_ADDR, self.HARDWARE_ERROR_DATA_LENGTH)
+                    with self.locker:
+                        positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
+                        currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
+                        hardwareErrors[leg][idx] = self.groupSyncReadHardwareError.getData(motorInLeg, self.HARDWARE_ERROR_ADDR, self.HARDWARE_ERROR_DATA_LENGTH)
                 positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
                 currents[leg] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[leg])
 
@@ -96,10 +98,10 @@ class MotorDriver:
             raise ke
 
     def syncWriteMotorsVelocitiesInLegs(self, qCd):
-        """Write velocities to motors in given legs with sync writer.
+        """Write velocities to motors in all legs with sync writer.
 
         Args:
-            qCd (list): 5x3 array of desired velocities, where n is number of given legs.
+            qCd (list): 5x3 array of desired joints velocities.
 
         Returns:
             bool: True if writing was successfull, False otherwise.
@@ -115,7 +117,8 @@ class MotorDriver:
                     print("Failed changing Group Sync Writer parameter %d" % motor)
                     return False
         # Write velocities to motors.
-        result = self.groupSyncWrite.txPacket()
+        with self.locker:
+            result = self.groupSyncWrite.txPacket()
         if result != COMM_SUCCESS:
             print("Failed to write velocities to motors.")
             return False
@@ -126,7 +129,8 @@ class MotorDriver:
         """
         motorsArray = self.motorsIds.flatten()
         for motorId in motorsArray:
-            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.BUS_WATCHDOG_ADDR, value)
+            with self.locker:
+                result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.BUS_WATCHDOG_ADDR, value)
             comm = self.__commResultAndErrorReader(result, error)
             if comm:
                 print(f"Watchdog on motor {motorId} has been successfully set to {value}")
@@ -217,7 +221,7 @@ class MotorDriver:
         """
         self.groupSyncReadCurrent.clearParam()
         self.groupSyncReadPosition.clearParam()
-        # self.groupSyncReadError.clearParam()
+        self.groupSyncReadHardwareError.clearParam()
 
         resultAddParams = self.__addGroupSyncReadParams()
         if not resultAddParams:
