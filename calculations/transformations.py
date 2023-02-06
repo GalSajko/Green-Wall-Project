@@ -48,6 +48,25 @@ def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     
     return rotationMatrix
 
+def getPinToPinVectorInLocal(legId, rpy, currentPinPosition, goalPinPosition):
+    """Calculate pin-to-pin vector in leg's local origin
+
+    Args:
+        legId (int): Leg id.
+        rpy (list): 1x3 array of roll, pitch and yaw values of spider's orientation.
+        currentPinPosition (list): 1x3 array of current pin's position in global origin
+        goalPinPosition (list): 1x3 array of goal pin's position in global origin.
+
+    Returns:
+        numpy.ndarray: 1x3 pin-to-pin vector in leg's local origin.
+    """
+    spiderRotationInGlobal = xyzRpyToMatrix(np.concatenate((np.zeros(3, dtype = np.float32), rpy)), True)
+    legAnchorRotationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[legId][:3, :3]))
+    pinToPinGlobal = goalPinPosition - currentPinPosition
+    pinToPinLocal = np.dot(legAnchorRotationInGlobal, pinToPinGlobal)
+
+    return pinToPinLocal
+
 def getLegInLocal(legId, globalLegPosition, spiderPose):
     """Calculate local leg's position from given global position.
 

@@ -1,5 +1,6 @@
 import numpy as np
 
+import config
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
 from calculations import transformations as tf
@@ -25,7 +26,7 @@ def initNumbaFunctions():
     dyn.calculateTorques(0, randomThreeThreeThreeMatrix, randomThreeThreeMatrix)
     dyn.createDiagTransposeJHash(randomFiveThreeArray)
 
-    kin.allLegsPositions(fiveThreeArray, 'l')
+    kin.allLegsPositions(fiveThreeArray, config.LEG_ORIGIN)
     kin.legForwardKinematics(oneThreeArray)
     kin.spiderBaseToLegTipForwardKinematics(0, oneThreeArray)
     kin.legInverseKinematics(np.array((0.3, 0.0, 0.0), dtype = np.float32))

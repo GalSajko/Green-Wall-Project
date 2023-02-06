@@ -23,22 +23,15 @@ class VelocityController:
     from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop self takes first values from all of the legs-queues.
     """
     def __init__ (self):
-        # self.motorDriver = dmx.MotorDriver([[11, 12, 13], [21, 22, 23], [31, 32, 33], [41, 42, 43], [51, 52, 53]])
         self.grippersArduino = grippers.GrippersArduino()
-        self.pumpsBnoArduino = wpb.PumpsBnoArduino()
 
         self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
 
-        self.qA = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
-        self.xA = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.lastLegsPositions = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.lastXErrors = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
         self.locker = threading.Lock()
-        self.killControllerThreadEvent = threading.Event()
-        self.killSafetyThreadEvent = threading.Event()
-        self.killWalkingThreadEvent = threading.Event()
 
         self.period = 1.0 / config.CONTROLLER_FREQUENCY
         self.Kp = np.ones((spider.NUMBER_OF_LEGS, 3), dtype = np.float32) * config.K_P
@@ -47,102 +40,32 @@ class VelocityController:
         self.isForceMode = False
         self.forceModeLegsIds = None
         self.fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-        self.tauAMean = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
 
         self.isImpedanceMode = False
         self.impedanceDirection = np.zeros(3, dtype = np.float32)
         self.impedanceLegId = None
 
-        self.hardwareErrors = None
-
         time.sleep(1)
 
     #region public methods
-    # def controller(self):
-    #     """Velocity controller to controll all five legs continuously. Runs in separate thread.
-    #     """
-    #     lastXErrors = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-
-    #     fBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-    #     tauBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-    #     fCounter = 0
-    #     tauCounter = 0
-
-    #     hwErrorCounter = 0
-
-    #     init = True
-    #     # Enable watchdogs when controller starts.
-    #     self.motorDriver.setBusWatchdog(10)
-
-    #     while True:
-    #         if self.killControllerThreadEvent.is_set():
-    #             break
-            
-    #         startTime = time.perf_counter()
-    #         # Get current data.
-    #         readErrors = hwErrorCounter % (config.CONTROLLER_FREQUENCY / 2)
-    #         if readErrors:
-    #             hwErrorCounter = 0
-    #         hwErrorCounter += 1
-    #         with self.locker:
-    #             try:
-    #                 currentAngles, currents, _ = self.motorDriver.syncReadMotorsData(readErrors)
-    #                 self.qA = currentAngles
-    #                 self.xA = kin.allLegsPositions(currentAngles, config.LEG_ORIGIN)
-    #                 xA = self.xA
-    #                 fD = self.fD
-    #             except KeyError:
-    #                 print("COMM READING ERROR")
-    #                 continue
-    #             forceMode = self.isForceMode
-    #             forceModeLegs = self.forceModeLegsIds
-    #             impedanceMode = self.isImpedanceMode
-    #             impedanceDirection = self.impedanceDirection
-    #             impedanceLegId = self.impedanceLegId
-    #             # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
-    #             if init:
-    #                 self.lastLegsPositions = xA
-    #                 init = False
-
-    #         xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
-            
-    #         tauA, fA = dyn.getTorquesAndForcesOnLegsTips(currentAngles, currents, self.pumpsBnoArduino.getGravityVector())
-    #         fAMean, fBuffer, fCounter = mathTools.runningAverage(fBuffer, fCounter, fA)
-    #         self.tauAMean, tauBuffer, tauCounter = mathTools.runningAverage(tauBuffer, tauCounter, tauA)
-            
-    #         if forceMode:
-    #             legOffsetsInSpider, legVelocitiesInSpider = self.__forcePositionP(fD, fAMean)
-    #             localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegs, legOffsetsInSpider, legVelocitiesInSpider)
-    #             xD[forceModeLegs] += localOffsets
-    #             xDd[forceModeLegs] = localVelocities
-    #             with self.locker:
-    #                 self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
-            
-    #         if impedanceMode:
-    #             xDd[impedanceLegId] = 0.1 * impedanceDirection * int(np.linalg.norm(fAMean[impedanceLegId]) < 3.0)
-    #             with self.locker:
-    #                 self.lastLegsPositions[forceModeLegs] = xA[forceModeLegs]
-
-    #         xCds, lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, xDdd, lastXErrors)
-    #         qCds = kin.getJointsVelocities(currentAngles, xCds)
-
-    #         # Send new commands to motors.
-    #         with self.locker:
-    #             self.motorDriver.syncWriteMotorsVelocitiesInLegs(spider.LEGS_IDS, qCds)
-
-    #         elapsedTime = time.perf_counter() - startTime
-    #         while elapsedTime < self.period:
-    #             elapsedTime = time.perf_counter() - startTime
-    #             time.sleep(0)
-        
-    #     print("Controller thread stopped.")
-    
-    def jointsVelocityController(self, qA, xA, init, mode = None):
+    def jointsVelocityController(self, qA, xA, fA, init):
         # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
         if init:
             self.lastLegsPositions = xA
         xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
         
+        with self.locker:
+            isForceMode = self.isForceMode
+        if isForceMode:
+            with self.locker:
+                fD = self.fD
+                forceModeLegsIds = self.forceModeLegsIds
+            legOffsetsInSpider, legVelocitiesInSpider = self.__forcePositionP(fD, fA)
+            localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegsIds, legOffsetsInSpider, legVelocitiesInSpider)
+            xD[forceModeLegsIds] += localOffsets
+            xDd[forceModeLegsIds] = localVelocities
+            self.lastLegsPositions[forceModeLegsIds] = xA[forceModeLegsIds]
+
         xCds, self.lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, xDdd)
         qCds = kin.getJointsVelocities(qA, xCds)
 
@@ -235,58 +158,22 @@ class VelocityController:
             self.legsQueues[leg].put(self.sentinel)
         
         return True
+
+    def clearInstructionQueues(self):
+        """Clear instruction queues for all legs.
+        """
+        self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
     
-    def moveLegFromPinToPin(self, leg, goalPinPosition, currentPinPosition):
-        """Move leg from one pin to another, including force-offloading and gripper movements.
+    def releaseOneLeg(self, leg, qA, tauA):
+        """Offload force from selected leg and open its gripper.
 
         Args:
             leg (int): Leg id.
-            goalPinPosition (list): 1x3 array goal-pin position in global origin.
-            currentPinPosition (list): 1x3 array current pin position in global origin.
         """
         otherLegs = np.delete(spider.LEGS_IDS, leg)
-        self.distributeForces(otherLegs, config.FORCE_DISTRIBUTION_DURATION)
-        self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)
+        self.distributeForces(otherLegs, qA, tauA, config.FORCE_DISTRIBUTION_DURATION)
+        self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)    
         time.sleep(1.5)
-        
-        # Get rpy from sensor.
-        rpy = self.pumpsBnoArduino.getRpy()
-        globalToSpiderRotation = tf.xyzRpyToMatrix(np.concatenate((np.zeros(3, dtype = np.float32), rpy)), True)
-        globalToLegRotation = np.linalg.inv(np.dot(globalToSpiderRotation, spider.T_ANCHORS[leg][:3, :3]))
-        globalZDirectionInLocal = np.dot(globalToLegRotation, np.array([0.0, 0.0, 1.0], dtype = np.float32))
-
-        pinToPinGlobal = goalPinPosition - currentPinPosition
-        pinToPinLocal = np.dot(globalToLegRotation, pinToPinGlobal)
-
-        self.moveLegAsync(leg, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
-        time.sleep(3.5)
-        
-        self.startForceMode(np.array([leg]), np.array([np.zeros(3, dtype = np.float32)]))
-        self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
-        time.sleep(3)
-        self.stopForceMode()
-
-        detachOffsetZ = 0.03
-        detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
-        # Check if leg successfully grabbed the pin and correct if neccessary.
-        while not (leg in self.grippersArduino.getIdsOfAttachedLegs()):
-            print(f"LEG {leg} NOT ATTACHED")
-            self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)
-            time.sleep(1)
-            self.moveLegAsync(leg, detachOffsetInLocal, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY, isOffset = True)
-            time.sleep(1)
-
-            with self.locker:
-                self.isImpedanceMode = True
-                self.impedanceDirection = -globalZDirectionInLocal
-                self.impedanceLegId = leg
-
-            time.sleep(3)
-            self.grippersArduino.moveGripper(leg, self.grippersArduino.CLOSE_COMMAND)
-            time.sleep(1)
-                
-        with self.locker:
-            self.isImpedanceMode = False     
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force mode inside main velocity controller loop.
@@ -398,46 +285,4 @@ class VelocityController:
         offsets = dXSpider * self.period
 
         return offsets, dXSpider
-    
-    def walkProcedure(self, startPose, endPose, initBno = False):
-        """Walking procedure from start to goal pose on the wall.
-
-        Args:
-            startPose (list): 1x4 array of x, y, z and yaw values of starting spider's pose in global origin.
-            endPose (list): 1x4 array of x, y, z and yaw values of goal spider's pose in global origin.
-        """
-        poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
-        for step, pose in enumerate(poses):
-            # if self.killWalkingThreadEvent.is_set():
-            #     break
-            currentPinsPositions = pinsInstructions[step, :, 1:]
-            currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
-
-            if step == 0:
-                self.moveLegsSync(currentLegsMovingOrder, currentPinsPositions, config.GLOBAL_ORIGIN, 3, config.MINJERK_TRAJECTORY, pose)
-                time.sleep(3.5)
-                # if initBno:
-                #     self.pumpsBnoArduino.resetBno()
-                #     time.sleep(1)
-                # self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
-                continue
-            
-            # if step % 3 == 0 and step != 0:
-            #     self.startForceMode(spider.LEGS_IDS, [[0.0, -1.0, 0.0]] * spider.NUMBER_OF_LEGS)
-            #     time.sleep(5)
-            #     self.stopForceMode()
-            #     time.sleep(30)
-
-            previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
-            self.moveLegsSync(currentLegsMovingOrder, previousPinsPositions, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, pose)
-            time.sleep(2)
-
-            pinsOffsets = currentPinsPositions - previousPinsPositions
-            for idx, leg in enumerate(currentLegsMovingOrder):
-                if pinsOffsets[idx].any():
-                    self.moveLegFromPinToPin(leg, currentPinsPositions[idx], previousPinsPositions[idx])        
-            self.distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
-        
-        # self.isWalking = False
-        # print("Walking thread stopped.")
     #endregion
