@@ -1,6 +1,6 @@
 """File for storing global variables.
 """
-CONTROLLER_FREQUENCY = 100.0
+CONTROLLER_FREQUENCY = 50.0
 FORCE_DAMPING = 0.01
 K_P_FORCE = 0.01
 # K_P = 25.0
@@ -23,10 +23,12 @@ FORCE_MODE = 'forceMode'
 IMPEDANCE_MODE = 'impedanceMode'
 
 WORKING_STATE = 'working'
-WORKING_THREAD_NAME = 'working_thread'
 RESTING_STATE = 'resting'
 TRANSITION_STATE = 'transition'
+
+WORKING_THREAD_NAME = 'working_thread'
 TRANSITION_THREAD_NAME = 'transition_thread'
+RESTING_THREAD_NAME = 'resting_thread'
 DXL_WIRITNG_THREAD_NAME = 'dxl_writing_thread'
 DXL_READING_THREAD_NAME = 'dxl_reading_thread'
 SAFETY_THREAD_NAME = 'safety_thread'

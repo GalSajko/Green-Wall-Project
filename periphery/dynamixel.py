@@ -7,7 +7,6 @@ import numpy as np
 from dynamixel_sdk import *
 
 import mappers
-import threadmanager
 from environment import spider
 
 class MotorDriver:
@@ -29,6 +28,7 @@ class MotorDriver:
         self.PRESENT_CURRENT_ADDR = 126
         self.BUS_WATCHDOG_ADDR = 98
         self.HARDWARE_ERROR_ADDR = 70
+        self.PRESENT_TEMPERATURE_ADDR = 146
 
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
@@ -38,26 +38,30 @@ class MotorDriver:
         self.PRESENT_CURRENT_DATA_LENGTH = 2
         self.GOAL_VELOCITY_DATA_LENGTH = 4
         self.HARDWARE_ERROR_DATA_LENGTH = 1
+        self.PRESENT_TEMPERATURE_DATA_LENGTH = 1
+
+        self.MAX_WORKING_TEMPERATURE = 40
 
         self.__setUSBLowLatency()
 
         self.locker = threading.Lock()
 
-        self.motorsIds = np.array(motorsIds)
+        self.motorsIds = np.array(motorsIds, dtype = np.int8)
         self.portHandler = PortHandler(self.USB_DEVICE_NAME)
         self.packetHandler = PacketHandler(self.PROTOCOL_VERSION)
 
         self.groupSyncReadPosition = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
         self.groupSyncReadCurrent = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
         self.groupSyncReadHardwareError = GroupSyncRead(self.portHandler, self.packetHandler, self.HARDWARE_ERROR_ADDR, self.HARDWARE_ERROR_DATA_LENGTH)
+        self.groupSyncReadTemperature = GroupSyncRead(self.portHandler, self.packetHandler, self.PRESENT_TEMPERATURE_ADDR, self.PRESENT_TEMPERATURE_DATA_LENGTH)
 
-        self.groupSyncWrite = GroupSyncWrite(self.portHandler, self.packetHandler, self.GOAL_VELOCITY_ADDR, self.GOAL_VELOCITY_DATA_LENGTH)
+        self.groupSyncWriteVelocity = GroupSyncWrite(self.portHandler, self.packetHandler, self.GOAL_VELOCITY_ADDR, self.GOAL_VELOCITY_DATA_LENGTH)
 
         self.__initGroupReadWrite()
 
         self.__initPort()
         if enableMotors:
-            self.enableMotors()
+            self.enableLegs()
         
         # Disable (reset) watchdogs on motors.
         self.setBusWatchdog(0)
@@ -80,20 +84,23 @@ class MotorDriver:
                 _ = self.groupSyncReadCurrent.fastSyncRead()
                 _ = self.groupSyncReadPosition.fastSyncRead()
                 _ = self.groupSyncReadHardwareError.fastSyncRead()
+                _ = self.groupSyncReadTemperature.fastSyncRead()
 
             currents = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
             positions = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
-            hardwareErrors = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)           
+            hardwareErrors = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)   
+            temperatures = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)        
             for leg in spider.LEGS_IDS:
                 for idx, motorInLeg in enumerate(self.motorsIds[leg]):
                     with self.locker:
                         positions[leg][idx] = self.groupSyncReadPosition.getData(motorInLeg, self.PRESENT_POSITION_ADDR, self.PRESENT_POSITION_DATA_LENGTH)
                         currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
                         hardwareErrors[leg][idx] = self.groupSyncReadHardwareError.getData(motorInLeg, self.HARDWARE_ERROR_ADDR, self.HARDWARE_ERROR_DATA_LENGTH)
+                        temperatures[leg][idx] = self.groupSyncReadTemperature.getData(motorInLeg, self.PRESENT_TEMPERATURE_ADDR, self.PRESENT_TEMPERATURE_DATA_LENGTH)
                 positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
                 currents[leg] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[leg])
 
-            return positions, currents, hardwareErrors
+            return positions, currents, hardwareErrors, temperatures
         except KeyError as ke:
             raise ke
 
@@ -112,15 +119,15 @@ class MotorDriver:
             for i, motor in enumerate(motorsInLeg):
                 qCdBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocities[i]))]
                 with self.locker:
-                    result = self.groupSyncWrite.changeParam(motor, qCdBytes)
+                    result = self.groupSyncWriteVelocity.changeParam(motor, qCdBytes)
                 if not result:
                     print("Failed changing Group Sync Writer parameter %d" % motor)
                     return False
         # Write velocities to motors.
         with self.locker:
-            result = self.groupSyncWrite.txPacket()
+            result = self.groupSyncWriteVelocity.txPacket()
         if result != COMM_SUCCESS:
-            print("Failed to write velocities to motors.")
+            # print("Failed to write velocities to motors.")
             return False
         return True
 
@@ -135,33 +142,6 @@ class MotorDriver:
             if comm:
                 print(f"Watchdog on motor {motorId} has been successfully set to {value}")
 
-
-    def enableMotors(self):
-        """ Enable all of the motors, given at class initialization, if they are connected.
-        """
-        motorsArray = self.motorsIds.flatten()
-        for motorId in motorsArray:
-            # Enable torque.
-            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
-            comm = self.__commResultAndErrorReader(result, error)
-            if comm:
-                print("Motor %d has been successfully enabled" % motorId)
-
-    def disableMotors(self, motorsIds):
-        """Disable motors.
-
-        Args:
-            motorsIds (list): Ids of motors, which are to be disabled.
-        """
-        if motorsIds == 5:
-            motorsIds = self.motorsIds.flatten()
-        # Disable torque.
-        for motorId in motorsIds:
-            result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
-            comm = self.__commResultAndErrorReader(result, error)
-            if comm:
-                print("Motor %d has been successfully disabled" % motorId)
-
     def disableLegs(self, legsIds = 5):
         """Disable all of the motors in given legs.
 
@@ -171,11 +151,12 @@ class MotorDriver:
         if legsIds == 5:
             motorsArray = self.motorsIds.flatten()
         else:
-            motorsArray = self.motorsIds[legsIds]
+            motorsArray = self.motorsIds[legsIds].flatten()
 
         for motorId in motorsArray:
             # Disable torque.
-            _, _ = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
+            with self.locker:
+                _, _ = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 0)
 
     def enableLegs(self, legsIds = 5):
         """Enable all of the motors in given legs.
@@ -190,7 +171,12 @@ class MotorDriver:
 
         for motorId in motorsArray:
             # Enable torque.
-            _, _ = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
+            with self.locker:
+                result, error = self.packetHandler.write1ByteTxRx(self.portHandler, motorId, self.TORQUE_ENABLE_ADDR, 1)
+            comm = self.__commResultAndErrorReader(result, error)
+            if comm:
+                print(f"Motor {motorId} has been successfully enabled.")
+            
     
     def rebootMotor(self, motorsIds):
         """Reboot motors with given IDs. Used only, when motors are in hardware error state.
@@ -199,7 +185,8 @@ class MotorDriver:
             motorsIds (int): Ids of a motors.
         """
         for motorId in motorsIds:
-            self.packetHandler.reboot(self.portHandler, motorId)
+            with self.locker:
+                self.packetHandler.reboot(self.portHandler, motorId)
     #endregion
 
     #region private methods
@@ -222,6 +209,7 @@ class MotorDriver:
         self.groupSyncReadCurrent.clearParam()
         self.groupSyncReadPosition.clearParam()
         self.groupSyncReadHardwareError.clearParam()
+        self.groupSyncReadTemperature.clearParam()
 
         resultAddParams = self.__addGroupSyncReadParams()
         if not resultAddParams:
@@ -232,7 +220,7 @@ class MotorDriver:
             encoderVelocities = mappers.mapModelVelocitiesToVelocityEncoderValues(initVelocities).astype(int)
             for i, motor in enumerate(self.motorsIds[leg]):
                 initVelocityBytes = [DXL_LOBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_LOWORD(encoderVelocities[i])), DXL_LOBYTE(DXL_HIWORD(encoderVelocities[i])), DXL_HIBYTE(DXL_HIWORD(encoderVelocities[i]))]
-                resultWrite = self.groupSyncWrite.addParam(motor, initVelocityBytes)
+                resultWrite = self.groupSyncWriteVelocity.addParam(motor, initVelocityBytes)
                 if not resultWrite:
                     print("Failed adding parameter %d to Group Sync Writer" % motor)
                     return False
@@ -249,7 +237,8 @@ class MotorDriver:
             resultPosition = self.groupSyncReadPosition.addParam(motor)
             resultCurrent = self.groupSyncReadCurrent.addParam(motor)
             resultHardwareError = self.groupSyncReadHardwareError.addParam(motor)
-            if not (resultPosition and resultCurrent and resultHardwareError):
+            resultTemperature = self.groupSyncReadTemperature.addParam(motor)
+            if not (resultPosition and resultCurrent and resultHardwareError and resultTemperature):
                 print("Failed adding parameter %d to Group Sync Reader" % motor)
                 return False
         return True

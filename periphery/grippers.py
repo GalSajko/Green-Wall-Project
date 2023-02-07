@@ -93,7 +93,7 @@ class GrippersArduino:
         attachedLegsIds = []
         for legId, gripper in enumerate(grippersStates):
             if gripper == self.GRIPPER_CLOSED_RESPONSE and switchesStates[legId] == self.SWITCH_CLOSE_RESPONSE:
-                attachedLegsIds.append(legId)
+                attachedLegsIds.append(int(legId))
 
         return attachedLegsIds
     #endregion

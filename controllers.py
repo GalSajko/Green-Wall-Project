@@ -1,9 +1,7 @@
 import numpy as np
 import time
 import threading
-import multiprocessing
 import queue
-import matplotlib.pyplot as plt
 
 import config
 from environment import spider
@@ -12,10 +10,7 @@ from calculations import transformations as tf
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
 from planning import trajectoryplanner as trajPlanner
-from planning import pathplanner
-from periphery import dynamixel as dmx
 from periphery import grippers
-from periphery import waterpumpsbno as wpb
 
 
 class VelocityController:
@@ -163,6 +158,15 @@ class VelocityController:
         """Clear instruction queues for all legs.
         """
         self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
+    
+    def updateLastLegsPositions(self, xA):
+        """Update last legs positions.
+
+        Args:
+            xA (list): 5x3 array of legs' positions in leg-local origins.
+        """
+        with self.locker:
+            self.lastLegsPositions = xA
     
     def releaseOneLeg(self, leg, qA, tauA):
         """Offload force from selected leg and open its gripper.
