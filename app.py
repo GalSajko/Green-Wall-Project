@@ -160,8 +160,10 @@ class App:
         initBno = True
         print("WORKING...")
         while True:
+
             # TODO: Here comes received goal point.
             endPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+
             poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
             for step, pose in enumerate(poses):
                 currentPinsPositions = pinsInstructions[step, :, 1:]
@@ -255,17 +257,17 @@ class App:
             with self.statesObjectsLocker:
                 qA = self.qA
                 xAUnattachedLeg = self.xA[unattachedLeg[0]]
-            spiderPose = kin.getSpiderPose(attachedLegs, legsGlobalPositions, qA)
-            unattachedLegGlobalPosition = tf.getLegsInGlobal([unattachedLeg[0]], [xAUnattachedLeg], spiderPose, origin = config.SPIDER_ORIGIN)[0]
-            distance = np.linalg.norm(unattachedLegGoalPin - unattachedLegGlobalPosition)
+
+            spiderPose = tf.xyzRpyToMatrix(kin.getSpiderPose(attachedLegs, legsGlobalPositions, qA))
+            goalPinInSpider = np.dot(np.linalg.inv(spiderPose), np.append(unattachedLegGoalPin, 1))[:3]
 
             self.motorsVelocityController.grippersArduino.moveGripper(unattachedLeg, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
             self.motorsVelocityController.startForceMode(unattachedLeg, [np.zeros(3, dtype = np.float32)])
-
-            while not len(attachedLegs) == 5 and distance > 0.1:
+            distance = np.linalg.norm(goalPinInSpider - xAUnattachedLeg)
+            while not len(attachedLegs) == 5 and distance > 0.08:
                 with self.statesObjectsLocker:
                     xAUnattachedLeg = self.xA[unattachedLeg[0]]
-                distance = np.linalg.norm(unattachedLegGoalPin - unattachedLegGlobalPosition)
+                distance = np.linalg.norm(goalPinInSpider - xAUnattachedLeg)
                 attachedLegs = self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()
                 time.sleep(0.2)
             self.motorsVelocityController.stopForceMode()
