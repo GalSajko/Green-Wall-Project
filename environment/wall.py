@@ -1,4 +1,4 @@
-"""Module with wall measurements and methods for creating pin-grid.
+"""Module with wall measurements and method for creating grid of pins.
 """
 import math
 import numpy as np
@@ -7,7 +7,7 @@ def createGrid(threeDim):
     """Calculate pins positions. Pins are placed in squared pattern.
 
     Args:
-        threeDim (bool): If True, calculate pins positions in 3d space, otherwise in 2d space.
+        threeDim (bool): If True, calculate pins positions in 3d space, otherwise in 2d space (without height dimension).
 
     Returns:
         numpy.ndarray: nx3 or nx2 array of pins positions, where n is number of pins and second number depends on wheter positions are calculated in 3d or 2d space.
@@ -22,7 +22,7 @@ def createGrid(threeDim):
     for x in xGrid:
         for y in yGrid:
             if not threeDim:
-                pins.append([x ,y])
+                pins.append([x, y])
             else:
                 pins.append([x, y, PIN_HEIGHT])
 

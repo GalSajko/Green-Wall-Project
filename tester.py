@@ -11,8 +11,7 @@ import config
 if __name__ == "__main__":
     spider = app.App()
     time.sleep(1)
-    spider.spiderStatesManager(config.WORKING_STATE, (np.array([0.6, 0.4, 0.3, 0.0]), ))
     # input("ENTER")
-    # with spider.statesObjectsLocker:
-    #     spider.hwErrors[2, 2] = 1.0
+    # spider.motorsVelocityController.startForceMode([3], [np.array([0.0, 0.0, 0.0])])
+    spider.spiderStatesManager(config.WORKING_STATE, (np.array([0.6, 0.4, 0.3, 0.0]), ))
 

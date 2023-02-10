@@ -14,8 +14,8 @@ from periphery import grippers
 
 
 class VelocityController:
-    """ Class for velocity-control of spider's movement. All legs are controlled with same self, but can be moved separately and independently
-    from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop self takes first values from all of the legs-queues.
+    """ Class for velocity-control of spider's movement. All legs are controlled with same controller, but can be moved separately and independently
+    from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop controller takes first values from all of the legs-queues.
     """
     def __init__ (self):
         self.grippersArduino = grippers.GrippersArduino()
@@ -36,35 +36,36 @@ class VelocityController:
         self.forceModeLegsIds = None
         self.fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
-        self.isImpedanceMode = False
-        self.impedanceDirection = np.zeros(3, dtype = np.float32)
-        self.impedanceLegId = None
+        # self.isImpedanceMode = False
+        # self.impedanceDirection = np.zeros(3, dtype = np.float32)
+        # self.impedanceLegId = None
 
         time.sleep(1)
 
     #region public methods
     def jointsVelocityController(self, qA, xA, fA, init):
         # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
-        if init:
-            self.lastLegsPositions = xA
+        with self.locker:
+            if init:
+                self.lastLegsPositions = xA
+            isForceMode = self.isForceMode
+            fD = self.fD
+            forceModeLegsIds = self.forceModeLegsIds
+
         xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
         
-        with self.locker:
-            isForceMode = self.isForceMode
         if isForceMode:
-            with self.locker:
-                fD = self.fD
-                forceModeLegsIds = self.forceModeLegsIds
             legOffsetsInSpider, legVelocitiesInSpider = self.__forcePositionP(fD, fA)
             localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegsIds, legOffsetsInSpider, legVelocitiesInSpider)
             xD[forceModeLegsIds] += localOffsets
             xDd[forceModeLegsIds] = localVelocities
-            self.lastLegsPositions[forceModeLegsIds] = xA[forceModeLegsIds]
+            with self.locker:
+                self.lastLegsPositions[forceModeLegsIds] = xA[forceModeLegsIds]
 
-        xCds, self.lastXErrors = self.__eePositionVelocityPd(xD, xA, xDd, xDdd)
-        qCds = kin.getJointsVelocities(qA, xCds)
+        xCd, self.lastXErrors = self.__eePositionVelocityPd(xA, xD, xDd, xDdd)
+        qCd = kin.getJointsVelocities(qA, xCd)
 
-        return qCds
+        return qCd
     
     def moveLegAsync(self, legId, legCurrentPosition, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
@@ -167,17 +168,6 @@ class VelocityController:
         """
         with self.locker:
             self.lastLegsPositions = xA
-    
-    def releaseOneLeg(self, leg, qA, tauA):
-        """Offload force from selected leg and open its gripper.
-
-        Args:
-            leg (int): Leg id.
-        """
-        otherLegs = np.delete(spider.LEGS_IDS, leg)
-        self.distributeForces(otherLegs, qA, tauA, config.FORCE_DISTRIBUTION_DURATION)
-        self.grippersArduino.moveGripper(leg, self.grippersArduino.OPEN_COMMAND)    
-        time.sleep(1.5)
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force mode inside main velocity controller loop.
@@ -187,7 +177,7 @@ class VelocityController:
             desiredForce (list): 5x3 vector of x, y, z values of force, given in spider's origin, where n is number of used legs.
         """
         if len(legsIds) != len(desiredForces):
-            raise ValueError("Number of legs used in force controll does not match with number of given desired forces vectors.")
+            raise ValueError("Number of legs used in force controll does not match number of given desired forces vectors.")
         with self.locker:
             self.isForceMode = True
             self.forceModeLegsIds = legsIds
@@ -198,28 +188,6 @@ class VelocityController:
         """
         with self.locker:
             self.isForceMode = False
-
-    def distributeForces(self, legsIds, qA, tauA, duration):
-        """Run force distribution process in a loop for a given duration.
-        """
-        offloadLegId = np.setdiff1d(spider.LEGS_IDS, legsIds)
-        if len(offloadLegId) > 1:
-            print("Cannot offload more than one leg at the same time.")
-            return False
-
-        startTime = time.perf_counter()
-        elapsedTime = 0
-        while elapsedTime < duration:
-            fDist = dyn.calculateDistributedForces(tauA, qA, legsIds, offloadLegId)
-
-            if len(offloadLegId):
-                fDist = np.insert(fDist, offloadLegId[0], np.zeros(3, dtype = np.float32), axis = 0)
-            self.startForceMode(spider.LEGS_IDS, fDist)
-
-            time.sleep(self.period)
-            elapsedTime = time.perf_counter() - startTime
-        
-        self.stopForceMode()
     #endregion
 
     #region private methods
@@ -236,11 +204,12 @@ class VelocityController:
         for leg in spider.LEGS_IDS:
             try:
                 queueData = self.legsQueues[leg].get(False)
-                with self.locker:
-                    if queueData is not self.sentinel:
+                if queueData is not self.sentinel:
+                    with self.locker:
                         self.lastLegsPositions[leg] = queueData[0]
                 if queueData is self.sentinel:
-                    xD[leg] = np.copy(self.lastLegsPositions[leg])
+                    with self.locker:
+                        xD[leg] = np.copy(self.lastLegsPositions[leg])
                     xDd[leg] = np.zeros(3, dtype = np.float32)
                     xDdd[leg] = np.zeros(3, dtype = np.float32)
                 else:
@@ -255,7 +224,7 @@ class VelocityController:
 
         return xD, xDd, xDdd
 
-    def __eePositionVelocityPd(self, xD, xA, xDd, xDdd):
+    def __eePositionVelocityPd(self, xA, xD, xDd, xDdd):
         """PD controller. Feed-forward velocity is used only in force mode, otherwise its values are zeros.
 
         Args:
@@ -275,7 +244,7 @@ class VelocityController:
         return xCd, xErrors
 
     def __forcePositionP(self, desiredForces, currentForces):
-        """Force-position P self. Calculate position offsets and desired legs velocities in spider's origin from desired forces.
+        """Force-position P controller. Calculate position offsets and desired legs velocities in spider's origin from desired forces.
 
         Args:
             desiredForces (list): 5x3 array of desired forces in spider's origin.

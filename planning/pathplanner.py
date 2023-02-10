@@ -137,7 +137,7 @@ def createWalkingInstructions(startPose, goalPose, pinSelectionMethod = calculat
     Args:
         startPose (list): 1x4 array of start pose, given as x, y, z and yaw values in global origin.
         goalPose (lsit): 1x4 array of goal pose, given as x, y, z and yaw values in global origin.
-        pinSelectionMethod (function, optional): Method used to calculate selected pins along the way.. Defaults to calculateSelectedPinsMaxYDistance.
+        pinSelectionMethod (function, optional): Method used to calculate selected pins along the way. Defaults to calculateSelectedPinsMaxYDistance.
 
     Returns:
         tuple: Lists of poses and pins instructions. Pin instruction consists of leg id and pin's position.
@@ -152,8 +152,10 @@ def createWalkingInstructions(startPose, goalPose, pinSelectionMethod = calculat
 
     movingDirection = math.atan2(goalPose[0] - startPose[0], goalPose[1] - startPose[1])
     legMovingOrder = np.array([4, 3, 0, 2, 1]) if movingDirection >= 0.0 else np.array([1, 2, 0, 3, 4])
-    if movingDirection == 0.0:
+    if movingDirection == math.pi:
         legMovingOrder = np.array([0, 1, 4, 2, 3])
+    elif movingDirection == 0.0:
+        legMovingOrder = np.array([2, 3, 1, 4, 0])
     legMovingOrder = legMovingOrder.astype(int)
 
     def appendToPoseAndPinsInstructions(i, pins):

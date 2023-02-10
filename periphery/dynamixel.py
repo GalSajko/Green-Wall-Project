@@ -32,7 +32,7 @@ class MotorDriver:
 
         self.BAUDRATE = 4000000
         self.PROTOCOL_VERSION = 2.0
-        self.USB_DEVICE_NAME = "/dev/ttyUSB0"
+        self.USB_DEVICE_NAME = "/dev/ttyUSB1"
 
         self.PRESENT_POSITION_DATA_LENGTH = 4
         self.PRESENT_CURRENT_DATA_LENGTH = 2
@@ -68,16 +68,13 @@ class MotorDriver:
 
     #region public methods 
     def syncReadMotorsData(self):
-        """Read positions, currents and hardware errors registers from all connected motors.
-
-        Args:
-            readErrors (bool, optional): If True, read hardware error registers. Defaults to False.
+        """Read positions, currents, hardware errors and temperature registers from all connected motors.
 
         Raises:
-            ke: If error in fastSyncRead() function.
+            KeyError: If error in fastSyncRead() functions.
 
         Returns:
-            tuple: Three 5x3 numpy.ndarrays of positions, currents and harware error codes, if readErrors is True. Otherwise hardware errors is None.
+            tuple: Four 5x3 numpy.ndarrays of positions, currents, harware error codes and temperatures.
         """
         try:
             with self.locker:
@@ -89,7 +86,8 @@ class MotorDriver:
             currents = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
             positions = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
             hardwareErrors = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)   
-            temperatures = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)        
+            temperatures = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)    
+               
             for leg in spider.LEGS_IDS:
                 for idx, motorInLeg in enumerate(self.motorsIds[leg]):
                     with self.locker:
@@ -97,10 +95,12 @@ class MotorDriver:
                         currents[leg][idx] = self.groupSyncReadCurrent.getData(motorInLeg, self.PRESENT_CURRENT_ADDR, self.PRESENT_CURRENT_DATA_LENGTH)
                         hardwareErrors[leg][idx] = self.groupSyncReadHardwareError.getData(motorInLeg, self.HARDWARE_ERROR_ADDR, self.HARDWARE_ERROR_DATA_LENGTH)
                         temperatures[leg][idx] = self.groupSyncReadTemperature.getData(motorInLeg, self.PRESENT_TEMPERATURE_ADDR, self.PRESENT_TEMPERATURE_DATA_LENGTH)
-                positions[leg] = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions[leg])
-                currents[leg] = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents[leg])
 
-            return positions, currents, hardwareErrors, temperatures
+            mappedPositions = mappers.mapPositionEncoderValuesToModelAnglesRadians(positions)
+            mappedCurrents = mappers.mapCurrentEncoderValuesToMotorsCurrentsAmpers(currents)
+
+            return mappedPositions, mappedCurrents, hardwareErrors, temperatures
+        
         except KeyError as ke:
             raise ke
 

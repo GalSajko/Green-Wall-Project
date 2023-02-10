@@ -1,13 +1,13 @@
 """File for storing global variables.
 """
-CONTROLLER_FREQUENCY = 50.0
+CONTROLLER_FREQUENCY = 75.0
 FORCE_DAMPING = 0.01
-K_P_FORCE = 0.01
+K_P_FORCE = 0.03
 # K_P = 25.0
 # K_D = 1.8
 # K_ACC = 0.18
-K_P = 15.0
-K_D = 1.0
+K_P = 10.0
+K_D = 0.7
 K_ACC = 0.13
 
 SPIDER_ORIGIN = 'spider'
@@ -34,3 +34,7 @@ DXL_READING_THREAD_NAME = 'dxl_reading_thread'
 SAFETY_THREAD_NAME = 'safety_thread'
 CONVERTING_THREAD_NAME = 'converting_thread'
 CONTROL_THREAD_NAME = 'control_thread'
+UPDATE_DICT_THREAD_NAME = 'update_dict_thread'
+
+STATE_DICT_POSE_KEY = 'pose'
+STATE_DICT_PINS_KEY = 'pins'

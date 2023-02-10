@@ -91,7 +91,7 @@ def getGlobalDirectionInLocal(legId, spiderPose, globalDirection):
 
     return localDirection
 
-def getLegsInGlobal(legsIds, localLegsPositions, spiderPose):
+def getLegsInGlobal(legsIds, localLegsPositions, spiderPose, origin):
     """Calculate global positions of legs from given local positions.
 
     Args:
@@ -105,8 +105,11 @@ def getLegsInGlobal(legsIds, localLegsPositions, spiderPose):
     legsGlobalPositions = np.empty([len(legsIds), 3], dtype = np.float32)
     T_GS = xyzRpyToMatrix(spiderPose)
     for idx, leg in enumerate(legsIds):
-        anchorInGlobal = np.dot(T_GS, spider.T_ANCHORS[leg])
-        legInGlobal = np.dot(anchorInGlobal, np.append(localLegsPositions[idx], 1))
+        if origin == config.LEG_ORIGIN:
+            anchorInGlobal = np.dot(T_GS, spider.T_ANCHORS[leg])
+            legInGlobal = np.dot(anchorInGlobal, np.append(localLegsPositions[idx], 1))
+        elif origin == config.SPIDER_ORIGIN:
+            legInGlobal = np.dot(T_GS, np.append(localLegsPositions[idx], 1))
         legsGlobalPositions[idx] = legInGlobal[:3]
 
     return legsGlobalPositions
