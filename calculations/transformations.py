@@ -60,10 +60,10 @@ def getPinToPinVectorInLocal(legId, rpy, currentPinPosition, goalPinPosition):
     Returns:
         numpy.ndarray: 1x3 pin-to-pin vector in leg's local origin.
     """
-    spiderRotationInGlobal = xyzRpyToMatrix(np.concatenate((np.zeros(3, dtype = np.float32), rpy)), True)
-    legAnchorRotationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[legId][:3, :3]))
+    spiderOrientationInGlobal = xyzRpyToMatrix(np.concatenate((np.zeros(3, dtype = np.float32), rpy)), True)
+    legAnchorOrientationInGlobal = np.linalg.inv(np.dot(spiderOrientationInGlobal, spider.T_ANCHORS[legId][:3, :3]))
     pinToPinGlobal = goalPinPosition - currentPinPosition
-    pinToPinLocal = np.dot(legAnchorRotationInGlobal, pinToPinGlobal)
+    pinToPinLocal = np.dot(legAnchorOrientationInGlobal, pinToPinGlobal)
 
     return pinToPinLocal
 
