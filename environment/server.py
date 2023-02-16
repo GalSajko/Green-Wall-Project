@@ -1,21 +1,21 @@
 from flask import Flask, request,jsonify
 values =[]
-min_val=[]
+minVal=[]
 app = Flask(__name__)
-def get_min():
+def getMin():
     """
     finds the lowest sensor value from the list of lowest values that were gathered from arduinos since the last call of this function and resets said list.
     Returns:
         list: information about the sensor with the lowest value out of all arduinos
     """
-    min_val=[]
+    minVal=[]
     if len(values)!=0:
         min_val = values[0]
         for i in values:
-            if i[3]<min_val[3]:
-                min_val=i
+            if i[3]<minVal[3]:
+                minVal=i
         values.clear()
-    return min_val
+    return minVal
 def parseData(data,ip):
     """_summary_
 
@@ -45,13 +45,13 @@ def parseData(data,ip):
     values.append([ip,y,x,minCap])
     return [ip,y,x,minCap]
 @app.route('/zalij',methods=["GET"])
-def get_val():
-    return jsonify(get_min()),200,{"Access-Control-Allow-Origin": "*"}
+def getVal():
+    return jsonify(getMin()),200,{"Access-Control-Allow-Origin": "*"}
 @app.route('/ping',methods=["GET"])
-def ping_pong():
+def pingPong():
     return jsonify('pong!'),200,{"Access-Control-Allow-Origin": "*"}
 @app.route('/', methods=['POST'])
-def handle_request():
+def handleRequest():
     """default route no special function
     Returns:
         string: reply after getting the data
@@ -61,7 +61,7 @@ def handle_request():
     response = 'Hello, Arduino!'
     return response
 @app.route('/data', methods=['POST'])
-def handle_data():
+def handleData():
     """receives data and calls the parse function
 
     Returns:
