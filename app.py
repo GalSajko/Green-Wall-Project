@@ -178,6 +178,7 @@ class App:
                 line = self.comunicationManager.data[1]
             except:
                 continue
+                # TODO: logic for errors
             endPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
 
             poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
