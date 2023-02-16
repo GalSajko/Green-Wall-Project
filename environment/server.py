@@ -2,6 +2,7 @@ from flask import Flask, request,jsonify
 values =[]
 minVal=[]
 app = Flask(__name__)
+# Za cel file - dokumentacijo pisi, kot normalno poved (z veliko zacetnico in piko). Med posameznimi deli kode (metode, importi, ...) naj bodo prazne vrstice.
 def getMin():
     """
     finds the lowest sensor value from the list of lowest values that were gathered from arduinos since the last call of this function and resets said list.
@@ -27,6 +28,7 @@ def parseData(data,ip):
         list: info about the sensor with the lowest value from a single arduino
     """
     parsed = {}
+    # Presledki med in po operatorji.
     y=0
     x=0
     minCap=1347865476
@@ -42,6 +44,7 @@ def parseData(data,ip):
                 minCap=currCap
                 y=i
                 x = data["vrstica"+str(i)]["senzor"+str(j)]["id"]
+    # Presledki za vejicami.
     values.append([ip,y,x,minCap])
     return [ip,y,x,minCap]
 @app.route('/zalij',methods=["GET"])
