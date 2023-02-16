@@ -35,6 +35,6 @@ SAFETY_THREAD_NAME = 'safety_thread'
 CONVERTING_THREAD_NAME = 'converting_thread'
 CONTROL_THREAD_NAME = 'control_thread'
 UPDATE_DICT_THREAD_NAME = 'update_dict_thread'
-
+UPDATE_DATA_THREAD_NAME = 'update_data_thread'
 STATE_DICT_POSE_KEY = 'pose'
 STATE_DICT_PINS_KEY = 'pins'

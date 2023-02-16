@@ -8,6 +8,7 @@ import threadmanager
 import jsonfilemanager
 from periphery import dynamixel as dmx
 from periphery import waterpumpsbno
+from environment.comunication import comunication 
 from environment import spider
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
@@ -31,7 +32,7 @@ class App:
         self.pumpsBnoArduino = waterpumpsbno.PumpsBnoArduino()
         self.threadManager = threadmanager.CustomThread()
         self.jsonFileManager = jsonfilemanager.JsonFileManager()
-
+        self.comunicationManager = comunication()
         self.statesObjectsLocker = threading.Lock()
         self.safetyKillEvent = threading.Event()
 
@@ -90,7 +91,17 @@ class App:
                     self.fA = fMean
                 time.sleep(0)
         self.convertingCalcThread, self.convertingCalcThreadKillEvent = self.threadManager.run(converting, config.CONVERTING_THREAD_NAME, False, True)
-    
+
+    def updatePositionData(self):
+        def updatingPositionData(killEvent):
+            while 1:
+                if killEvent.is_set():
+                    break
+                self.comunicationManager.update_values()
+                time.sleep(1)
+        self.updatingDataThread, self.updatingDataThreadKillEvent = self.threadManager.run(updatingPositionData, config.UPDATE_DATA_THREAD_NAME, False, True)
+        
+
     def safetyLayer(self):
         def safetyChecking(killEvent):
             self.safetyKillEvent.clear()
@@ -162,6 +173,11 @@ class App:
         while True:
 
             # TODO: Here comes received goal point.
+            try:
+                sensor = self.comunicationManager.data[2]
+                line = self.comunicationManager.data[1]
+            except:
+                continue
             endPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
 
             poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
