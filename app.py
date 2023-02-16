@@ -69,7 +69,6 @@ class App:
         self.writingThread, self.writingThreadKillEvent = self.threadManager.run(writing, config.DXL_WIRITNG_THREAD_NAME, False, True)
     
     def convertingLayer(self):
-        # Test comment, to be deleted.
         def converting(killEvent):
             fBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
             tauBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
