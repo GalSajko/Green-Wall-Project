@@ -1,4 +1,5 @@
 from flask import Flask, request,jsonify
+from environment import wall
 values =[]
 minVal=[]
 app = Flask(__name__)
@@ -10,14 +11,15 @@ def getMin():
     """
     minVal=[]
     if len(values)!=0:
-        min_val = values[0]
+        minVal = values[0]
         for i in values:
             if i[3]<minVal[3]:
                 minVal=i
         values.clear()
     return minVal
 def parseData(data,ip):
-    """_summary_
+    """
+    finds the lowest value from selected arduino
 
     Args:
         data (JSON): data from arduino in JSON format_
