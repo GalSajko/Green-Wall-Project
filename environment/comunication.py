@@ -13,7 +13,7 @@ class CommunicationWithServer:
 
         
     def updatePositionData(self):
-        """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server
+        """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server.
         """
         def updatingPositionData(killEvent):
             while 1:
