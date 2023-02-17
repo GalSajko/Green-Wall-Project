@@ -13,7 +13,7 @@ class CommunicationWithServer:
 
         
     def updatePositionData(self):
-        """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server
+        """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server.
         """
         def updatingPositionData(killEvent):
             while 1:
@@ -23,6 +23,6 @@ class CommunicationWithServer:
                         self.data=json.loads(request._content)
                 except:
                     print("will retry in a second")
-                if killEvent.wait(timeout = 1): 
+                if killEvent.wait(timeout = 2): 
                     break
         self.updatingDataThread, self.updatingDataThreadKillEvent = self.threadManager.run(updatingPositionData, config.UPDATE_DATA_THREAD_NAME, False, True)

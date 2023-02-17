@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="{{ url_for('static', filename='js/jquery-3.6.3.js') }}" type="text/javascript"></script>
+
+</head>
+<body>
+    <h1>Green Wall</h1>
+    
+    <div>
+        <canvas id="canvas" width="600px" height="600px"></canvas>
+    </div>
+    <canvas id = "canvas"></canvas>
+    <script>
+        var bw = 240
+        var bh = 300
+        var p = 10
+        var yDim = 50
+        var xDim = 40
+        var canvas = document.getElementById("canvas");
+        var ctx = canvas.getContext("2d");
+        function draw(data){
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            console.log(data)
+            for(var y = 0; y<=bh; y+=50){
+                for(var x = 0; x<=bw; x+=40){
+                    ctx.moveTo(20+x,20+y)
+                    ctx.arc(20+x,20+y,2,0,2*Math.PI)
+                }
+            }
+            ctx.strokeStyle="black";
+            ctx.stroke();
+            for(var y = 0; y < 6; y++ ){
+                for(var x = 0;x<6;x++){
+                    
+                    ctx.moveTo(20+(x*xDim)+(xDim/2),20+(y*yDim)+(yDim/2))
+                    ctx.arc(20+(x*xDim)+(xDim/2),20+(y*yDim)+(yDim/2),3,0,2*Math.PI)
+                    console.log(x)
+                }
+            }
+            ctx.strokeStyle="green";
+            ctx.stroke();
+        }
+        setInterval(
+            function(){
+            var arduinoData = JSON.parse('{{datas}}');
+            draw(arduinoData);
+            //console.log(arduinoData)
+            },1000
+        );
+        
+        
+        
+    </script>
+</body>
+</html>
