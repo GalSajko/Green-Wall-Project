@@ -1,18 +1,28 @@
 import requests
 import json
+import sys
+sys.path.append('..')
+import threadmanager
+import config
+import threading
 
-# PascalCase za poimenovanje class-ov.
-class comunication:
+class CommunicationWithServer:
     def __init__(self) :
-        pass
+        self.threadManager = threadmanager.CustomThread()
+        self.statesObjectsLocker = threading.Lock()
 
-    # camelCase za poimenovanje metod, spremenljivk, ...
-    def update_values(self):
-        try:
-            x = requests.get('http://192.168.1.20:5000/zalij')
-            
-            if len(x._content.decode())!=0:
-                self.data=json.loads(x._content)
-                #print(type(self.data))
-        except:
-            print("will retry in a second")
+        
+    def updatePositionData(self):
+        """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server
+        """
+        def updatingPositionData(killEvent):
+            while 1:
+                try:
+                    request = requests.get('http://192.168.1.20:5000/zalij')
+                    if len(request._content.decode())!=0:
+                        self.data=json.loads(request._content)
+                except:
+                    print("will retry in a second")
+                if killEvent.wait(timeout = 1): 
+                    break
+        self.updatingDataThread, self.updatingDataThreadKillEvent = self.threadManager.run(updatingPositionData, config.UPDATE_DATA_THREAD_NAME, False, True)

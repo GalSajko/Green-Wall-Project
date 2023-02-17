@@ -129,3 +129,6 @@ dmypy.json
 .pyre/
 
 *.csv
+
+# Client test file
+/environment/comunicationtest.py

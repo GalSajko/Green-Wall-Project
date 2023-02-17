@@ -8,7 +8,7 @@ import threadmanager
 import jsonfilemanager
 from periphery import dynamixel as dmx
 from periphery import waterpumpsbno
-from environment.comunication import comunication 
+
 from environment import spider
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
@@ -32,7 +32,7 @@ class App:
         self.pumpsBnoArduino = waterpumpsbno.PumpsBnoArduino()
         self.threadManager = threadmanager.CustomThread()
         self.jsonFileManager = jsonfilemanager.JsonFileManager()
-        self.comunicationManager = comunication()
+        
         self.statesObjectsLocker = threading.Lock()
         self.safetyKillEvent = threading.Event()
 
@@ -91,22 +91,6 @@ class App:
                     self.fA = fMean
                 time.sleep(0)
         self.convertingCalcThread, self.convertingCalcThreadKillEvent = self.threadManager.run(converting, config.CONVERTING_THREAD_NAME, False, True)
-
-    # Premakni to v mapo environment. Naj bo tam vsa koda, ki zadeva zid, server in komunikacijo s serverjem. Tam ze imas class communication (lahko preimenujes v CommunicationWithServer ali nekaj podobnega, da se ve za kaj se gre - oz.
-    # ce ze imas skripto 'server', je potem to lahko 'client' ali pa 'spiderclient' (drugi clienti so tisti Arduinoti); jaz sem za poimenovanje class-ov uporabil Pascal Case).
-    # Ta class lahko potem vsebuje ta while-True loop, ki tece v svojem threadu in si v spremenjivko objekta zapisuje zadnjo prejeto informacijo o ciljni točki (rozi, ki jo je treba zaliti). Tukaj, v working metodi, pa samo preberi
-    # vrednost te spremenljivke (ne pozabi na lock, saj bosta s dva razlicna threada brala/pisala v to spremenljivko).
-    def updatePositionData(self):
-        def updatingPositionData(killEvent):
-            while 1:
-                if killEvent.is_set():
-                    break
-                self.comunicationManager.update_values()
-                # Ce je slucajno potrebno thread takoj prekiniti, bo ta time.sleep() to prepreceval, ker se stanje eventa, s katerim prekines thread, preverja samo na zacetku loopa. Namesto tega, lahko uporabis
-                # if killEvent.wait(timeout = 1): break; ki bo prav tako pocakal 1s, samo da bo vmes tudi preverjal stanje eventa - ce bo ta postavljen, bo takoj prekinil while loop (potem tudi ne rabis preverjanja na zacetku loopa).
-                time.sleep(1)
-        self.updatingDataThread, self.updatingDataThreadKillEvent = self.threadManager.run(updatingPositionData, config.UPDATE_DATA_THREAD_NAME, False, True)
-        
 
     def safetyLayer(self):
         def safetyChecking(killEvent):
