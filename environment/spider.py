@@ -75,7 +75,7 @@ NUMBER_OF_LEGS = 5
 # Number of motors in leg.
 NUMBER_OF_MOTORS_IN_LEG = 3
 # Radius of spiders platform, in meters.
-BODY_RADIUS = 0.13145
+BODY_RADIUS = 0.15
 LEGS_IDS = np.array([0, 1, 2, 3, 4], dtype = np.int8)
 # Spiders legs, given as lengths of all three links in one leg.
 LEGS_DIMENSIONS = np.array([0.064, 0.3, 0.276], dtype = np.float32)
