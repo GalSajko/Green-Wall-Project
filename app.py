@@ -161,9 +161,9 @@ class App:
         initBno = True
         print("WORKING...")
         while True:
-
             # TODO: Here comes received goal point.
             try:
+                # Tukaj je potrebno lock-at branje te spremenljivke in sicer z istim lockerjem, kot ga uporabis za pisanje v to spremenljivko. 
                 sensor = self.comunicationManager.data[2]
                 line = self.comunicationManager.data[1]
             except:
