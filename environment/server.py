@@ -5,12 +5,12 @@ import wall
 
 values = []
 minVal = []
-visualisationValues = [[[]]]
+visualisationValues=[[[]]]
 
 app = Flask(__name__)
 app.secret_key = b'asdasgfascajv'
 
-def updateVisualisationValues(data, ip):
+def updateVisualisationValues():
     """Function inserts value 1 to for every sensor currently connected to the arduino.
 
     Args:
@@ -20,6 +20,7 @@ def updateVisualisationValues(data, ip):
     Returns:
         list: List with sensor locations.
     """
+    
     arduino = int(ip[len(ip)-1])
     try:
         visualisationValues.pop(arduino)
@@ -31,7 +32,7 @@ def updateVisualisationValues(data, ip):
             visualisationValues[arduino].insert(i, [])
         except IndexError:
             continue
-        for j in range(53, 60):
+        for j in range(54, 61):
             try:
                 # Glej komentar spodaj glede t.i. 'magic number-jev'. Naslove senzorjev lahko shranis v array in ga definiras kot konstanto (npr. WALL_SENSORS_IDS = [54, 55, 56, 57]).
                 if data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 54:
@@ -42,8 +43,23 @@ def updateVisualisationValues(data, ip):
                     visualisationValues[arduino][i].insert(2,1)
                 elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 57:
                    visualisationValues[arduino][i].insert(3, 1) 
+                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 58:
+                   visualisationValues[arduino][i].insert(4, 1)
+                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 65:
+                   visualisationValues[arduino][i].insert(5, 1)
             except:
-                continue
+                if j == 54:
+                    visualisationValues[arduino][i].insert(0, 0)
+                elif j == 55:
+                    visualisationValues[arduino][i].insert(1, 0)
+                elif j == 56:
+                    visualisationValues[arduino][i].insert(2, 0)
+                elif j == 57:
+                    visualisationValues[arduino][i].insert(3, 0) 
+                elif j == 58:
+                    visualisationValues[arduino][i].insert(4, 0)
+                elif j == 65:
+                    visualisationValues[arduino][i].insert(5, 0)
     
     print(visualisationValues)
     return visualisationValues
@@ -86,7 +102,7 @@ def parseData(data, ip):
     # te vrednosti uporabiti se kje v kodi (oz si jih ze, zgoraj v kodi).
     # 2.) Enako kot zgoraj, na hitro premisli, kako bi lahko poiskal minimum in pripadajoce x, y, IP vrednosti brez uporabe dvojne for zanke.  
     for i in range(6):
-        for j in range(53, 60):
+        for j in range(54, 58):
             try:
                 currCap = data["vrstica" + str(i)]["senzor" + str(j)]["cap"]
             except:
@@ -101,9 +117,23 @@ def parseData(data, ip):
 def getVal():
     return jsonify(getMin()), 200, {"Access-Control-Allow-Origin": "*"}
 
+@app.route('/update')
+def update():
+    try:
+        dataJson = updateVisualisationValues()
+        return jsonify(dataJson), 200, {"Access-Control-Allow-Origin": "*"}
+    except:
+        return jsonify([]), 200, {"Access-Control-Allow-Origin": "*"}
+
+
 @app.route('/ping',methods=["GET"])
 def pingPong():
     return jsonify('pong!'), 200, {"Access-Control-Allow-Origin": "*"}
+
+@app.route('/index')
+def index():
+    
+    return render_template('index.html', datas = dataJson)
 
 @app.route('/data', methods=['POST', 'GET'])
 def handleData():
@@ -112,11 +142,20 @@ def handleData():
     Returns:
         string: Reply to arduino after getting the data.
     """
+    global ip
+    global data
+    
+    global dataJson
+    
     ip = request.remote_addr
     data = request.get_json()
-    dataJson = updateVisualisationValues(data, ip)
+    if ip == "192.168.1.12" or ip == "192.168.1.14":
+        print(data)
+    
+    dataJson = updateVisualisationValues()
+    #print(dataJson)
     parseData(data, ip)
-    return render_template('index.html', datas = dataJson)
+    return 'OK'
 
 if __name__ == '__main__':
     app.run(host = '192.168.1.20', port = 5000, debug = True)

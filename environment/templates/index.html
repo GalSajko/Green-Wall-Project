@@ -5,51 +5,93 @@
 
 </head>
 <body>
-    <h1>Green Wall</h1>
-    
+    <h1>Blue - Green Wall</h1>
+    <p class="data"></p>
     <div>
-        <canvas id="canvas" width="600px" height="600px"></canvas>
+        <canvas id="canvas" width="3000px" height="3000px"></canvas>
     </div>
     <canvas id = "canvas"></canvas>
     <script>
         var bw = 240
         var bh = 300
-        var p = 10
+        var p = 3
+        var pad = 20
         var yDim = 50
         var xDim = 40
+        var numPinsY = 13
+        var numPinsX = 21
+        var start = 20
         var canvas = document.getElementById("canvas");
         var ctx = canvas.getContext("2d");
         function draw(data){
+            ctx.beginPath()
             ctx.clearRect(0,0,canvas.width,canvas.height);
+            for(var y = 0; y < numPinsY; y++){
+                for(var x = 0; x < numPinsX; x++){
+                    ctx.moveTo(pad+x*xDim,pad+y*yDim)
+                    ctx.arc(pad+x*xDim,pad+y*yDim,2,0,2*Math.PI)
+                }
+            }
+            ctx.moveTo(10,10);
+            ctx.lineTo(10, 30+(numPinsY-1)*yDim);
+            ctx.moveTo(10,10);
+            ctx.lineTo(30+(numPinsX-1)*xDim,10);
+            ctx.moveTo(10, 30+(numPinsY-1)*yDim);
+            ctx.lineTo(30+(numPinsX-1)*xDim,30+(numPinsY-1)*yDim);
+            ctx.moveTo(30+(numPinsX-1)*xDim,10);
+            ctx.lineTo(30+(numPinsX-1)*xDim, 30+(numPinsY-1)*yDim);
+            for(var i = 1; i < 3; i++){
+                ctx.moveTo(40 + ((numPinsX/3)*i-1)*xDim,10);
+                ctx.lineTo(40 + ((numPinsX/3)*i-1)*xDim,30+(numPinsY-1)*yDim)
+            }
+            ctx.moveTo(10,40 + 6*yDim);
+            ctx.lineTo(30+(numPinsX-1)*xDim, 40 + 6*yDim);
             
-            for(var y = 0; y<=bh; y+=50){
-                for(var x = 0; x<=bw; x+=40){
-                    ctx.moveTo(20+x,20+y)
-                    ctx.arc(20+x,20+y,2,0,2*Math.PI)
+            for(var j  = 1; j<7; j++){    
+                start = 20;
+                for(var y = 0; y < 6; y++ ){
+                    for(var x = 0;x < 6;x++){
+                        try{
+                            if(j == 1 || j == 4){
+                                start = 60;
+                                console.log("here")
+                            }
+                            
+                            if(Number(data[j][y][x]) == Number(1)){
+                                if(j<4){
+                                    ctx.moveTo(start+(j-1)*7*xDim+(x*xDim)+(xDim/2),20+((5-y)*yDim)+(yDim/2))
+                                    ctx.arc(start+(j-1)*7*xDim+(x*xDim)+(xDim/2),20+((5-y)*yDim)+(yDim/2),3,0,2*Math.PI)
+                                }
+                                else{
+                                    ctx.moveTo(20+(j-4)*7*xDim+(x*xDim)+(xDim/2),7*yDim+20+((5-y)*yDim)+(yDim/2))
+                                    ctx.arc(20+(j-4)*7*xDim+(x*xDim)+(xDim/2),7*yDim+20+((5-y)*yDim)+(yDim/2),3,0,2*Math.PI)
+                                }
+                            } 
+                        } 
+                        catch{
+                            continue;
+                        }
+                    }
                 }
             }
-            ctx.strokeStyle="black";
-            ctx.stroke();
-            for(var y = 0; y < 6; y++ ){
-                for(var x = 0;x<6;x++){
-                    
-                    ctx.moveTo(20+(x*xDim)+(xDim/2),20+(y*yDim)+(yDim/2))
-                    ctx.arc(20+(x*xDim)+(xDim/2),20+(y*yDim)+(yDim/2),3,0,2*Math.PI)
-                    
-                }
-            }
+            
             ctx.strokeStyle="green";
             ctx.stroke();
         }
-        setInterval(
-            function(){
-            var arduinoData = JSON.parse('{{datas}}');
-            draw(arduinoData);
-            console.log(arduinoData)
-            },1000
-        );
         
-        
+        function update(){
+            
+            $.get("./update",function(data){
+                console.log(data)
+                draw(data);
+                $("#output").html(data)
+            });
+        }
+        update();
+        var inrvalId = setInterval(function(){
+            update()
+            
+        },3000)
         
     </script>
 </body>
