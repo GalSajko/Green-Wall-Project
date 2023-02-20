@@ -221,7 +221,7 @@ class App:
 
             with self.statesObjectsLocker:
                 qA = self.qA
-                xAUnattachedLeg = self.xA[unattachedLeg[0]]
+                # xAUnattachedLeg = self.xA[unattachedLeg[0]]
 
             spiderPose = tf.xyzRpyToMatrix(kin.getSpiderPose(attachedLegs, legsGlobalPositions, qA))
 
