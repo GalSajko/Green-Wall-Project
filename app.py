@@ -149,7 +149,6 @@ class App:
         initBno = True
         print("WORKING...")
         while True:
-
             # TODO: Here comes received goal point.
             endPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
 
