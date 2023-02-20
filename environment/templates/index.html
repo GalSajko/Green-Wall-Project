@@ -21,7 +21,7 @@
         var ctx = canvas.getContext("2d");
         function draw(data){
             ctx.clearRect(0,0,canvas.width,canvas.height);
-            console.log(data)
+            
             for(var y = 0; y<=bh; y+=50){
                 for(var x = 0; x<=bw; x+=40){
                     ctx.moveTo(20+x,20+y)
@@ -35,7 +35,7 @@
                     
                     ctx.moveTo(20+(x*xDim)+(xDim/2),20+(y*yDim)+(yDim/2))
                     ctx.arc(20+(x*xDim)+(xDim/2),20+(y*yDim)+(yDim/2),3,0,2*Math.PI)
-                    console.log(x)
+                    
                 }
             }
             ctx.strokeStyle="green";
@@ -45,7 +45,7 @@
             function(){
             var arduinoData = JSON.parse('{{datas}}');
             draw(arduinoData);
-            //console.log(arduinoData)
+            console.log(arduinoData)
             },1000
         );
         
