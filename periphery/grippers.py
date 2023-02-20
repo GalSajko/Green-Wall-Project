@@ -91,8 +91,8 @@ class GrippersArduino:
         grippersStates = recMsg[:5]
         switchesStates = recMsg[5:]
         attachedLegsIds = []
-        for legId, gripper in enumerate(grippersStates):
-            if gripper == self.GRIPPER_CLOSED_RESPONSE and switchesStates[legId] == self.SWITCH_CLOSE_RESPONSE:
+        for legId, gripperState in enumerate(grippersStates):
+            if gripperState == self.GRIPPER_CLOSED_RESPONSE and switchesStates[legId] == self.SWITCH_CLOSE_RESPONSE:
                 attachedLegsIds.append(int(legId))
 
         return attachedLegsIds

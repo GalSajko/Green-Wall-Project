@@ -80,18 +80,18 @@ LEGS_IDS = np.array([0, 1, 2, 3, 4], dtype = np.int8)
 # Spiders legs, given as lengths of all three links in one leg.
 LEGS_DIMENSIONS = np.array([0.064, 0.3, 0.276], dtype = np.float32)
 SEGMENTS_MASSES = np.array([
-    [0.057, 0.494, 0.27],
-    [0.057, 0.54, 0.27],
-    [0.057, 0.54, 0.27],
-    [0.057, 0.494, 0.27],
-    [0.057, 0.54, 0.27]], dtype = np.float32)
+    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.27]], dtype = np.float32)
 # Vectors from start of the segment to COG.
 VECTORS_TO_COG_SEGMENT = np.array([
-    [0.032, 0.15, 0.158],
-    [0.032, 0.14, 0.158],
-    [0.032, 0.14, 0.158],
-    [0.032, 0.15, 0.158],
-    [0.032, 0.14, 0.158]], dtype = np.float32)
+    [0.032, 0.19, 0.158],
+    [0.032, 0.19, 0.158],
+    [0.032, 0.19, 0.158],
+    [0.032, 0.19, 0.158],
+    [0.032, 0.19, 0.158]], dtype = np.float32)
 # Leg limit to avoid singularity.
 LEG_LENGTH_LIMIT = 0.6
 # Angles between legs, looking from spiders origin.
