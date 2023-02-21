@@ -1,14 +1,26 @@
 # Pri nekaterih funkcijah manjka dokumentacija.
 from flask import Flask, request, jsonify, render_template
 import math
+import requests
+from datetime import datetime
+import time
 import wall
+import threading
+import sys
+sys.path.append('..')
+import config
 
 values = []
 minVal = []
 visualisationValues=[[[]]]
 
+arduinoTimes = [0, 0, 0, 0, 0, 0, 0]
+lastBackup = 0
+backup = [[[]]]
 app = Flask(__name__)
 app.secret_key = b'asdasgfascajv'
+
+
 
 def updateVisualisationValues():
     """Function inserts value 1 to for every sensor currently connected to the arduino.
@@ -45,7 +57,7 @@ def updateVisualisationValues():
                    visualisationValues[arduino][i].insert(3, 1) 
                 elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 58:
                    visualisationValues[arduino][i].insert(4, 1)
-                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 65:
+                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 59:
                    visualisationValues[arduino][i].insert(5, 1)
             except:
                 if j == 54:
@@ -58,13 +70,28 @@ def updateVisualisationValues():
                     visualisationValues[arduino][i].insert(3, 0) 
                 elif j == 58:
                     visualisationValues[arduino][i].insert(4, 0)
-                elif j == 65:
+                elif j == 59:
                     visualisationValues[arduino][i].insert(5, 0)
     
-    print(visualisationValues)
+    #print(visualisationValues)
+    
     return visualisationValues
     #print(dataJson.data)
-            
+def times():
+    arduino = int(ip[len(ip)-1])           
+    arduinoTimes[arduino]=time.time()
+    return arduinoTimes
+
+def checkArduinoTimes(arduinoTimes):
+    dt = datetime.now()
+    ts = datetime.timestamp(dt)
+    for i in range(len(arduinoTimes)):
+        if time.time() - arduinoTimes[i] >30:
+            try:
+                visualisationValues[i] = []
+                back = visualisationValues
+            except:
+                pass
 def getMin():
     """
     Finds the lowest sensor value from the list of lowest values that were gathered from arduinos since the last call of this function and resets said list.
@@ -144,20 +171,19 @@ def handleData():
     """
     global ip
     global data
-    
     global dataJson
-    
     ip = request.remote_addr
     data = request.get_json()
-    if ip == "192.168.1.12" or ip == "192.168.1.14":
-        print(data)
-    
     dataJson = updateVisualisationValues()
-    #print(dataJson)
+    print(data)
+    
+    checkArduinoTimes(times())
+    print(arduinoTimes)
     parseData(data, ip)
     return 'OK'
 
 if __name__ == '__main__':
+    
     app.run(host = '192.168.1.20', port = 5000, debug = True)
     
 
