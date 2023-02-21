@@ -39,6 +39,8 @@ class VelocityController:
         self.isImpedanceMode = False
         self.impedanceLegId = None
         self.impedanceDirection = np.zeros(3, dtype = np.float32)
+        self.maxAllowedForce = 3.5
+        self.velocityFactor = 0.1
 
         time.sleep(1)
 
@@ -66,7 +68,7 @@ class VelocityController:
                 self.lastLegsPositions[forceModeLegsIds] = xA[forceModeLegsIds]
         
         if isImpedanceMode:
-            xDd[impedanceLegId] = 0.1 * impedanceDirection * int(np.linalg.norm(fA[impedanceLegId]) < 3.0)
+            xDd[impedanceLegId] = self.velocityFactor * impedanceDirection * int(np.linalg.norm(fA[impedanceLegId]) < self.maxAllowedForce)
             with self.locker:
                 self.lastLegsPositions[impedanceLegId] = xA[impedanceLegId]
 

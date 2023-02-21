@@ -48,7 +48,7 @@ class JsonFileManager():
 
         self.__writeJson()
     
-    def readPosePins(self):
+    def readSpiderState(self):
         """Read pose and pins from JSON file and save them into dictionary.
 
         Returns:

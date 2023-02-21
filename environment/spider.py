@@ -93,7 +93,8 @@ VECTORS_TO_COG_SEGMENT = np.array([
     [0.032, 0.19, 0.158],
     [0.032, 0.19, 0.158]], dtype = np.float32)
 # Leg limit to avoid singularity.
-LEG_LENGTH_LIMIT = 0.6
+LEG_LENGTH_MAX_LIMIT = 0.6
+LEG_LENGTH_MIN_LIMIT = 0.32
 # Angles between legs, looking from spiders origin.
 ANGLE_BETWEEN_LEGS = np.radians(360.0 / NUMBER_OF_LEGS)
 # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.
