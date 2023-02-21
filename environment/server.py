@@ -2,25 +2,20 @@
 from flask import Flask, request, jsonify, render_template
 import math
 import requests
-from datetime import datetime
 import time
 import wall
-import threading
 import sys
 sys.path.append('..')
 import config
 
 values = []
 minVal = []
-visualisationValues=[[[]]]
-
+visualisationValues=[[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]]
 arduinoTimes = [0, 0, 0, 0, 0, 0, 0]
-lastBackup = 0
-backup = [[[]]]
+sensorIDs = [54, 55, 56, 57, 58, 59]
+
 app = Flask(__name__)
 app.secret_key = b'asdasgfascajv'
-
-
 
 def updateVisualisationValues():
     """Function inserts value 1 to for every sensor currently connected to the arduino.
@@ -31,65 +26,40 @@ def updateVisualisationValues():
 
     Returns:
         list: List with sensor locations.
-    """
-    
+    """  
     arduino = int(ip[len(ip)-1])
-    try:
-        visualisationValues.pop(arduino)
-    except:
-        print("New arduino joined")
-    visualisationValues.insert(arduino,[])
     for i in range(6):
-        try:
-            visualisationValues[arduino].insert(i, [])
-        except IndexError:
-            continue
-        for j in range(54, 61):
+        for j in range(54, 60):
             try:
                 # Glej komentar spodaj glede t.i. 'magic number-jev'. Naslove senzorjev lahko shranis v array in ga definiras kot konstanto (npr. WALL_SENSORS_IDS = [54, 55, 56, 57]).
-                if data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 54:
-                    visualisationValues[arduino][i].insert(0, 1)
-                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 55:
-                    visualisationValues[arduino][i].insert(1,1)
-                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 56:
-                    visualisationValues[arduino][i].insert(2,1)
-                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 57:
-                   visualisationValues[arduino][i].insert(3, 1) 
-                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 58:
-                   visualisationValues[arduino][i].insert(4, 1)
-                elif data["vrstica" + str(i)]["senzor" + str(j)]["id"] == 59:
-                   visualisationValues[arduino][i].insert(5, 1)
+                data["vrstica" + str(i)]["senzor" + str(j)]["id"]
+                visualisationValues[arduino][i][sensorIDs.index(j)] = 1
             except:
-                if j == 54:
-                    visualisationValues[arduino][i].insert(0, 0)
-                elif j == 55:
-                    visualisationValues[arduino][i].insert(1, 0)
-                elif j == 56:
-                    visualisationValues[arduino][i].insert(2, 0)
-                elif j == 57:
-                    visualisationValues[arduino][i].insert(3, 0) 
-                elif j == 58:
-                    visualisationValues[arduino][i].insert(4, 0)
-                elif j == 59:
-                    visualisationValues[arduino][i].insert(5, 0)
+                visualisationValues[arduino][i][sensorIDs.index(j)] = 0
     
     #print(visualisationValues)
-    
     return visualisationValues
     #print(dataJson.data)
 def times():
+    """Updates a timestamp for arduino.
+
+    Returns:
+        list: list with most recent timestamps for arduinos.
+    """
     arduino = int(ip[len(ip)-1])           
     arduinoTimes[arduino]=time.time()
     return arduinoTimes
 
 def checkArduinoTimes(arduinoTimes):
-    dt = datetime.now()
-    ts = datetime.timestamp(dt)
+    """Checks if all arduinos continuously send data.
+
+    Args:
+        arduinoTimes (list): Most recent timestamps for arduinos.
+    """
     for i in range(len(arduinoTimes)):
         if time.time() - arduinoTimes[i] >30:
             try:
-                visualisationValues[i] = []
-                back = visualisationValues
+                visualisationValues[i] = [[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]
             except:
                 pass
 def getMin():
@@ -142,10 +112,20 @@ def parseData(data, ip):
 
 @app.route('/zalij',methods=["GET"])
 def getVal():
+    """Sends the location of the sensor with the smallest value.
+
+    Returns:
+       list: Information about the sensor with the lowest value out of all arduinos.
+    """
     return jsonify(getMin()), 200, {"Access-Control-Allow-Origin": "*"}
 
 @app.route('/update')
 def update():
+    """Sends locations of active sensors to frontend.
+
+    Returns:
+        JSON: Information about active sensors.
+    """
     try:
         dataJson = updateVisualisationValues()
         return jsonify(dataJson), 200, {"Access-Control-Allow-Origin": "*"}
@@ -155,11 +135,20 @@ def update():
 
 @app.route('/ping',methods=["GET"])
 def pingPong():
+    """Route for testing connection.
+
+    Returns:
+        JSON: Sends the string 'pong!'
+    """
     return jsonify('pong!'), 200, {"Access-Control-Allow-Origin": "*"}
 
 @app.route('/index')
 def index():
-    
+    """Route for serving the frontend page.
+
+    Returns:
+        render_template: serves a webpage
+    """
     return render_template('index.html', datas = dataJson)
 
 @app.route('/data', methods=['POST', 'GET'])
@@ -174,16 +163,13 @@ def handleData():
     global dataJson
     ip = request.remote_addr
     data = request.get_json()
-    dataJson = updateVisualisationValues()
     print(data)
-    
+    dataJson = updateVisualisationValues()
     checkArduinoTimes(times())
-    print(arduinoTimes)
     parseData(data, ip)
     return 'OK'
 
 if __name__ == '__main__':
-    
     app.run(host = '192.168.1.20', port = 5000, debug = True)
     
 
