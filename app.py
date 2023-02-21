@@ -153,6 +153,7 @@ class App:
             endPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
 
             poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
+            
             for step, pose in enumerate(poses):
                 currentPinsPositions = pinsInstructions[step, :, 1:]
                 currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
@@ -215,29 +216,7 @@ class App:
         unattachedLeg = np.setdiff1d(spider.LEGS_IDS, attachedLegs)
 
         if unattachedLeg.size != 0:
-            _, usedPinsIndexes, legsGlobalPositions = self.jsonFileManager.readPosePins()
-            unattachedLegGoalPin = usedPinsIndexes[unattachedLeg[0]]
-            print(f"MANUALLY CORRECT LEG {unattachedLeg[0]} ON PIN {unattachedLegGoalPin}")
-
-            with self.statesObjectsLocker:
-                qA = self.qA
-                # xAUnattachedLeg = self.xA[unattachedLeg[0]]
-
-            spiderPose = tf.xyzRpyToMatrix(kin.getSpiderPose(attachedLegs, legsGlobalPositions, qA))
-
-            self.__manualCorrection(unattachedLeg[0], spiderPose, useSafety = False)
-            # goalPinInSpider = np.dot(np.linalg.inv(spiderPose), np.append(legsGlobalPositions[unattachedLeg[0]], 1))
-            # goalPinInLocal = np.dot(np.linalg.inv(spider.T_ANCHORS[unattachedLeg[0]]), goalPinInSpider)[:3]
-
-            # self.motorsVelocityController.startForceMode(unattachedLeg, [np.zeros(3, dtype = np.float32)])
-            # distance = np.linalg.norm(goalPinInLocal - xAUnattachedLeg)
-            # while not len(attachedLegs) == 5 and distance > 0.08:
-            #     with self.statesObjectsLocker:
-            #         xAUnattachedLeg = self.xA[unattachedLeg[0]]
-            #     distance = np.linalg.norm(goalPinInLocal - xAUnattachedLeg)
-            #     attachedLegs = self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()
-            #     time.sleep(0.2)
-            # self.motorsVelocityController.stopForceMode()
+            self.__manualCorrection(unattachedLeg[0], useSafety = False)
 
         print("LEGS DISABLED")
         self.motorDriver.disableLegs()
@@ -304,7 +283,7 @@ class App:
         
         self.motorsVelocityController.stopForceMode()
     
-    def __pinToPinMovement(self, leg, currentPinPosition, goalPinPosition, pose):
+    def __pinToPinMovement(self, leg, currentPinPosition, goalPinPosition):
         otherLegs = np.delete(spider.LEGS_IDS, leg)
         self.__distributeForces(otherLegs, config.FORCE_DISTRIBUTION_DURATION)
 
@@ -334,35 +313,10 @@ class App:
         detachOffsetZ = 0.03
         detachOffsetInLocal = globalZDirectionInLegOrigin * detachOffsetZ
         numberOfTries = 0
-        # while not (leg in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()):
-        #     print(f"LEG {leg} NOT ATTACHED")
-        #     if numberOfTries <= 2:
-        #         self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
-        #         if self.safetyKillEvent.wait(timeout = 1.0):
-        #             return False      
-
-        #         with self.statesObjectsLocker:
-        #             xALeg = self.xA[leg]
-
-        #         self.motorsVelocityController.moveLegAsync(leg, xALeg, detachOffsetInLocal, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY, isOffset = True)
-        #         if self.safetyKillEvent.wait(timeout = 1.0):
-        #             return False
-                
-        #         self.motorsVelocityController.startImpedanceMode(leg, -globalZDirectionInLegOrigin)
-        #         if self.safetyKillEvent.wait(timeout = 3.0):
-        #             return False
-        #         self.motorsVelocityController.stopImpedanceMode()
-
-        #         self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
-        #         if self.safetyKillEvent.wait(timeout = 1.0):
-        #             return False  
-            
-        #         numberOfTries += 1
-        
         if leg not in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
             print(f"LEG {leg} NOT ATTACHED")
             # First try to correct with impedance mode.
-            while numberOfTries <= 2:
+            while numberOfTries < 2:
                 self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
                 if self.safetyKillEvent.wait(timeout = 1.0):
                     return False      
@@ -389,32 +343,49 @@ class App:
                 numberOfTries += 1
             
             # If impedance mode doesn't do the trick, manually correct leg.
-            return self.__manualCorrection(leg, pose)
+            return self.__manualCorrection(leg)
         
         return True
     
-    def __manualCorrection(self, legId, spiderPose, useSafety = True):
-        _, usedPinsIndexes, legsGlobalPositions = self.jsonFileManager.readPosePins()
+    def __manualCorrection(self, legId, useSafety = True):
+        _, usedPinsIndexes, legsGlobalPositions = self.jsonFileManager.readSpiderState()
         goalPin = usedPinsIndexes[legId]
 
         print(f"MANUALLY CORRECT LEG {legId} ON PIN {goalPin}")
-
-        goalPinInSpider = np.dot(np.linalg.inv(spiderPose), np.append(legsGlobalPositions[legId], 1))
-        goalPinInLocal = np.dot(np.linalg.inv(spider.T_ANCHORS[legId]), goalPinInSpider)[:3]
-
+        self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
         with self.statesObjectsLocker:
             xALeg = self.xA[legId]
+            qA = self.qA
+
+        attachedLegs = self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()
+
+        goalPinInLocal = kin.getGoalPinInLocal(legId, attachedLegs, legsGlobalPositions, qA, self.pumpsBnoArduino.getRpy())
+
         distance = np.linalg.norm(goalPinInLocal - xALeg)
-        self.motorsVelocityController.startForceMode(np.array([legId]), np.array([np.zeros(3, dtype = np.float32)]))
+        disableLegs = np.linalg.norm(goalPinInLocal) > spider.LEG_LENGTH_MAX_LIMIT or np.linalg.norm(goalPinInLocal) < spider.LEG_LENGTH_MIN_LIMIT
+        if disableLegs:
+            self.motorDriver.disableLegs(attachedLegs)
+
+        self.motorsVelocityController.startForceMode([legId], [np.zeros(3, dtype = np.float32)])
         while True:
             with self.statesObjectsLocker:
                 xALeg = self.xA[legId]
+                if disableLegs:
+                    qA = self.qA
+            
+            if disableLegs:
+                goalPinInLocal = kin.getGoalPinInLocal(legId, attachedLegs, legsGlobalPositions, qA, self.pumpsBnoArduino.getRpy())
+
             distance = np.linalg.norm(goalPinInLocal - xALeg)
-            if legId in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs() and distance < 0.08:
+            if legId in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs() and distance < 0.1:
                 break
-            if useSafety and self.safetyKillEvent.wait(timeout = 0.01):
-                self.motorsVelocityController.stopForceMode()
-                return False
+
+            if useSafety:
+                if self.safetyKillEvent.wait(timeout = 0.1):
+                    self.motorsVelocityController.stopForceMode()
+                    return False
+            else:
+                time.sleep(0.1)
         self.motorsVelocityController.stopForceMode()
 
         return True      
