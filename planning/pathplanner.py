@@ -171,6 +171,31 @@ def createWalkingInstructions(startPose, goalPose, pinSelectionMethod = calculat
             appendToPoseAndPinsInstructions(idx, pins)
 
     return np.array(poses), np.array(pinsInstructions)
+
+def modifyWalkingInstructions(addPose, addLegsPositions, poses, pinsInstructions):
+    """Change first pose and first set of pins instructions with given values.
+
+    Args:
+        addPose (list): New pose.
+        addLegsPositions (list): 5x3 array of new legs positions.
+        poses (list): List of poses.
+        pinsInstructions (list): List of pins instructions.
+
+    Returns:
+        tuple: Modified poses and pins instructions.
+    """
+    startPinsInstructions = np.zeros_like(pinsInstructions[0])
+    legsMovingOrder = np.array(pinsInstructions[0, :, 0]).astype(int)
+    startPinsInstructions[:, 0] = legsMovingOrder
+    startPinsInstructions[:, 1:] = addLegsPositions[legsMovingOrder]
+
+    newPoses = np.copy(poses)
+    newPinsInstructions = np.copy(pinsInstructions)
+    newPoses[0] = addPose
+    newPinsInstructions[0] = startPinsInstructions
+
+    return newPoses, newPinsInstructions
+
 #endregion
 
 #region private methods

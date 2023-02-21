@@ -52,7 +52,7 @@ class JsonFileManager():
         """Read pose and pins from JSON file and save them into dictionary.
 
         Returns:
-            _type_: _description_
+            tuple: Spider's pose, used pins indexes and used pins positions.
         """
         with open(self.FILENAME, 'r', encoding = 'utf-8') as file:
             self.stateDict = json.load(file)

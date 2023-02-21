@@ -32,14 +32,13 @@ class App:
 
         self.statesObjectsLocker = threading.Lock()
         self.safetyKillEvent = threading.Event()
-        self.unsuccessfullLegMovementKillEvent = threading.Event()
 
         self.currentState = None
 
         self.__initLayers()
 
     def safetyLayer(self):
-        """Continuously checking for hardware errors on the motors. If error occurs, inititate resting procedure. 
+        """Continuously checking for hardware errors on the motors. If error occurs, inititate resting procedure and then continue with working. 
         """
         def safetyChecking(killEvent):
             self.safetyKillEvent.clear()
@@ -50,27 +49,32 @@ class App:
                     hwErrors = self.hwErrors
 
                 isHwError = hwErrors.any() and self.currentState == config.WORKING_STATE
-                isLegMovementError = self.unsuccessfullLegMovementKillEvent.is_set()
 
-                if isHwError or isLegMovementError:
-                    print("SAFETY")
-                    if isHwError:
-                        self.safetyKillEvent.set()
+                if isHwError:
+                    self.safetyKillEvent.set()
                     # Wait for working thread to stop.
                     if config.WORKING_THREAD_NAME in self.spiderStateThread.name:
                         self.spiderStateThread.join()
+
+                    # Start transition state and wait for it to finish.
                     self.spiderStatesManager(config.TRANSITION_STATE)
-                    # Wait for transition state to finish.
                     if config.TRANSITION_THREAD_NAME in self.spiderStateThread.name:
                         self.spiderStateThread.join()
+
                     # Start resting state and wait for it to finish.
                     self.spiderStatesManager(config.RESTING_STATE)
                     if config.RESTING_THREAD_NAME in self.spiderStateThread.name:
                         self.spiderStateThread.join()
+
                     self.safetyKillEvent.clear()
-                    self.unsuccessfullLegMovementKillEvent.clear()
+                    time.sleep(1)
+
+                    # Continue with working.
+                    print(self.hwErrors)
+                    self.spiderStatesManager(config.WORKING_STATE)
+
                 time.sleep(0.1)
-        self.safetyThread, self.safetyThreadKillEvent = self.threadManager.run(safetyChecking, config.SAFETY_THREAD_NAME, False, True)
+        self.safetyThread, self.safetyThreadKillEvent = self.threadManager.run(safetyChecking, config.SAFETY_THREAD_NAME, False, True, doPrint = True)
     
     def motorControlLayer(self):
         """Motors control layer with reading, recalculating and sending data to the motors.
@@ -81,7 +85,7 @@ class App:
             tauCounter = 0
             fCounter = 0
             init = True
-            self.motorDriver.setBusWatchdog(10)
+            self.motorDriver.setBusWatchdog(15)
             while True:
                 startTime = time.perf_counter()
 
@@ -122,7 +126,7 @@ class App:
                     elapsedTime = time.perf_counter() - startTime
                     time.sleep(0)
 
-        self.motorControlThread, self.motorControlThreadKillEvent = self.threadManager.run(controlLoop, config.CONTROL_THREAD_NAME, False, True)
+        self.motorControlThread, self.motorControlThreadKillEvent = self.threadManager.run(controlLoop, config.CONTROL_THREAD_NAME, False, True, doPrint = True)
 
     def spiderStatesManager(self, state, workingArs = None):
         """Managing spider's state.
@@ -134,11 +138,11 @@ class App:
         if state == config.WORKING_STATE:
             self.spiderStateThread = self.threadManager.run(self.working, config.WORKING_THREAD_NAME, False, True, False, workingArs)
         elif state == config.RESTING_STATE:
-            self.spiderStatesThread, self.spiderStatesThreadKillEvenet = self.threadManager.run(self.rest, config.RESTING_THREAD_NAME, False, True, True)
+            self.spiderStateThread, self.spiderStatesThreadKillEvenet = self.threadManager.run(self.rest, config.RESTING_THREAD_NAME, False, True, True)
         elif state == config.TRANSITION_STATE:
             self.spiderStateThread = self.threadManager.run(self.transitionToRestState, config.TRANSITION_THREAD_NAME, False, True, False)
     
-    def working(self, startPose):
+    def working(self):
         """Working procedure, includes walking and watering the plants.
 
         Args:
@@ -146,40 +150,49 @@ class App:
         """
         import random
         self.currentState = config.WORKING_STATE
-        initBno = True
-        print("WORKING...")
+        init = True
+        print("WORKING...") 
+        
         while True:
             # TODO: Here comes received goal point.
             endPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
 
-            poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
-            
+            startPose, _, startLegsPositions = self.jsonFileManager.readSpiderState()
+            while True:
+                try:
+                    poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
+                    break
+                except:
+                    print("Error in path planning. Trying again... ")
+
+            if init:
+                poses, pinsInstructions = pathplanner.modifyWalkingInstructions(startPose, startLegsPositions, poses, pinsInstructions)
+
             for step, pose in enumerate(poses):
                 currentPinsPositions = pinsInstructions[step, :, 1:]
                 currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
-
                 with self.statesObjectsLocker:
                     xA = self.xA
 
                 if step == 0:
                     self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, currentPinsPositions, config.GLOBAL_ORIGIN, 3, config.MINJERK_TRAJECTORY, pose)
-                    updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, (pose, currentPinsPositions, currentLegsMovingOrder, ))
+                    updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (pose, currentPinsPositions, currentLegsMovingOrder, ))
                     if self.safetyKillEvent.wait(timeout = 3.5):
                         break
                     updateDictThread.join()
 
-                    if initBno:
+                    if init:
                         self.pumpsBnoArduino.resetBno()
-                        initBno = False
+                        init = False
                         if self.safetyKillEvent.wait(timeout = 1.0):
                             break
                     self.__distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
                     continue
 
                 previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
-                self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, previousPinsPositions, config.GLOBAL_ORIGIN, 2.5, config.MINJERK_TRAJECTORY, pose)
-                updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, (pose, previousPinsPositions, currentLegsMovingOrder, ))
-                if self.safetyKillEvent.wait(timeout = 3.5):
+                self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, previousPinsPositions, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, pose)
+                updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (pose, previousPinsPositions, currentLegsMovingOrder, ))
+                if self.safetyKillEvent.wait(timeout = 2.5):
                     break
                 updateDictThread.join()
 
@@ -192,6 +205,8 @@ class App:
             
                 if not pinToPinMovementSuccess:
                     break
+            
+            startPose = endPose
 
             if self.safetyKillEvent.is_set() or not pinToPinMovementSuccess:
                 break
@@ -231,7 +246,6 @@ class App:
                 temperatures = self.temperatures
             if killEvent.wait(timeout = 1) or (temperatures < self.motorDriver.MAX_WORKING_TEMPERATURE).all():
                 break
-        time.sleep(10)
 
         # Update last positions and enable torques in motors.
         with self.statesObjectsLocker:
@@ -298,8 +312,8 @@ class App:
         with self.statesObjectsLocker:
             xALeg = self.xA[leg]
         self.motorsVelocityController.moveLegAsync(leg, xALeg, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
-        updateDictThread = self.threadManager.run(self.jsonFileManager.updatePins, config.UPDATE_DICT_THREAD_NAME, True, True, False, (leg, goalPinPosition, ))
-        if self.safetyKillEvent.wait(timeout = 3.5):
+        updateDictThread = self.threadManager.run(self.jsonFileManager.updatePins, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (leg, goalPinPosition, ))
+        if self.safetyKillEvent.wait(timeout = 5.0):
             return False
         updateDictThread.join()
 
@@ -390,3 +404,8 @@ class App:
 
         return True      
     #endregion
+
+if __name__ == '__main__':
+    app = App()
+    time.sleep(1)
+    app.spiderStatesManager(config.WORKING_STATE)
