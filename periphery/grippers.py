@@ -23,7 +23,7 @@ class GrippersArduino:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB0', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB_GRIPPERS', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
@@ -91,8 +91,8 @@ class GrippersArduino:
         grippersStates = recMsg[:5]
         switchesStates = recMsg[5:]
         attachedLegsIds = []
-        for legId, gripper in enumerate(grippersStates):
-            if gripper == self.GRIPPER_CLOSED_RESPONSE and switchesStates[legId] == self.SWITCH_CLOSE_RESPONSE:
+        for legId, gripperState in enumerate(grippersStates):
+            if gripperState == self.GRIPPER_CLOSED_RESPONSE and switchesStates[legId] == self.SWITCH_CLOSE_RESPONSE:
                 attachedLegsIds.append(int(legId))
 
         return attachedLegsIds

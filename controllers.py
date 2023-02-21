@@ -36,9 +36,9 @@ class VelocityController:
         self.forceModeLegsIds = None
         self.fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
-        # self.isImpedanceMode = False
-        # self.impedanceDirection = np.zeros(3, dtype = np.float32)
-        # self.impedanceLegId = None
+        self.isImpedanceMode = False
+        self.impedanceLegId = None
+        self.impedanceDirection = np.zeros(3, dtype = np.float32)
 
         time.sleep(1)
 
@@ -51,6 +51,9 @@ class VelocityController:
             isForceMode = self.isForceMode
             fD = self.fD
             forceModeLegsIds = self.forceModeLegsIds
+            isImpedanceMode = self.isImpedanceMode
+            impedanceDirection = self.impedanceDirection
+            impedanceLegId = self.impedanceLegId
 
         xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
         
@@ -61,6 +64,11 @@ class VelocityController:
             xDd[forceModeLegsIds] = localVelocities
             with self.locker:
                 self.lastLegsPositions[forceModeLegsIds] = xA[forceModeLegsIds]
+        
+        if isImpedanceMode:
+            xDd[impedanceLegId] = 0.1 * impedanceDirection * int(np.linalg.norm(fA[impedanceLegId]) < 3.0)
+            with self.locker:
+                self.lastLegsPositions[impedanceLegId] = xA[impedanceLegId]
 
         xCd, self.lastXErrors = self.__eePositionVelocityPd(xA, xD, xDd, xDdd)
         qCd = kin.getJointsVelocities(qA, xCd)
@@ -103,11 +111,12 @@ class VelocityController:
         return True
             
     def moveLegsSync(self, legsIds, legsCurrentPositions, goalPositionsOrOffsets, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
-        """Write reference positions and velocities in any number (within 5) of leg-queues. Legs start to move at the same time. 
+        """Write reference positions and velocities in any number (less than 5) of leg-queues. Legs start to move at the same time. 
         Meant for moving a platform.
 
         Args:
             legsIds (list): Legs ids.
+            legsCurrentPositions (list): nx3x1 array of legs' current positions, where n is number of legs.
             goalPositionsOrOffsets (list): nx3x1 array of goal positions, where n is number of legs.
             origin (str): Origin that goal positions are given in, 'g' for global or 'l' for local.
             duration (float): Desired duration of movements.
@@ -188,6 +197,23 @@ class VelocityController:
         """
         with self.locker:
             self.isForceMode = False
+    
+    def startImpedanceMode(self, legId, velocityDirection):
+        """Start impedance mode.
+
+        Args:
+            legId (int): Id of leg.
+            velocityDirection (list): 1x3 array of desired velocity direction, given in leg's origin.
+        """
+        with self.locker:
+            self.isImpedanceMode = True
+            self.impedanceDirection = velocityDirection
+            self.impedanceLegId = legId
+    
+    def stopImpedanceMode(self):
+        with self.locker:
+            self.isImpedanceMode = False
+
     #endregion
 
     #region private methods
