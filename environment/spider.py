@@ -93,7 +93,8 @@ VECTORS_TO_COG_SEGMENT = np.array([
     [0.032, 0.19, 0.158],
     [0.032, 0.19, 0.158]], dtype = np.float32)
 # Leg limit to avoid singularity.
-LEG_LENGTH_LIMIT = 0.6
+LEG_LENGTH_MAX_LIMIT = 0.6
+LEG_LENGTH_MIN_LIMIT = 0.32
 # Angles between legs, looking from spiders origin.
 ANGLE_BETWEEN_LEGS = np.radians(360.0 / NUMBER_OF_LEGS)
 # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.
@@ -101,7 +102,7 @@ LEG_ANCHORS = _getLegAnchorsInSpiderOrigin()
 # Unit vectors pointing in radial directions (looking from center of body).
 IDEAL_LEG_VECTORS = _getIdealLegVectors()
 # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
-CONSTRAINS = [0.15, 0.5, np.radians(60)]
+CONSTRAINS = [0.15, 0.45, np.radians(60)]
 # Array of transformation matrices for transformations from spider base to anchors in base origin.
 T_ANCHORS = _getTransformMatricesToAnchors()
 #endregion

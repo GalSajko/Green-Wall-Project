@@ -105,25 +105,25 @@ def spiderBaseToLegTipForwardKinematics(legId, jointsValues, angleBetweenLegs = 
         [0.0, 0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-def platformForwardKinematics(legsIds, legsGlobalPositions, legsLocalPoses):
+def platformForwardKinematics(legsIds, legsGlobalPositions, legsSpiderPoses):
     """Calculate forward kinematics of platform. Use only those legs, that are in contact with pins.
 
     Args:
         legsIds (list): Ids of used legs.
         legsGlobalPositions (list): Global positions of used legs.
-        legsLocalPoses (list):4x4 transformation matrices, representing a legs poses in legs-local origins.
+        legsSpiderPoses (list):4x4 transformation matrices, representing a legs poses in spider's origin.
 
     Returns:
         list: 1x6 list with global xyzrpy values.
     """
 
-    if len(legsIds) != 3 or len(legsGlobalPositions) != 3 or len(legsLocalPoses) != 3:
+    if len(legsIds) != 3 or len(legsGlobalPositions) != 3 or len(legsSpiderPoses) != 3:
         print("Use exactly three legs for calculations of forward kinematics.")
         return False
     
-    legsLocalPoses = np.array(legsLocalPoses)
+    legsSpiderPoses = np.array(legsSpiderPoses)
     legsGlobalPositions = np.array(legsGlobalPositions)
-    l1, l2, l3 = legsLocalPoses
+    l1, l2, l3 = legsSpiderPoses
     p1, p2, _ = legsGlobalPositions
 
     # Compute coordinate system of a wall-plane (in spider's origin)
@@ -154,19 +154,17 @@ def platformForwardKinematics(legsIds, legsGlobalPositions, legsLocalPoses):
     Pglobal = np.c_[Pglobal, np.zeros(3)]
     Pglobal = np.r_[Pglobal, [[0, 0, 0, 1]]]
 
-    positions = np.zeros([len(legsLocalPoses), 3])
-    for idx, leg in enumerate(legsLocalPoses):
-        positions[idx] = np.dot(Pglobal[:3,:3], leg[:,3][:3]) + np.dot(Pglobal[:3,:3], -legsGlobalPositions[idx])
+    positions = np.zeros([len(legsSpiderPoses), 3])
+    for idx, leg in enumerate(legsSpiderPoses):
+        positions[idx] = legsGlobalPositions[idx] + np.dot(Pglobal[:3, :3], -leg[:, 3][:3])
     Pglobal[:,3][:3] = np.mean(positions, axis = 0)
-
-    pose = np.linalg.inv(Pglobal)
 
     yaw = math.atan2(Pglobal[1, 0], Pglobal[0, 0])
     # Note that roll and pitch are swapped because of spider's axis definition.
     roll = math.atan2(-Pglobal[2, 0], math.sqrt(math.pow(Pglobal[2, 1], 2) + math.pow(Pglobal[2, 2], 2)))
     pitch = math.atan2(Pglobal[2, 1], Pglobal[2, 2])
 
-    x, y, z = pose[:,3][:3]
+    x, y, z = Pglobal[:,3][:3]
     xyzrpy = [x, y, z, roll, pitch, yaw]
     
     return xyzrpy
@@ -198,6 +196,28 @@ def getSpiderPose(legsIds, legsGlobalPositions, qA):
     pose = np.mean(np.array(poses), axis = 0)
 
     return pose
+
+def getGoalPinInLocal(legId, attachedLegs, legsGlobalPositions, qA, rpy):
+    """Calculate goal pin position in leg-local origin.
+
+    Args:
+        legId (int): Leg id.
+        attachedLegs (list): List of attached legs.
+        legsGlobalPositions (list): 5x3 array of global legs positions.
+        qA (list): 5x3 array of joints values.
+        rpy (list): 1x3 array of spider's rpy rotation values.
+
+    Returns:
+        numpy.ndarray: 1x3 array of goal pin's x, y, z position in leg-local origin.
+    """
+    pose = getSpiderPose(attachedLegs, legsGlobalPositions[attachedLegs], qA)
+    pose = tf.xyzRpyToMatrix(pose)
+    rotation = tf.xyzRpyToMatrix(rpy, True)
+    pose[:3, :3] = rotation
+    goalPinInSpider = np.dot(np.linalg.inv(pose), np.append(legsGlobalPositions[legId], 1))
+    goalPinInLocal = np.dot(np.linalg.inv(spider.T_ANCHORS[legId]), goalPinInSpider)[:3]
+
+    return goalPinInLocal
 #endregion
 
 #region inverse kinematics
