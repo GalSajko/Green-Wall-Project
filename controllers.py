@@ -52,7 +52,7 @@ class VelocityController:
                 self.lastLegsPositions = xA
             isForceMode = self.isForceMode
             fD = self.fD
-            forceModeLegsIds = self.forceModeLegsIds
+            forceModeLegsIds = np.array(self.forceModeLegsIds)
             isImpedanceMode = self.isImpedanceMode
             impedanceDirection = self.impedanceDirection
             impedanceLegId = self.impedanceLegId
@@ -62,15 +62,23 @@ class VelocityController:
         if isForceMode:
             legOffsetsInSpider, legVelocitiesInSpider = self.__forcePositionP(fD, fA)
             localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegsIds, legOffsetsInSpider, legVelocitiesInSpider)
-            xD[forceModeLegsIds] += localOffsets
-            xDd[forceModeLegsIds] = localVelocities
+
+            newXd = xD[forceModeLegsIds] + localOffsets
+            newXdNorms = np.linalg.norm(newXd, axis = 1)
+            allowedIdx = np.where(newXdNorms < spider.LEG_LENGTH_MAX_LIMIT)
+            onLimitIdx = np.where(newXdNorms >= spider.LEG_LENGTH_MAX_LIMIT)
+
+            xD[forceModeLegsIds[allowedIdx]] = newXd[allowedIdx]
+            xDd[forceModeLegsIds[allowedIdx]] = localVelocities[allowedIdx]
+            xD[forceModeLegsIds[onLimitIdx]] = xA[forceModeLegsIds[onLimitIdx]]
+
             with self.locker:
                 self.lastLegsPositions[forceModeLegsIds] = xA[forceModeLegsIds]
         
         if isImpedanceMode:
             xDd[impedanceLegId] = self.velocityFactor * impedanceDirection * int(np.linalg.norm(fA[impedanceLegId]) < self.maxAllowedForce)
             with self.locker:
-                self.lastLegsPositions[impedanceLegId] = xA[impedanceLegId]
+                self.lastLegsPositions[impedanceLegId] = xA[impedanceLegId] + xDd[impedanceLegId] * self.period
 
         xCd, self.lastXErrors = self.__eePositionVelocityPd(xA, xD, xDd, xDdd)
         qCd = kin.getJointsVelocities(qA, xCd)

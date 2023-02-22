@@ -60,6 +60,8 @@ class MotorDriver:
         self.__initGroupReadWrite()
 
         self.__initPort()
+        self.rebootMotor(self.motorsIds)
+        time.sleep(5)
         if enableMotors:
             self.enableLegs()
         
@@ -184,9 +186,10 @@ class MotorDriver:
         Args:
             motorsIds (int): Ids of a motors.
         """
+        motorsIds = motorsIds.flatten()
         for motorId in motorsIds:
             with self.locker:
-                self.packetHandler.reboot(self.portHandler, motorId)
+                self.packetHandler.reboot(self.portHandler, int(motorId))
     #endregion
 
     #region private methods
