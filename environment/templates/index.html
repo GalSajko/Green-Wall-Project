@@ -95,8 +95,8 @@
                 ctx.lineTo(50 + ((numPinsX/3)-1)*xDim,30+(numPinsY-1)*yDim)
                 ctx.moveTo(30 + ((numPinsX/3)*2-1)*xDim,10);
                 ctx.lineTo(30 + ((numPinsX/3)*2-1)*xDim,30+(numPinsY-1)*yDim)
-                ctx.moveTo(10,40 + 6*yDim);
-                ctx.lineTo(30+(numPinsX-1)*xDim, 40 + 6*yDim);
+                ctx.moveTo(10,30 + 6*yDim);
+                ctx.lineTo(30+(numPinsX-1)*xDim, 30 + 6*yDim);
                 ctx.strokeStyle = "black"
                 ctx.stroke()
                 draw(data,lastData,brokenSensorLoc);
@@ -129,7 +129,7 @@
         var inrvalId = setInterval(function(){
             update()
             
-        },10000)
+        },5000)
         
     </script>
 </body>

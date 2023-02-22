@@ -1,23 +1,48 @@
 # Pri nekaterih funkcijah manjka dokumentacija.
 from flask import Flask, request, jsonify, render_template
 import math
+from flask_socketio import SocketIO
 import requests
 import time
 import wall
+import json
 import sys
+import threading
 sys.path.append('..')
 import config
 
 values = []
 minVal = []
-visualisationValues=[[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]]
+config.visualisationValues=[[[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], 
+[[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]],
+[[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],
+[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]]
 arduinoTimes = [0, 0, 0, 0, 0, 0, 0]
 sensorIDs = [54, 55, 56, 57, 58, 59]
+
+def test():
+    while True:
+        for i in config.ARDUIONO_IP_LIST:
+            dataNew = ""
+            url = f'http://{i}:5000/'
+            try:
+                response = requests.get(url)
+                dataNew = json.loads(response.text)
+                #print(dataNew)
+                config.dataJson = updateVisualisationValues(i, dataNew)
+            except:
+                config.visualisationValues[int(i[len(i)-1])] = [[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]
+                print(i)
+                continue
+            #print(i)
+
+th = threading.Thread(target=test)
+th.start()
 
 app = Flask(__name__)
 app.secret_key = b'asdasgfascajv'
 
-def updateVisualisationValues():
+def updateVisualisationValues(arduinoIp, arduinoData):
     """Function inserts value 1 to for every sensor currently connected to the arduino.
 
     Args:
@@ -27,41 +52,20 @@ def updateVisualisationValues():
     Returns:
         list: List with sensor locations.
     """  
-    arduino = int(ip[len(ip)-1])
+    arduino = int(arduinoIp[len(arduinoIp)-1])
     for i in range(6):
         for j in range(54, 60):
             try:
                 # Glej komentar spodaj glede t.i. 'magic number-jev'. Naslove senzorjev lahko shranis v array in ga definiras kot konstanto (npr. WALL_SENSORS_IDS = [54, 55, 56, 57]).
-                data["vrstica" + str(i)]["senzor" + str(j)]["id"]
-                visualisationValues[arduino][i][sensorIDs.index(j)] = 1
+                arduinoData["vrstica" + str(i)]["senzor" + str(j)]["id"]
+                config.visualisationValues[arduino][i][sensorIDs.index(j)] = 1
             except:
-                visualisationValues[arduino][i][sensorIDs.index(j)] = 0
+                config.visualisationValues[arduino][i][sensorIDs.index(j)] = 0
     
     #print(visualisationValues)
-    return visualisationValues
+    return config.visualisationValues
     #print(dataJson.data)
-def times():
-    """Updates a timestamp for arduino.
 
-    Returns:
-        list: list with most recent timestamps for arduinos.
-    """
-    arduino = int(ip[len(ip)-1])           
-    arduinoTimes[arduino]=time.time()
-    return arduinoTimes
-
-def checkArduinoTimes(arduinoTimes):
-    """Checks if all arduinos continuously send data.
-
-    Args:
-        arduinoTimes (list): Most recent timestamps for arduinos.
-    """
-    for i in range(len(arduinoTimes)):
-        if time.time() - arduinoTimes[i] >30:
-            try:
-                visualisationValues[i] = [[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]
-            except:
-                pass
 def getMin():
     """
     Finds the lowest sensor value from the list of lowest values that were gathered from arduinos since the last call of this function and resets said list.
@@ -125,10 +129,9 @@ def update():
 
     Returns:
         JSON: Information about active sensors.
-    """
+    """    
     try:
-        dataJson = updateVisualisationValues()
-        return jsonify(dataJson), 200, {"Access-Control-Allow-Origin": "*"}
+        return jsonify(config.dataJson), 200, {"Access-Control-Allow-Origin": "*"}
     except:
         return jsonify([]), 200, {"Access-Control-Allow-Origin": "*"}
 
@@ -149,7 +152,7 @@ def index():
     Returns:
         render_template: serves a webpage
     """
-    return render_template('index.html', datas = dataJson)
+    return render_template('index.html')
 
 @app.route('/data', methods=['POST', 'GET'])
 def handleData():
@@ -160,13 +163,11 @@ def handleData():
     """
     global ip
     global data
-    global dataJson
     ip = request.remote_addr
     data = request.get_json()
     print(data)
-    dataJson = updateVisualisationValues()
-    checkArduinoTimes(times())
-    parseData(data, ip)
+    #checkArduinoTimes(times())
+    #parseData(data, ip)
     return 'OK'
 
 if __name__ == '__main__':

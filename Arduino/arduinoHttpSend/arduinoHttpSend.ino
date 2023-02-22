@@ -1,52 +1,90 @@
 #include <Ethernet.h>
 #include <SPI.h>
+#include <I2CSoilMoistureSensor.h>
 #include "Adafruit_seesaw.h"
 #include "Wire.h"
 
 #define TCAADDR 0x70
 
+I2CSoilMoistureSensor sensor;
+
 byte command;
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-IPAddress ip(192, 168, 1, 10);  // your static IP address
+byte mac[] = { 0xA8, 0x61, 0x0A, 0xAE, 0x95, 0x36  };
+IPAddress ip(192, 168, 1, 13);  // your static IP address
 IPAddress serverIP(192, 168, 1, 20);
 EthernetClient client;
-void tcaselect(uint8_t i) {
+EthernetServer server(5000);
+
+void tcaselect(uint8_t i) 
+{
   if (i > 7) return;
  
   Wire.beginTransmission(TCAADDR);
   Wire.write(1 << i);
   Wire.endTransmission();  
 }
+
 Adafruit_seesaw ss;
 float SensorDataBuffer[250];
 byte address = 0x36;
-void setup() {
+
+
+void setup() 
+{
   Ethernet.begin(mac, ip);
   Serial.begin(9600);
+  server.begin();
+  sensor.begin(); // reset sensor
+  delay(1000); // give some time to boot up
 }
-void loop() {
-  // prepare data to send
-  String data = "{";
+
+void loop() 
+{
+  EthernetClient client = server.available();
+  if (client) {
+    if (client.connected()) {
+      String request = "";
+      while (client.available()) {
+        char c = client.read();
+        request += c;
+        if (c == '\n') {
+          break;
+        }
+      }
+      if (request.startsWith("GET ")) {
+        String response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n";
+        String data = "{";
   for (uint8_t t=0; t<6; t++) 
         {
           tcaselect(t);
           data+="\"vrstica"+String(t)+"\":{ \"id\":"+String(t);
-          for (uint8_t addr = 0; addr<=127; addr++) 
+          for (uint8_t addr = 1; addr<=127; addr++) 
           {
             if (addr == TCAADDR) continue;
             Wire.beginTransmission(addr);
             if (!Wire.endTransmission()) 
             {
-              ss.begin(addr);
-              float tempC = ss.getTemp();
-              uint16_t capread = ss.touchRead(0);
-              data+=",\"senzor"+String(addr)+"\":{";
-              if(addr==57){
-                data+="\"id\":"+String(addr)+",\"temp\":"+String(tempC)+",\"cap\":"+String(capread)+"}";
-              }
-              else{
-                data+="\"id\":"+String(addr)+",\"temp\":"+String(tempC)+",\"cap\":"+String(capread)+"}";
-              }
+              sensor.changeSensor(addr, 1);
+              //while (sensor.isBusy()) delay(50);               // available since FW 2.3
+              
+                
+                sensor.changeSensor(addr, 1);
+                //Serial.print("here");
+                //while (sensor.isBusy()) delay(50);               // available since FW 2.3
+                
+                float temp = sensor.getTemperature()/(float)10;
+                uint16_t cap = sensor.getCapacitance()*2;
+                data+=",\"senzor"+String(addr)+"\":{";
+                if(addr==59)
+                {
+                  data+="\"id\":"+String(addr)+",\"temp\":"+String(temp)+",\"cap\":"+String(cap)+"}";
+                }
+                else
+                {
+                  data+="\"id\":"+String(addr)+",\"temp\":"+String(temp)+",\"cap\":"+String(cap)+"}";
+                }
+                
+              
             }
           }
           if(t==5){
@@ -58,16 +96,10 @@ void loop() {
    
         }
         data+="}";
-  // send HTTP POST request to Flask server
-  if (client.connect(serverIP, 5000)) {
-    client.println("POST /data HTTP/1.1");
-    client.println("Host: your_flask_server.com");
-    client.println("Content-Type: application/json");
-    client.print("Content-Length: ");
-    client.println(data.length());
-    client.println();
-    client.println(data);
-    client.stop();
+        response+=data;
+        client.print(response);
+      }
+      client.stop();
+    }
   }
-  delay(2000);
 }
