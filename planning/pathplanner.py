@@ -171,6 +171,45 @@ def createWalkingInstructions(startPose, goalPose, pinSelectionMethod = calculat
             appendToPoseAndPinsInstructions(idx, pins)
 
     return np.array(poses), np.array(pinsInstructions)
+
+def modifiedWalkingInstructions(startLegsPositions, endPose):
+    """Change first pose and first set of pins instructions with given values.
+
+    Args:
+        addLegsPositions (list): 5x3 array of new legs positions.
+        poses (list): List of poses.
+        pinsInstructions (list): List of pins instructions.
+
+    Returns:
+        tuple: Modified poses and pins instructions.
+    """
+    # Create new start pose as mean value of all current legs positions (from json file).
+    startPose = np.mean(startLegsPositions, axis = 0)
+    startPose[2] = 0.3
+    startPose = np.append(startPose, 0.0)
+
+    # Create path from start pose to goal pose. Prepend modified pins instructions for first step, where legs are not on same positions as calculated by path planner.
+    poses, pinsInstructions = createWalkingInstructions(startPose, endPose)
+    legsMovingOrder = np.array(pinsInstructions[0, :, 0]).astype(int)
+
+    modifiedPosesShape = list(poses.shape)
+    modifiedPosesShape[0] += 1
+    modifiedPoses = np.zeros(modifiedPosesShape)
+    modifiedPoses[0] = startPose
+    modifiedPoses[1:] = poses
+
+    modifiedPinsInstructionsShape = list(pinsInstructions.shape)
+    modifiedPinsInstructionsShape[0] += 1
+    modifiedPinsInstructions = np.zeros(modifiedPinsInstructionsShape)
+
+    startPinsInstructions = np.zeros_like(pinsInstructions[0])
+    startPinsInstructions[:, 0] = legsMovingOrder
+    startPinsInstructions[:, 1:] = startLegsPositions[legsMovingOrder]
+
+    modifiedPinsInstructions[0] = startPinsInstructions 
+    modifiedPinsInstructions[1:] = pinsInstructions
+
+    return modifiedPoses, modifiedPinsInstructions
 #endregion
 
 #region private methods

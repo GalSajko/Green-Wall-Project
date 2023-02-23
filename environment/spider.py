@@ -75,25 +75,32 @@ NUMBER_OF_LEGS = 5
 # Number of motors in leg.
 NUMBER_OF_MOTORS_IN_LEG = 3
 # Radius of spiders platform, in meters.
-BODY_RADIUS = 0.13145
+BODY_RADIUS = 0.15
 LEGS_IDS = np.array([0, 1, 2, 3, 4], dtype = np.int8)
+# Legs ids used for watering the plants.
+WATERING_LEGS_IDS = [1, 4]
+# Leg id used for (re)filling water tank.
+FILL_WATER_TANKG_LEG_ID = 2
+# Spider's watering position regarding to plant position.
+WATERING_XY_OFFSET_ABS = [0.2, 0.2]
 # Spiders legs, given as lengths of all three links in one leg.
 LEGS_DIMENSIONS = np.array([0.064, 0.3, 0.276], dtype = np.float32)
 SEGMENTS_MASSES = np.array([
-    [0.057, 0.494, 0.27],
-    [0.057, 0.54, 0.27],
-    [0.057, 0.54, 0.27],
-    [0.057, 0.494, 0.27],
-    [0.057, 0.54, 0.27]], dtype = np.float32)
+    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.27]], dtype = np.float32)
 # Vectors from start of the segment to COG.
 VECTORS_TO_COG_SEGMENT = np.array([
-    [0.032, 0.15, 0.158],
-    [0.032, 0.14, 0.158],
-    [0.032, 0.14, 0.158],
-    [0.032, 0.15, 0.158],
-    [0.032, 0.14, 0.158]], dtype = np.float32)
+    [0.032, 0.19, 0.158],
+    [0.032, 0.19, 0.158],
+    [0.032, 0.19, 0.158],
+    [0.032, 0.19, 0.158],
+    [0.032, 0.19, 0.158]], dtype = np.float32)
 # Leg limit to avoid singularity.
-LEG_LENGTH_LIMIT = 0.6
+LEG_LENGTH_MAX_LIMIT = 0.58
+LEG_LENGTH_MIN_LIMIT = 0.32
 # Angles between legs, looking from spiders origin.
 ANGLE_BETWEEN_LEGS = np.radians(360.0 / NUMBER_OF_LEGS)
 # Positions of leg anchors on spiders platform, given in spiders origin - matching the actual legs order on spider.
@@ -101,7 +108,7 @@ LEG_ANCHORS = _getLegAnchorsInSpiderOrigin()
 # Unit vectors pointing in radial directions (looking from center of body).
 IDEAL_LEG_VECTORS = _getIdealLegVectors()
 # Spiders constrains - min and max leg length from second joint to the end of leg and max angle of the first joint (+/- from the ideal leg vector direction).
-CONSTRAINS = [0.15, 0.5, np.radians(60)]
+CONSTRAINS = [0.15, 0.45, np.radians(60)]
 # Array of transformation matrices for transformations from spider base to anchors in base origin.
 T_ANCHORS = _getTransformMatricesToAnchors()
 #endregion

@@ -19,8 +19,6 @@ class App:
     def __init__(self):
         self.qA = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         self.xA = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-        self.iA = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
-        self.fA = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.tauA = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         self.hwErrors = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         self.temperatures = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
@@ -36,62 +34,12 @@ class App:
         self.safetyKillEvent = threading.Event()
 
         self.currentState = None
-        self.stateDict = {}
 
-        self.__initThreads()
+        self.__initLayers()
 
-    def readingLayer(self):
-        def reading(killEvent):
-            while True:
-                if killEvent.is_set():
-                    break
-                try:
-                    qA, iA, hwErrors, temperatures = self.motorDriver.syncReadMotorsData()
-                    with self.statesObjectsLocker:
-                        self.qA = qA
-                        self.iA = iA
-                        self.hwErrors = hwErrors
-                        self.temperatures = temperatures
-                except KeyError:
-                    print("Reading error.")
-                time.sleep(0)
-        self.readingThread, self.readingThreadKillEvent = self.threadManager.run(reading, config.DXL_READING_THREAD_NAME, False, True)
-
-    def writingLayer(self):
-        def writing(killEvent):
-            while True:
-                if killEvent.is_set():
-                    break
-                with self.statesObjectsLocker:
-                    qCd = self.qCd
-                self.motorDriver.syncWriteMotorsVelocitiesInLegs(qCd)
-                time.sleep(0)
-        self.writingThread, self.writingThreadKillEvent = self.threadManager.run(writing, config.DXL_WIRITNG_THREAD_NAME, False, True)
-    
-    def convertingLayer(self):
-        def converting(killEvent):
-            fBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-            tauBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
-            tauCounter = 0
-            fCounter = 0
-            while True:
-                if killEvent.is_set():
-                    break
-                with self.statesObjectsLocker:
-                    qA = self.qA
-                    iA = self.iA
-                xA = kin.allLegsPositions(qA, config.LEG_ORIGIN)
-                tau, f = dyn.getTorquesAndForcesOnLegsTips(qA, iA, self.pumpsBnoArduino.getGravityVector())
-                tauMean, tauBuffer, tauCounter = mathtools.runningAverage(tauBuffer, tauCounter, tau)
-                fMean, fBuffer, fCounter = mathtools.runningAverage(fBuffer, fCounter, f)
-                with self.statesObjectsLocker:
-                    self.xA = xA
-                    self.tauA = tauMean
-                    self.fA = fMean
-                time.sleep(0)
-        self.convertingCalcThread, self.convertingCalcThreadKillEvent = self.threadManager.run(converting, config.CONVERTING_THREAD_NAME, False, True)
-    
     def safetyLayer(self):
+        """Continuously checking for hardware errors on the motors. If error occurs, inititate resting procedure and then continue with working. 
+        """
         def safetyChecking(killEvent):
             self.safetyKillEvent.clear()
             while True:
@@ -99,57 +47,104 @@ class App:
                     break
                 with self.statesObjectsLocker:
                     hwErrors = self.hwErrors
-                if hwErrors.any() and self.currentState == config.WORKING_STATE:
+
+                isHwError = hwErrors.any() and self.currentState == config.WORKING_STATE
+
+                if isHwError:
                     self.safetyKillEvent.set()
                     # Wait for working thread to stop.
                     if config.WORKING_THREAD_NAME in self.spiderStateThread.name:
                         self.spiderStateThread.join()
+                        print("WORKING STOPED.")
+
+                    # Start transition state and wait for it to finish.
                     self.spiderStatesManager(config.TRANSITION_STATE)
-                    # Wait for transition state to finish.
                     if config.TRANSITION_THREAD_NAME in self.spiderStateThread.name:
                         self.spiderStateThread.join()
+                        print("TRANSITION FINISHED")
+
                     # Start resting state and wait for it to finish.
                     self.spiderStatesManager(config.RESTING_STATE)
                     if config.RESTING_THREAD_NAME in self.spiderStateThread.name:
                         self.spiderStateThread.join()
+                        print("RESTING FINISHED")
+
                     self.safetyKillEvent.clear()
+                    time.sleep(1)
+
+                    # Continue with working.
+                    self.spiderStatesManager(config.WORKING_STATE)
+
                 time.sleep(0.1)
-        self.safetyThread, self.safetyThreadKillEvent = self.threadManager.run(safetyChecking, config.SAFETY_THREAD_NAME, False, True)
+        self.safetyThread, self.safetyThreadKillEvent = self.threadManager.run(safetyChecking, config.SAFETY_THREAD_NAME, False, True, doPrint = True)
     
     def motorControlLayer(self):
+        """Motors control layer with reading, recalculating and sending data to the motors.
+        """
         def controlLoop(killEvent):
+            fBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
+            tauBuffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
+            tauCounter = 0
+            fCounter = 0
             init = True
-            self.motorDriver.setBusWatchdog(10)
+            self.motorDriver.setBusWatchdog(15)
             while True:
                 startTime = time.perf_counter()
+
                 if killEvent.is_set():
                     break
+                
+                # Reading data from motors.
+                try:
+                    qA, iA, hwErrors, temperatures = self.motorDriver.syncReadMotorsData()
+                except KeyError:
+                    print("Reading error.")
+                    continue
+
+                # Calculating input data for controller.
+                xA = kin.allLegsPositions(qA, config.LEG_ORIGIN)
+                tau, f = dyn.getTorquesAndForcesOnLegsTips(qA, iA, self.pumpsBnoArduino.getGravityVector())
+                tauMean, tauBuffer, tauCounter = mathtools.runningAverage(tauBuffer, tauCounter, tau)
+                fMean, fBuffer, fCounter = mathtools.runningAverage(fBuffer, fCounter, f)
+
                 with self.statesObjectsLocker:
-                    qA = self.qA
-                    xA = self.xA
-                    fA = self.fA
-                qCd = self.motorsVelocityController.jointsVelocityController(qA, xA, fA, init)            
+                    self.qA = qA
+                    self.hwErrors = hwErrors
+                    self.temperatures = temperatures
+                    self.xA = xA
+                    self.tauA = tauMean
+
+                # Controller.
+                qCd = self.motorsVelocityController.jointsVelocityController(qA, xA, fMean, init)           
                 if init:
                     init = False
 
-                with self.statesObjectsLocker:
-                    self.qCd = qCd
+                # Sending velocities to motors.
+                self.motorDriver.syncWriteMotorsVelocitiesInLegs(qCd)
+
+                # Enforce desired frequency.
                 elapsedTime = time.perf_counter() - startTime
                 while elapsedTime < (1 / config.CONTROLLER_FREQUENCY):
                     elapsedTime = time.perf_counter() - startTime
                     time.sleep(0)
 
-        self.motorControlThread, self.motorControlThreadKillEvent = self.threadManager.run(controlLoop, config.CONTROL_THREAD_NAME, False, True)
+        self.motorControlThread, self.motorControlThreadKillEvent = self.threadManager.run(controlLoop, config.CONTROL_THREAD_NAME, False, True, doPrint = True)
 
     def spiderStatesManager(self, state, workingArs = None):
+        """Managing spider's state.
+
+        Args:
+            state (string): Name of desired state.
+            workingArs (tuple, optional): Neede parameters for desired state. Defaults to None.
+        """
         if state == config.WORKING_STATE:
             self.spiderStateThread = self.threadManager.run(self.working, config.WORKING_THREAD_NAME, False, True, False, workingArs)
         elif state == config.RESTING_STATE:
-            self.spiderStatesThread, self.spiderStatesThreadKillEvenet = self.threadManager.run(self.rest, config.RESTING_THREAD_NAME, False, True, True)
+            self.spiderStateThread, self.spiderStatesThreadKillEvenet = self.threadManager.run(self.rest, config.RESTING_THREAD_NAME, False, True, True)
         elif state == config.TRANSITION_STATE:
             self.spiderStateThread = self.threadManager.run(self.transitionToRestState, config.TRANSITION_THREAD_NAME, False, True, False)
     
-    def working(self, startPose):
+    def working(self):
         """Working procedure, includes walking and watering the plants.
 
         Args:
@@ -157,83 +152,65 @@ class App:
         """
         import random
         self.currentState = config.WORKING_STATE
-        initBno = True
-        print("WORKING...")
+        isInit = True
+        print("WORKING...") 
+        
         while True:
-
             # TODO: Here comes received goal point.
-            endPose = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+            startPose, _, startLegsPositions = self.jsonFileManager.readSpiderState()
+            while True:
+                try:
+                    plantPosition = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.0], dtype = np.float32)
+                    wateringLegId, endPose = tf.getWateringLegAndPose(plantPosition, startPose)
+                    if isInit:
+                        poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
+                        break
+                    poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
+                    break
+                except:
+                    print("Error in path planning. Trying again... ")
 
-            poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
+            print("NEW GOAL POINT")
             for step, pose in enumerate(poses):
                 currentPinsPositions = pinsInstructions[step, :, 1:]
                 currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
-
                 with self.statesObjectsLocker:
                     xA = self.xA
 
                 if step == 0:
                     self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, currentPinsPositions, config.GLOBAL_ORIGIN, 3, config.MINJERK_TRAJECTORY, pose)
-                    updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, (pose, currentPinsPositions, currentLegsMovingOrder, ))
+                    updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (pose, currentPinsPositions, currentLegsMovingOrder, ))
                     if self.safetyKillEvent.wait(timeout = 3.5):
-                        break
+                        return
                     updateDictThread.join()
 
-                    if initBno:
+                    if isInit:
                         self.pumpsBnoArduino.resetBno()
-                        initBno = False
+                        isInit = False
                         if self.safetyKillEvent.wait(timeout = 1.0):
-                            break
+                            return
                     self.__distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
                     continue
-            
+
                 previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
                 self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, previousPinsPositions, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, pose)
-                updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, (pose, previousPinsPositions, currentLegsMovingOrder, ))
+                updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (pose, previousPinsPositions, currentLegsMovingOrder, ))
                 if self.safetyKillEvent.wait(timeout = 2.5):
-                    break
+                    print("UNSUCCESSFULL BODY MOVEMENT")
+                    return
                 updateDictThread.join()
 
                 pinsOffsets = currentPinsPositions - previousPinsPositions
                 for idx, leg in enumerate(currentLegsMovingOrder):
                     if pinsOffsets[idx].any():
-                        # Distribute forces among other legs and release selected leg.
-                        otherLegs = np.delete(spider.LEGS_IDS, leg)
-                        self.__distributeForces(otherLegs, config.FORCE_DISTRIBUTION_DURATION)
-                        self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
-                        if self.safetyKillEvent.wait(timeout = 1.5):
-                            break
-
-                        # Read spider's orientation to use it for adjustment of pin-to-pin leg's movement direction.
-                        rpy = self.pumpsBnoArduino.getRpy()
-                        pinToPinLocal = tf.getPinToPinVectorInLocal(leg, rpy, previousPinsPositions[idx], currentPinsPositions[idx])
-
-                        # Move leg from current to next pin.
-                        with self.statesObjectsLocker:
-                            xALeg = self.xA[leg]
-                        self.motorsVelocityController.moveLegAsync(leg, xALeg, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
-
-                        updateDictThread = self.threadManager.run(self.jsonFileManager.updatePins, config.UPDATE_DICT_THREAD_NAME, True, True, False, (leg, currentPinsPositions[idx], ))
-                        if self.safetyKillEvent.wait(timeout = 3.5):
-                            break
-                        updateDictThread.join()
-
-                        self.motorsVelocityController.startForceMode(np.array([leg]), np.array([np.zeros(3, dtype = np.float32)]))
-                        self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
-                        if self.safetyKillEvent.wait(timeout = 3.0):
-                            self.motorsVelocityController.stopForceMode()
-                            break
-                        self.motorsVelocityController.stopForceMode()
-
-                        # TODO: Add correction logic in case of leg missed the pin.
-                        
-                        while not (leg in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()):
-                            print(f"LEG {leg} IS NOT ATTACHED ON THE WALL")
-                            self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
-
-            if self.safetyKillEvent.is_set():
-                break
-        print("WORKING STOPED")
+                        movementSuccess = self.__pinToPinMovement(leg, previousPinsPositions[idx], currentPinsPositions[idx])
+                        if not movementSuccess:
+                            print("WORKING STOPED - UNSUCCESSFULL PIN TO PIN MOVEMENT")
+                            return
+            
+            wateringSuccess = self.__watering(wateringLegId, plantPosition, pose)
+            if not wateringSuccess:
+                return
         
     def rest(self, killEvent):
         """Resting procedure, includes option for manually correcting non-attached leg. Resting lasts until temperatures of all motors
@@ -245,42 +222,27 @@ class App:
         print("RESTING...")
         self.currentState = config.RESTING_STATE
 
+        self.motorsVelocityController.clearInstructionQueues()
+
         with self.statesObjectsLocker:
-            self.qCd = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
             hwErrors = self.hwErrors
+
         attachedLegs = self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()
-
         unattachedLeg = np.setdiff1d(spider.LEGS_IDS, attachedLegs)
-        if unattachedLeg.size == 0:
-            self.motorDriver.disableLegs()
-            print("LEGS DISABLED")
-        else:
-            _, usedPinsIndexes, usedPinsGlobalPositions = self.jsonFileManager.readPosePins()
-            print(f"MANUALLY CORRECT LEG {unattachedLeg[0]} ON PIN {usedPinsIndexes[unattachedLeg[0]]}...")
-
-            with self.statesObjectsLocker:
-                qA = self.qA
-                xA = self.xA
-
-            spiderPoseRpy = kin.getSpiderPose(attachedLegs, usedPinsGlobalPositions[attachedLegs], qA)
-            goalPinInLocal = tf.getLegInLocal(unattachedLeg[0], usedPinsGlobalPositions[unattachedLeg[0]], spiderPoseRpy)
-
-            self.motorsVelocityController.grippersArduino.moveGripper(unattachedLeg[0], self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
-            self.motorsVelocityController.startForceMode(unattachedLeg, [np.zeros(3, dtype = np.float32)])
-            distance = np.linalg.norm(goalPinInLocal - xA[unattachedLeg[0]])
-            while len(attachedLegs) != 5 or distance > 0.08:
-                with self.statesObjectsLocker:
-                    xAUnattachedLeg = self.xA[unattachedLeg[0]]
-                distance = np.linalg.norm(goalPinInLocal - xAUnattachedLeg)
-                attachedLegs = self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()
-                time.sleep(0.2)
-            self.motorsVelocityController.stopForceMode()
-            self.motorDriver.disableLegs()
-
-        # Reboot all motors that are in error state.
         motorsInError = self.motorDriver.motorsIds[np.where(hwErrors != 0)]
         print("REBOOTING MOTORS WITH IDS: ", motorsInError, "...")
         self.motorDriver.rebootMotor(motorsInError)
+        while hwErrors.any():
+            with self.statesObjectsLocker:
+                hwErrors = self.hwErrors
+            if killEvent.wait(timeout = 0.1):
+                break
+        if killEvent.is_set():
+            return
+
+        if unattachedLeg.size != 0:
+            self.__manualCorrection(unattachedLeg[0], useSafety = False)
+
         # Rest until temperature drops below working temperature.
         print("WAITING ON TEMPERATURES TO DROP BELOW WORKING TEMPERATURE...")
         while True:
@@ -288,14 +250,14 @@ class App:
                 temperatures = self.temperatures
             if killEvent.wait(timeout = 1) or (temperatures < self.motorDriver.MAX_WORKING_TEMPERATURE).all():
                 break
-        time.sleep(10)
+        if killEvent.is_set():
+            return
 
         # Update last positions and enable torques in motors.
         with self.statesObjectsLocker:
             xA = self.xA
         self.motorsVelocityController.updateLastLegsPositions(xA)
         self.motorDriver.enableLegs()
-        print("LEGS ENABLED, RESTING FINISHED")
     
     def transitionToRestState(self):
         """Procedure for transition between working and resting state, by using force mode. 
@@ -305,15 +267,12 @@ class App:
         self.motorsVelocityController.clearInstructionQueues()
         fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.motorsVelocityController.startForceMode(spider.LEGS_IDS, fD)
-        time.sleep(6)
+        time.sleep(10)
         self.motorsVelocityController.stopForceMode()
-        print("TRANSITION FINISHED")
 
-    def __initThreads(self):
-        self.readingLayer()
-        self.writingLayer()
+    # region private methods
+    def __initLayers(self):
         self.safetyLayer()
-        self.convertingLayer()
         time.sleep(2)
         self.motorControlLayer()
     
@@ -339,5 +298,187 @@ class App:
 
             elapsedTime = time.perf_counter() - startTime
             time.sleep(self.motorsVelocityController.period)
+            if self.safetyKillEvent.wait(timeout = self.motorsVelocityController.period):
+                break
         
         self.motorsVelocityController.stopForceMode()
+    
+    def __pinToPinMovement(self, leg, currentPinPosition, goalPinPosition):
+        # Distribute forces among other legs.
+        otherLegs = np.delete(spider.LEGS_IDS, leg)
+        self.__distributeForces(otherLegs, config.FORCE_DISTRIBUTION_DURATION)
+
+        self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
+        if self.safetyKillEvent.wait(timeout = 1.5):
+            return False
+
+        # Read spider's rpy after releasing the leg.
+        rpy = self.pumpsBnoArduino.getRpy()
+        pinToPinLocal, legOriginOrientationInGlobal = tf.getPinToPinVectorInLocal(leg, rpy, currentPinPosition, goalPinPosition)
+        globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
+
+        with self.statesObjectsLocker:
+            xALeg = self.xA[leg]
+        # Move leg and update spider state.
+        self.motorsVelocityController.moveLegAsync(leg, xALeg, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
+        updateDictThread = self.threadManager.run(self.jsonFileManager.updatePins, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (leg, goalPinPosition, ))
+        if self.safetyKillEvent.wait(timeout = 4.0):
+            return False
+        updateDictThread.join()
+
+        # Before closing the gripper, put leg in force mode to avoid pulling the spider with gripper.
+        self.motorsVelocityController.startForceMode(np.array([leg]), np.array([np.zeros(3, dtype = np.float32)]))
+        self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
+        if self.safetyKillEvent.wait(timeout = 3.0):
+            self.motorsVelocityController.stopForceMode()
+            return False
+        self.motorsVelocityController.stopForceMode()
+
+        # Correction in case of missed pin.
+        if leg not in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
+            print(f"LEG {leg} NOT ATTACHED")
+            correctionSuccess = self.__correction(leg, globalZDirectionInLegOrigin)
+            if not correctionSuccess:
+                return False
+        
+        return True
+    
+    def __correction(self, legId, globalZDirectionInLocal):
+        print(f"LEG {legId} IS NOT ATTACHED")
+        autoSuccess = self.__automaticCorrection(legId, globalZDirectionInLocal)
+        if not autoSuccess:
+            return False
+        return self.__manualCorrection(legId)
+
+    def __automaticCorrection(self, legId, globalZDirectionInLocal):
+        detachOffsetZ = 0.03
+        detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
+        numberOfTries = 0
+        while numberOfTries < 2:
+            self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
+            if self.safetyKillEvent.wait(timeout = 1.0):
+                return False      
+
+            with self.statesObjectsLocker:
+                xALeg = self.xA[legId]
+
+            self.motorsVelocityController.moveLegAsync(legId, xALeg, detachOffsetInLocal, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY, isOffset = True)
+            if self.safetyKillEvent.wait(timeout = 1.0):
+                return False
+            
+            self.motorsVelocityController.startImpedanceMode(legId, -globalZDirectionInLocal)
+            if self.safetyKillEvent.wait(timeout = 3.0):
+                return False
+            self.motorsVelocityController.stopImpedanceMode()
+
+            self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
+            if self.safetyKillEvent.wait(timeout = 1.0):
+                return False 
+
+            if legId in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
+                return True 
+        
+            numberOfTries += 1
+
+    def __manualCorrection(self, legId, useSafety = True):
+        _, usedPinsIndexes, legsGlobalPositions = self.jsonFileManager.readSpiderState()
+        goalPin = usedPinsIndexes[legId]
+
+        print(f"MANUALLY CORRECT LEG {legId} ON PIN {goalPin}")
+        self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
+        with self.statesObjectsLocker:
+            xALeg = self.xA[legId]
+            qA = self.qA
+
+        attachedLegs = self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()
+
+        goalPinInLocal = kin.getGoalPinInLocal(legId, attachedLegs, legsGlobalPositions, qA, self.pumpsBnoArduino.getRpy())
+
+        distance = np.linalg.norm(goalPinInLocal - xALeg)
+        disableLegs = not (spider.LEG_LENGTH_MIN_LIMIT < np.linalg.norm(goalPinInLocal) < spider.LEG_LENGTH_MAX_LIMIT)
+        if disableLegs:
+            self.motorDriver.disableLegs(attachedLegs)
+
+        self.motorsVelocityController.startForceMode([legId], [np.zeros(3, dtype = np.float32)])
+        while True:
+            with self.statesObjectsLocker:
+                xALeg = self.xA[legId]
+                if disableLegs:
+                    qA = self.qA
+            
+            if disableLegs:
+                goalPinInLocal = kin.getGoalPinInLocal(legId, attachedLegs, legsGlobalPositions, qA, self.pumpsBnoArduino.getRpy())
+
+            distance = np.linalg.norm(goalPinInLocal - xALeg)
+            if legId in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs() and distance < 0.1:
+                break
+
+            if useSafety:
+                if self.safetyKillEvent.wait(timeout = 0.1):
+                    self.motorsVelocityController.stopForceMode()
+                    return False
+            else:
+                time.sleep(0.1)
+        self.motorsVelocityController.stopForceMode()
+
+        return True    
+
+    def __watering(self, wateringLegId, plantPosition, spiderPose): 
+        self.__distributeForces(np.delete(spider.LEGS_IDS, wateringLegId), config.FORCE_DISTRIBUTION_DURATION)
+        with self.statesObjectsLocker:
+            xALegBeforeWatering = self.xA[wateringLegId]
+
+        # Move leg on watering position.
+        _, _, legsGlobalPositions = self.jsonFileManager.readSpiderState()
+        with self.statesObjectsLocker:
+            qA = self.qA
+        otherLegs = list(np.delete(spider.LEGS_IDS, wateringLegId))
+        spiderPose = kin.getSpiderPose(otherLegs, legsGlobalPositions[otherLegs], qA)
+        self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
+        if self.safetyKillEvent.wait(timeout = 1.0):
+            return False
+        print("WATERING")
+        print(xALegBeforeWatering)
+        print(plantPosition)
+        self.motorsVelocityController.moveLegAsync(wateringLegId, xALegBeforeWatering, plantPosition, config.GLOBAL_ORIGIN, 3, config.BEZIER_TRAJECTORY, spiderPose)
+        if self.safetyKillEvent.wait(timeout = 3.5):
+            return False
+        
+        # Turn on water pump for 3 seconds.
+        pumpId = 0 if wateringLegId == 1 else 1
+        startTime = time.perf_counter()
+        while True:
+            elapsedTime = time.perf_counter() - startTime
+            self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_ON_COMMAND, pumpId)
+            print("PUMP ON")
+            if elapsedTime > 5.0:
+                self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
+                print("PUMP OFF")
+                break
+            if self.safetyKillEvent.wait(timeout = 0.05):
+                return False
+        
+        # Move leg back on starting position.
+        with self.statesObjectsLocker:
+            xALegAfterWatering = self.xA[wateringLegId]
+
+        self.motorsVelocityController.moveLegAsync(wateringLegId, xALegAfterWatering, xALegBeforeWatering, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
+        if self.safetyKillEvent.wait(timeout = 3.5):
+            return False
+        self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
+        if self.safetyKillEvent.wait(1.0):
+            return False
+        # Correct if leg does not reach starting pin successfully.
+        if wateringLegId not in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
+            rpy = self.pumpsBnoArduino.getRpy()
+            spiderRotationInGlobal = tf.xyzRpyToMatrix(rpy, True)
+            legOriginOrientationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[wateringLegId][:3, :3]))
+            globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
+
+            return self.__correction(wateringLegId, globalZDirectionInLegOrigin)
+    #endregion
+
+if __name__ == '__main__':
+    app = App()
+    time.sleep(1)
+    app.spiderStatesManager(config.WORKING_STATE)

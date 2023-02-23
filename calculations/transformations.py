@@ -18,10 +18,16 @@ def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     Returns:
         numpy.ndarray: 4x4 transformation matrix from global origin to spider or 3x3 rotation matrix from given rpy angles.
     """
-    if len(xyzrpy) == 4:
-        xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
-    position = xyzrpy[0:3]
-    rpy = [xyzrpy[4], xyzrpy[3], xyzrpy[5]]
+    if rotationOnly:
+        if len(xyzrpy) == 3:
+            rpy = xyzrpy
+        else:
+            raise ValueError(f"Length of xyzrpy parameter should be 3, but it is {len(xyzrpy)}.")
+    else:
+        if len(xyzrpy) == 4:
+            xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
+        position = xyzrpy[0:3]
+        rpy = [xyzrpy[4], xyzrpy[3], xyzrpy[5]]
 
     roll = np.array([
         [math.cos(rpy[1]), 0, math.sin(rpy[1])],
@@ -49,7 +55,7 @@ def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     return rotationMatrix
 
 def getPinToPinVectorInLocal(legId, rpy, currentPinPosition, goalPinPosition):
-    """Calculate pin-to-pin vector in leg's local origin
+    """Calculate pin-to-pin vector in leg's local origin.
 
     Args:
         legId (int): Leg id.
@@ -58,14 +64,14 @@ def getPinToPinVectorInLocal(legId, rpy, currentPinPosition, goalPinPosition):
         goalPinPosition (list): 1x3 array of goal pin's position in global origin.
 
     Returns:
-        numpy.ndarray: 1x3 pin-to-pin vector in leg's local origin.
+        tuple: 1x3 pin-to-pin vector in leg's local origin and 3x3 orientation matrix of leg's anchor in global origin.
     """
-    spiderOrientationInGlobal = xyzRpyToMatrix(np.concatenate((np.zeros(3, dtype = np.float32), rpy)), True)
-    legAnchorOrientationInGlobal = np.linalg.inv(np.dot(spiderOrientationInGlobal, spider.T_ANCHORS[legId][:3, :3]))
+    spiderRotationInGlobal = xyzRpyToMatrix(rpy, True)
+    legOriginOrientationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[legId][:3, :3]))
     pinToPinGlobal = goalPinPosition - currentPinPosition
-    pinToPinLocal = np.dot(legAnchorOrientationInGlobal, pinToPinGlobal)
+    pinToPinLocal = np.dot(legOriginOrientationInGlobal, pinToPinGlobal)
 
-    return pinToPinLocal
+    return pinToPinLocal, legOriginOrientationInGlobal
 
 def getLegInLocal(legId, globalLegPosition, spiderPose):
     """Calculate local leg's position from given global position.
@@ -136,6 +142,36 @@ def convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset
     if not isOffset:
         return getLegInLocal(legId, goalPositionOrOffset, spiderPose)
     return np.array(legCurrentPosition + getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset), dtype = np.float32)
+
+def getWateringLegAndPose(plantPosition, spiderStartPose):
+    """Calculate spider's pose for watering the plant and leg used for watering.
+
+    Args:
+        plantPosition (list): 1x3 array of plant's position in global origin.
+        spiderStartPose (list): Spider's current pose in global origin.
+
+    Returns:
+        tuple: Leg id and spider's pose used for watering the plant.
+    """
+    if plantPosition[0] < spiderStartPose[0]:
+        wateringLeg = spider.WATERING_LEGS_IDS[0]
+        wateringPose = np.array([
+            plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
+            plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+            0.3,
+            0.0
+        ])
+    else:
+        wateringLeg = spider.WATERING_LEGS_IDS[1]
+        wateringPose = np.array([
+            plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
+            plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+            0.3,
+            0.0
+        ])
+    
+    return wateringLeg, wateringPose
+
 
 @numba.jit(nopython = True, cache = True)
 def R_B1(qb, q1):

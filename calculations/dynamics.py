@@ -104,6 +104,7 @@ def getTorquesInLegs(jointsValues, currentsInMotors, spiderGravityVector):
     """
     currents = np.copy(currentsInMotors)
     currents[:, 1] *= -1
+    currents[:, 2] *= 2
 
     gravityTorques = getGravityCompensationTorques(jointsValues, spiderGravityVector)
     torques = ((A_TORQUE_POLYNOM + B_TORQUE_POLYNOM * currents + C_TORQUE_POLYNOM * currents**2) - gravityTorques).astype(np.float32)

@@ -20,7 +20,7 @@ class PumpsBnoArduino:
 
         self.receivedMessage = ""
 
-        self.comm = serial.Serial('/dev/ttyUSB2', 115200, timeout = 0)
+        self.comm = serial.Serial('/dev/ttyUSB_BNOWP', 115200, timeout = 0)
         self.comm.reset_input_buffer()
 
         self.locker = threading.Lock()
@@ -61,7 +61,7 @@ class PumpsBnoArduino:
         pitch = float(recMsg[5 : 10])
         yaw = float(recMsg[10 : 15])
 
-        return np.array([roll, pitch, yaw], dtype = np.float32)
+        return np.array([-roll, -pitch, yaw], dtype = np.float32)
     
     def getGravityVector(self):
         """Read gravity vector

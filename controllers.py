@@ -36,9 +36,11 @@ class VelocityController:
         self.forceModeLegsIds = None
         self.fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
-        # self.isImpedanceMode = False
-        # self.impedanceDirection = np.zeros(3, dtype = np.float32)
-        # self.impedanceLegId = None
+        self.isImpedanceMode = False
+        self.impedanceLegId = None
+        self.impedanceDirection = np.zeros(3, dtype = np.float32)
+        self.maxAllowedForce = 3.5
+        self.velocityFactor = 0.1
 
         time.sleep(1)
 
@@ -50,17 +52,33 @@ class VelocityController:
                 self.lastLegsPositions = xA
             isForceMode = self.isForceMode
             fD = self.fD
-            forceModeLegsIds = self.forceModeLegsIds
+            forceModeLegsIds = np.array(self.forceModeLegsIds)
+            isImpedanceMode = self.isImpedanceMode
+            impedanceDirection = self.impedanceDirection
+            impedanceLegId = self.impedanceLegId
 
         xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
         
         if isForceMode:
             legOffsetsInSpider, legVelocitiesInSpider = self.__forcePositionP(fD, fA)
             localOffsets, localVelocities = kin.getXdXddFromOffsets(forceModeLegsIds, legOffsetsInSpider, legVelocitiesInSpider)
-            xD[forceModeLegsIds] += localOffsets
-            xDd[forceModeLegsIds] = localVelocities
+
+            newXd = xD[forceModeLegsIds] + localOffsets
+            newXdNorms = np.linalg.norm(newXd, axis = 1)
+            allowedIdx = np.where(newXdNorms < spider.LEG_LENGTH_MAX_LIMIT)
+            onLimitIdx = np.where(newXdNorms >= spider.LEG_LENGTH_MAX_LIMIT)
+
+            xD[forceModeLegsIds[allowedIdx]] = newXd[allowedIdx]
+            xDd[forceModeLegsIds[allowedIdx]] = localVelocities[allowedIdx]
+            xD[forceModeLegsIds[onLimitIdx]] = xA[forceModeLegsIds[onLimitIdx]]
+
             with self.locker:
                 self.lastLegsPositions[forceModeLegsIds] = xA[forceModeLegsIds]
+        
+        if isImpedanceMode:
+            xDd[impedanceLegId] = self.velocityFactor * impedanceDirection * int(np.linalg.norm(fA[impedanceLegId]) < self.maxAllowedForce)
+            with self.locker:
+                self.lastLegsPositions[impedanceLegId] = xA[impedanceLegId] + xDd[impedanceLegId] * self.period
 
         xCd, self.lastXErrors = self.__eePositionVelocityPd(xA, xD, xDd, xDdd)
         qCd = kin.getJointsVelocities(qA, xCd)
@@ -103,11 +121,12 @@ class VelocityController:
         return True
             
     def moveLegsSync(self, legsIds, legsCurrentPositions, goalPositionsOrOffsets, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
-        """Write reference positions and velocities in any number (within 5) of leg-queues. Legs start to move at the same time. 
+        """Write reference positions and velocities in any number (less than 5) of leg-queues. Legs start to move at the same time. 
         Meant for moving a platform.
 
         Args:
             legsIds (list): Legs ids.
+            legsCurrentPositions (list): nx3x1 array of legs' current positions, where n is number of legs.
             goalPositionsOrOffsets (list): nx3x1 array of goal positions, where n is number of legs.
             origin (str): Origin that goal positions are given in, 'g' for global or 'l' for local.
             duration (float): Desired duration of movements.
@@ -188,6 +207,23 @@ class VelocityController:
         """
         with self.locker:
             self.isForceMode = False
+    
+    def startImpedanceMode(self, legId, velocityDirection):
+        """Start impedance mode.
+
+        Args:
+            legId (int): Id of leg.
+            velocityDirection (list): 1x3 array of desired velocity direction, given in leg's origin.
+        """
+        with self.locker:
+            self.isImpedanceMode = True
+            self.impedanceDirection = velocityDirection
+            self.impedanceLegId = legId
+    
+    def stopImpedanceMode(self):
+        with self.locker:
+            self.isImpedanceMode = False
+
     #endregion
 
     #region private methods
