@@ -59,7 +59,7 @@ void setStrokeMm(int gripperId, float strokeDesired)
 
 // Create string message from grippers states:
 // 0 - closed, 1 - open, 2 - in between.
-// Example: "11011" - all grippers except third are opened, third is closed.
+// Example: "11011" - all grippers except third are opened.
 String getGrippersStatesMessage(int currentStates[])
 {
   char message[NUMBER_OF_LEGS];
