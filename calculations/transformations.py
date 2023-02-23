@@ -158,14 +158,16 @@ def getWateringLegAndPose(plantPosition, spiderStartPose):
         wateringPose = np.array([
             plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
             plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-            0.3
+            0.3,
+            0.0
         ])
     else:
         wateringLeg = spider.WATERING_LEGS_IDS[1]
         wateringPose = np.array([
             plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
             plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-            0.3
+            0.3,
+            0.0
         ])
     
     return wateringLeg, wateringPose

@@ -60,7 +60,7 @@ class MotorDriver:
         self.__initGroupReadWrite()
 
         self.__initPort()
-        self.rebootMotor(self.motorsIds)
+        # self.rebootMotor(self.motorsIds)
         time.sleep(5)
         if enableMotors:
             self.enableLegs()

@@ -160,7 +160,7 @@ class App:
             startPose, _, startLegsPositions = self.jsonFileManager.readSpiderState()
             while True:
                 try:
-                    plantPosition = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.3, 0.0], dtype = np.float32)
+                    plantPosition = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.0], dtype = np.float32)
                     wateringLegId, endPose = tf.getWateringLegAndPose(plantPosition, startPose)
                     if isInit:
                         poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
@@ -430,9 +430,17 @@ class App:
             xALegBeforeWatering = self.xA[wateringLegId]
 
         # Move leg on watering position.
+        _, _, legsGlobalPositions = self.jsonFileManager.readSpiderState()
+        with self.statesObjectsLocker:
+            qA = self.qA
+        otherLegs = list(np.delete(spider.LEGS_IDS, wateringLegId))
+        spiderPose = kin.getSpiderPose(otherLegs, legsGlobalPositions[otherLegs], qA)
         self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
         if self.safetyKillEvent.wait(timeout = 1.0):
             return False
+        print("WATERING")
+        print(xALegBeforeWatering)
+        print(plantPosition)
         self.motorsVelocityController.moveLegAsync(wateringLegId, xALegBeforeWatering, plantPosition, config.GLOBAL_ORIGIN, 3, config.BEZIER_TRAJECTORY, spiderPose)
         if self.safetyKillEvent.wait(timeout = 3.5):
             return False
@@ -441,9 +449,12 @@ class App:
         pumpId = 0 if wateringLegId == 1 else 1
         startTime = time.perf_counter()
         while True:
-            self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_ON_COMMAND, pumpId)
             elapsedTime = time.perf_counter() - startTime
-            if elapsedTime > 3.0:
+            self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_ON_COMMAND, pumpId)
+            print("PUMP ON")
+            if elapsedTime > 5.0:
+                self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
+                print("PUMP OFF")
                 break
             if self.safetyKillEvent.wait(timeout = 0.05):
                 return False
@@ -455,7 +466,7 @@ class App:
         self.motorsVelocityController.moveLegAsync(wateringLegId, xALegAfterWatering, xALegBeforeWatering, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
         if self.safetyKillEvent.wait(timeout = 3.5):
             return False
-        self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
+        self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
         if self.safetyKillEvent.wait(1.0):
             return False
         # Correct if leg does not reach starting pin successfully.
