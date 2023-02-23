@@ -29,10 +29,11 @@ def test():
                 response = requests.get(url)
                 dataNew = json.loads(response.text)
                 #print(dataNew)
+                print(i)
                 config.dataJson = updateVisualisationValues(i, dataNew)
             except:
                 config.visualisationValues[int(i[len(i)-1])] = [[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]
-                print(i)
+                #print(i)
                 continue
             #print(i)
 
@@ -103,7 +104,7 @@ def parseData(data, ip):
     # te vrednosti uporabiti se kje v kodi (oz si jih ze, zgoraj v kodi).
     # 2.) Enako kot zgoraj, na hitro premisli, kako bi lahko poiskal minimum in pripadajoce x, y, IP vrednosti brez uporabe dvojne for zanke.  
     for i in range(6):
-        for j in range(54, 58):
+        for j in range(54, 64):
             try:
                 currCap = data["vrstica" + str(i)]["senzor" + str(j)]["cap"]
             except:
@@ -113,7 +114,18 @@ def parseData(data, ip):
                 y = i
                 x = data["vrstica" + str(i)]["senzor" + str(j)]["id"]
     values.append([ip, y, x, minCap])
-
+@app.route('/spiderPos', methods=['POST', 'GET'])
+def getSpiderPos():
+    pins=[]
+    pose=[]
+    if request.method == 'POST':
+        pins = json.loads(request.get_data().decode())
+        print(pins)
+        #pose = pins["pose"]
+        return 'OK'
+    elif request.method == 'GET':
+    #print(pins)
+        return jsonify(pose), 200, {"Access-Control-Allow-Origin": "*"}
 @app.route('/zalij',methods=["GET"])
 def getVal():
     """Sends the location of the sensor with the smallest value.
@@ -154,21 +166,21 @@ def index():
     """
     return render_template('index.html')
 
-@app.route('/data', methods=['POST', 'GET'])
-def handleData():
+#@app.route('/data', methods=['POST', 'GET'])
+#def handleData():
     """Function receives data and forwards data and the ip to the updateVisualisatonValues and parseData functions.
 
     Returns:
         string: Reply to arduino after getting the data.
     """
-    global ip
-    global data
-    ip = request.remote_addr
-    data = request.get_json()
-    print(data)
+#    global ip
+ #   global data
+  #  ip = request.remote_addr
+   # data = request.get_json()
+ #   print(data)
     #checkArduinoTimes(times())
     #parseData(data, ip)
-    return 'OK'
+  #  return 'OK'
 
 if __name__ == '__main__':
     app.run(host = '192.168.1.20', port = 5000, debug = True)

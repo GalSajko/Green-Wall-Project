@@ -12,6 +12,7 @@
     </div>
     <canvas id = "canvas"></canvas>
     <script>
+        var pinLocations = []
         var brokenSensorLoc = []
         var lastData = []
         var bw = 240
@@ -23,8 +24,15 @@
         var numPinsY = 13
         var numPinsX = 21
         var start = 20
+        var lastPinData = []
+        var spiderLocation = []
         var canvas = document.getElementById("canvas");
         var ctx = canvas.getContext("2d");
+        for(var y = numPinsY-1; y >= 0; y--){
+                    for(var x = 0; x < numPinsX; x++){
+                        pinLocations.push([pad+x*xDim,pad+y*yDim])
+                    }
+                }
         function draw(data,lastData,brokenSensorLoc){
             ctx.beginPath()
             for(var j  = 1; j<7; j++){    
@@ -77,11 +85,17 @@
                 console.log(data)
                 ctx.beginPath()
                 ctx.clearRect(0,0,canvas.width,canvas.height);
-                for(var y = 0; y < numPinsY; y++){
+                /*
+                for(var y = numPinsY-1; y >= 0; y--){
                     for(var x = 0; x < numPinsX; x++){
                         ctx.moveTo(pad+x*xDim,pad+y*yDim)
                         ctx.arc(pad+x*xDim,pad+y*yDim,2,0,2*Math.PI)
                     }
+                }
+                */
+                for( var i = 0; i<pinLocations.length; i++){
+                    ctx.moveTo(pinLocations[i][0],pinLocations[i][1])
+                    ctx.arc(pinLocations[i][0],pinLocations[i][1],2,0,2*Math.PI)
                 }
                 ctx.moveTo(10,10);
                 ctx.lineTo(10, 30+(numPinsY-1)*yDim);
@@ -105,7 +119,7 @@
                 console.log(brokenSensorLoc)
                 ctx.beginPath()
                 ctx.strokeStyle="red";
-                ctx.fillStyle="red";
+                
                 for( var i = 0; i < brokenSensorLoc.length; i++){
                     try{
                         if(lastData[brokenSensorLoc[i][2]][brokenSensorLoc[i][3]][brokenSensorLoc[i][4]]!=1){
@@ -126,9 +140,29 @@
             });
         }
         update();
+        
         var inrvalId = setInterval(function(){
             update()
-            
+            $.get("./spiderPos",function(data){
+                console.log(data)
+                if(JSON.stringify(data) != JSON.stringify(lastPinData)){
+                    spiderLocation.unshift([data[0],data[1]])
+                }
+                lastPinData = []
+                lastPinData = [...data]
+                for (let i = 0; i < spiderLocation.length; i++) {
+                // Calculate the opacity of the dot based on its position in the sequence
+                const opacity = 1/i;
+
+                // Set the color of the dot
+                ctx.fillStyle = `rgba(0, 51, 102, ${opacity})`;
+
+                // Draw the dot
+                ctx.beginPath();
+                ctx.arc(spiderLocation[i][0]*200, spiderLocation[i][1]*200, 10, 0, 2 * Math.PI);
+                ctx.fill();
+                }
+            });
         },5000)
         
     </script>

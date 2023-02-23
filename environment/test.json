@@ -1,0 +1,50 @@
+{
+    "vrstica0": {
+        "id": 0
+    },
+    "vrstica1": {
+        "id": 1
+    },
+    "vrstica2": {
+        "id": 2,
+        "senzor54": {
+            "id": 54,
+            "temp": 1.00,
+            "cap": 65535
+        },
+        "senzor55": {
+            "id": 55,
+            "temp": 1.00,
+            "cap": 65535
+        },
+        "senzor56": {
+            "id": 56,
+            "temp": 1.00,
+            "cap": 65535
+        },
+        "senzor57": {
+            "id": 57,
+            "temp": 1.00,
+            "cap": 65535
+        },
+        "senzor58": {
+            "id": 58,
+            "temp": 1.00,
+            "cap": 65535
+        },
+        "senzor59": {
+            "id": 59,
+            "temp": 1.00,
+            "cap": 65535
+        }
+    },
+    "vrstica3": {
+        "id": 3
+    },
+    "vrstica4": {
+        "id": 4
+    },
+    "vrstica5": {
+        "id": 5
+    }
+}
