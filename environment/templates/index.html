@@ -18,9 +18,10 @@
         var bw = 240
         var bh = 300
         var p = 3
+        var scale = 2
         var pad = 20
-        var yDim = 50
-        var xDim = 40
+        var yDim = 25
+        var xDim = 20
         var numPinsY = 13
         var numPinsX = 21
         var start = 20
@@ -30,7 +31,7 @@
         var ctx = canvas.getContext("2d");
         for(var y = numPinsY-1; y >= 0; y--){
                     for(var x = 0; x < numPinsX; x++){
-                        pinLocations.push([pad+x*xDim,pad+y*yDim])
+                        pinLocations.push([pad+x*xDim*scale,pad+y*yDim*scale])
                     }
                 }
         function draw(data,lastData,brokenSensorLoc){
@@ -51,13 +52,13 @@
                                     ctx.fillStyle = "#56fc03";
                                     ctx.strokeStyle="#56fc03";
                                     if(j<4){
-                                        ctx.moveTo(start+(j-1)*7*xDim+(x*xDim)+(xDim/2),20+((5-y)*yDim)+(yDim/2))
-                                        ctx.arc(start+(j-1)*7*xDim+(x*xDim)+(xDim/2),20+((5-y)*yDim)+(yDim/2),4,0,2*Math.PI)
+                                        ctx.moveTo(start+(j-1)*7*xDim*scale+(x*xDim*scale)+((xDim*scale)/2),20+((5-y)*yDim*scale)+((yDim*scale)/2))
+                                        ctx.arc(start+(j-1)*7*xDim*scale+(x*xDim*scale)+((xDim*scale)/2),20+((5-y)*yDim*scale)+((yDim*scale)/2),4,0,2*Math.PI)
                                         
                                     }
                                     else{
-                                        ctx.moveTo(start+(j-4)*7*xDim+(x*xDim)+(xDim/2),6*yDim+20+((5-y)*yDim)+(yDim/2))
-                                        ctx.arc(start+(j-4)*7*xDim+(x*xDim)+(xDim/2),6*yDim+20+((5-y)*yDim)+(yDim/2),4,0,2*Math.PI)
+                                        ctx.moveTo(start+(j-4)*7*xDim*scale+(x*xDim*scale)+((xDim*scale)/2),6*(yDim*scale)+20+((5-y)*(yDim*scale))+((yDim*scale)/2))
+                                        ctx.arc(start+(j-4)*7*xDim*scale+(x*xDim*scale)+((xDim*scale)/2),6*(yDim*scale)+20+((5-y)*(yDim*scale))+((yDim*scale)/2),4,0,2*Math.PI)
                                         
                                     }
                                     ctx.fill()
@@ -65,10 +66,10 @@
                                 }
                                 else if(data[j][y][x] != lastData[j][y][x] || lastData.length() != 0 && data[j][y][x] == 0){
                                     if(j<4){
-                                        brokenSensorLoc.push([start+(j-1)*7*xDim+(x*xDim)+(xDim/2),20+((5-y)*yDim)+(yDim/2),j,y,x])
+                                        brokenSensorLoc.push([start+(j-1)*7*xDim*scale+(x*xDim*scale)+((xDim*scale)/2),20+((5-y)*(yDim*scale))+((yDim*scale)/2),j,y,x])
                                     }
                                     else{
-                                        brokenSensorLoc.push([start+(j-4)*7*xDim+(x*xDim)+(xDim/2),6*yDim+20+((5-y)*yDim)+(yDim/2),j,y,x])
+                                        brokenSensorLoc.push([start+(j-4)*7*xDim*scale+(x*xDim*scale)+((xDim*scale)/2),6*yDim*scale+20+((5-y)*yDim*scale)+((yDim*scale)/2),j,y,x])
                                     }
                                 }
                             }
@@ -85,32 +86,24 @@
                 console.log(data)
                 ctx.beginPath()
                 ctx.clearRect(0,0,canvas.width,canvas.height);
-                /*
-                for(var y = numPinsY-1; y >= 0; y--){
-                    for(var x = 0; x < numPinsX; x++){
-                        ctx.moveTo(pad+x*xDim,pad+y*yDim)
-                        ctx.arc(pad+x*xDim,pad+y*yDim,2,0,2*Math.PI)
-                    }
-                }
-                */
                 for( var i = 0; i<pinLocations.length; i++){
                     ctx.moveTo(pinLocations[i][0],pinLocations[i][1])
                     ctx.arc(pinLocations[i][0],pinLocations[i][1],2,0,2*Math.PI)
                 }
                 ctx.moveTo(10,10);
-                ctx.lineTo(10, 30+(numPinsY-1)*yDim);
+                ctx.lineTo(10, 30+(numPinsY-1)*yDim*scale);
                 ctx.moveTo(10,10);
-                ctx.lineTo(30+(numPinsX-1)*xDim,10);
-                ctx.moveTo(10, 30+(numPinsY-1)*yDim);
-                ctx.lineTo(30+(numPinsX-1)*xDim,30+(numPinsY-1)*yDim);
-                ctx.moveTo(30+(numPinsX-1)*xDim,10);
-                ctx.lineTo(30+(numPinsX-1)*xDim, 30+(numPinsY-1)*yDim);
-                ctx.moveTo(50 + ((numPinsX/3)-1)*xDim,10);
-                ctx.lineTo(50 + ((numPinsX/3)-1)*xDim,30+(numPinsY-1)*yDim)
-                ctx.moveTo(30 + ((numPinsX/3)*2-1)*xDim,10);
-                ctx.lineTo(30 + ((numPinsX/3)*2-1)*xDim,30+(numPinsY-1)*yDim)
-                ctx.moveTo(10,30 + 6*yDim);
-                ctx.lineTo(30+(numPinsX-1)*xDim, 30 + 6*yDim);
+                ctx.lineTo(30+(numPinsX-1)*xDim*scale,10);
+                ctx.moveTo(10, 30+(numPinsY-1)*yDim*scale);
+                ctx.lineTo(30+(numPinsX-1)*xDim*scale,30+(numPinsY-1)*yDim*scale);
+                ctx.moveTo(30+(numPinsX-1)*xDim*scale,10);
+                ctx.lineTo(30+(numPinsX-1)*xDim*scale, 30+(numPinsY-1)*yDim*scale);
+                ctx.moveTo(50 + ((numPinsX/3)-1)*xDim*scale,10);
+                ctx.lineTo(50 + ((numPinsX/3)-1)*xDim*scale,30+(numPinsY-1)*yDim*scale)
+                ctx.moveTo(30 + ((numPinsX/3)*2-1)*xDim*scale,10);
+                ctx.lineTo(30 + ((numPinsX/3)*2-1)*xDim*scale,30+(numPinsY-1)*yDim*scale)
+                ctx.moveTo(10,30 + 6*yDim*scale);
+                ctx.lineTo(30+(numPinsX-1)*xDim*scale, 30 + 6*yDim*scale);
                 ctx.strokeStyle = "black"
                 ctx.stroke()
                 draw(data,lastData,brokenSensorLoc);
@@ -119,7 +112,7 @@
                 console.log(brokenSensorLoc)
                 ctx.beginPath()
                 ctx.strokeStyle="red";
-                
+                ctx.fillStyle="red";
                 for( var i = 0; i < brokenSensorLoc.length; i++){
                     try{
                         if(lastData[brokenSensorLoc[i][2]][brokenSensorLoc[i][3]][brokenSensorLoc[i][4]]!=1){
@@ -138,11 +131,6 @@
                 ctx.stroke()
                 $("#output").html(data)
             });
-        }
-        update();
-        
-        var inrvalId = setInterval(function(){
-            update()
             $.get("./spiderPos",function(data){
                 console.log(data)
                 if(JSON.stringify(data) != JSON.stringify(lastPinData)){
@@ -151,19 +139,21 @@
                 lastPinData = []
                 lastPinData = [...data]
                 for (let i = 0; i < spiderLocation.length; i++) {
-                // Calculate the opacity of the dot based on its position in the sequence
-                const opacity = 1/i;
-
-                // Set the color of the dot
-                ctx.fillStyle = `rgba(0, 51, 102, ${opacity})`;
-
-                // Draw the dot
+                const opacity = 1/(i+1);
+                ctx.fillStyle = "#34ebe8"
+                ctx.fillStyle = `rgba(52, 235, 232, ${opacity})`;
                 ctx.beginPath();
-                ctx.arc(spiderLocation[i][0]*200, spiderLocation[i][1]*200, 10, 0, 2 * Math.PI);
-                ctx.fill();
+                ctx.arc(spiderLocation[i][0]*100*scale, spiderLocation[i][1]*100*scale, 5*scale, 0, 2 * Math.PI)
+                ctx.fill()
                 }
             });
-        },5000)
+        }
+        update();
+    
+        var inrvalId = setInterval(function(){
+            update()
+            
+        },20000)
         
     </script>
 </body>

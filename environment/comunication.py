@@ -1,5 +1,4 @@
 import requests
-from flask import Flask, request, jsonify, render_template
 import json
 import sys
 sys.path.append('..')
@@ -15,24 +14,26 @@ class CommunicationWithServer:
         self.locker = threading.Lock()
 
     def updateSensorPositionData(self):
-        """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server.
+        """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server. It also sends POST requests with spider position to the server.
         """
         def updatingSensorPositionData(killEvent):
             while True:
                 try:
                     request = requests.get(config.GET_SENSOR_POSITION_ADDR)
+                    
                     if len(request._content.decode()) != 0:
                         with self.locker:
+                            print(json.loads(request._content))
                             self.sensorPosition=json.loads(request._content)
-                    
-                # Tukaj lovis vse mogoce exceptione, do katerih lahko pride pri klicih get(), decode(), len() in loads() metod. 
-                # Ne pravim, da to ni OK, samo mogoce si vzami par minut in premisli, ce bi kateri od teh zahteval kaksen poseben handling.
                 except:
                     print("will retry in a second")
-                f = open("../spider_state_dict","r")
-                pins = json.loads(f.read())
-                print(pins)
-                request = requests.post(config.POST_SPIDER_POSITION,pins, headers= {"Access-Control-Allow-Origin": "*"})
+                try:
+                    f = open("../spider_state_dict","r")
+                    pins = json.loads(f.read())
+                    print(pins)
+                    request = requests.post(config.POST_SPIDER_POSITION,json=pins, headers= {"Access-Control-Allow-Origin": "*"})
+                except:
+                    print("Spider pos error")
           
                 if killEvent.wait(timeout = 30): 
                     break

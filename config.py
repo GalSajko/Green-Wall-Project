@@ -34,18 +34,14 @@ STATE_DICT_POSE_KEY = 'pose'
 STATE_DICT_PINS_KEY = 'pins'
 
 SERVER_IP = '192.168.1.20'
-ARDUIONO_IP_1 = '192.168.1.11'
-ARDUIONO_IP_2 = '192.168.1.12'
-ARDUIONO_IP_3 = '192.168.1.13'
-ARDUIONO_IP_4 = '192.168.1.14'
-ARDUIONO_IP_5 = '192.168.1.15'
-ARDUIONO_IP_6 = '192.168.1.16'
 ARDUIONO_IP_LIST = ['192.168.1.11','192.168.1.12','192.168.1.13','192.168.1.14','192.168.1.15','192.168.1.16']
-
-ARDUIONO_MAC_6 = 'a8:61:0a:ae:a8:80'
 
 global visualisationValues
 global dataJson
+global poseData
+global arduinoValues
+global arduinoTimes
+global minValues
 
 GET_SENSOR_POSITION_ADDR = 'http://192.168.1.20:5000/zalij'
 POST_SPIDER_POSITION = 'http://192.168.1.20:5000/spiderPos'

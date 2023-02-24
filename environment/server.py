@@ -1,49 +1,48 @@
-# Pri nekaterih funkcijah manjka dokumentacija.
 from flask import Flask, request, jsonify, render_template
 import math
 from flask_socketio import SocketIO
 import requests
 import time
-import wall
 import json
 import sys
 import threading
 sys.path.append('..')
 import config
+import numpy as np
 
-values = []
+config.minValues = []
 minVal = []
-config.visualisationValues=[[[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], 
-[[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]],
-[[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]],
-[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]]
-arduinoTimes = [0, 0, 0, 0, 0, 0, 0]
+config.visualisationValues= np.zeros((7,6,6), dtype = int).tolist()
+config.arduinoValues = np.zeros((7), dtype = int).tolist()
+config.arduinoTimes = np.zeros((7), dtype = int).tolist()
 sensorIDs = [54, 55, 56, 57, 58, 59]
+arduinoNum = 6
 
-def test():
+def getDataFromArduino():
+    """Function sends GET requests to arduinos and saves timestamps and sensor values when replies arrive. If the arduino doesnt send a reply for 70 seconds it is treated as not working.
+    """
     while True:
         for i in config.ARDUIONO_IP_LIST:
             dataNew = ""
             url = f'http://{i}:5000/'
             try:
-                response = requests.get(url)
+                response = requests.get(url, timeout = 15)
                 dataNew = json.loads(response.text)
-                #print(dataNew)
-                print(i)
-                config.dataJson = updateVisualisationValues(i, dataNew)
+                config.arduinoValues[int(i[len(i)-1])] = dataNew
+                config.arduinoTimes[int(i[len(i)-1])] = time.time()
             except:
-                config.visualisationValues[int(i[len(i)-1])] = [[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]]
-                #print(i)
+                if time.time()-config.arduinoTimes[int(i[len(i)-1])] >= 120:
+                    config.arduinoValues[int(i[len(i)-1])] = 0
+                print(i)
                 continue
-            #print(i)
-
-th = threading.Thread(target=test)
+            
+th = threading.Thread(target = getDataFromArduino)
 th.start()
 
 app = Flask(__name__)
 app.secret_key = b'asdasgfascajv'
 
-def updateVisualisationValues(arduinoIp, arduinoData):
+def updateVisualisationValues(arduinoInd, arduinoData):
     """Function inserts value 1 to for every sensor currently connected to the arduino.
 
     Args:
@@ -53,19 +52,15 @@ def updateVisualisationValues(arduinoIp, arduinoData):
     Returns:
         list: List with sensor locations.
     """  
-    arduino = int(arduinoIp[len(arduinoIp)-1])
-    for i in range(6):
-        for j in range(54, 60):
-            try:
-                # Glej komentar spodaj glede t.i. 'magic number-jev'. Naslove senzorjev lahko shranis v array in ga definiras kot konstanto (npr. WALL_SENSORS_IDS = [54, 55, 56, 57]).
-                arduinoData["vrstica" + str(i)]["senzor" + str(j)]["id"]
-                config.visualisationValues[arduino][i][sensorIDs.index(j)] = 1
-            except:
-                config.visualisationValues[arduino][i][sensorIDs.index(j)] = 0
     
-    #print(visualisationValues)
+    for i in range(arduinoNum):
+        for j in sensorIDs:
+            try:
+                arduinoData["vrstica" + str(i)]["senzor" + str(j)]["id"]
+                config.visualisationValues[arduinoInd][i][sensorIDs.index(j)] = 1
+            except:
+                config.visualisationValues[arduinoInd][i][sensorIDs.index(j)] = 0
     return config.visualisationValues
-    #print(dataJson.data)
 
 def getMin():
     """
@@ -75,15 +70,15 @@ def getMin():
     """
     # Ce prav razumem je values 2d matrika, ti pa isces minimalno vrednost po 3. stolpcu matrike (kapacitivnost). Z uporabo numpy knjiznice lahko to naredis v 1 vrstici, ni pa treba za to izgubljati prevec casa.
     minVal = []
-    if len(values) != 0:
-        minVal = values[0]
-        for i in values:
+    if len(config.minValues) != 0:
+        minVal = config.minValues[0]
+        for i in config.minValues:
             if i[3] < minVal[3]:
                 minVal = i
-        values.clear()
+        config.minValues.clear()
     return minVal
 
-def parseData(data, ip):
+def parseData(data, ind):
     """
     Finds the lowest value from selected arduino.
 
@@ -98,13 +93,8 @@ def parseData(data, ip):
     x = 0
     minCap = math.inf
     currCap = 0
-    # 1.) Definiraj te stevilke kot konstante. Nasploh se izogibaj uporabi t.i. 'magic number', 'magic string' itd. Vse stevilke, stringe itd.,
-    # ki imajo nek pomen (konkretno tukaj gre za stevilo vrstic na panelu in pa najmanjsi in najvecji mozen naslov senzorja) shrani v konstanto. Ce se bo enkrat v prihodnosti slucajno spremenila
-    # konfiguracija panela, ali pa se bodo spremenili ID-ji senzorjev, bomo vsi tocno vedeli, kje je potrebno to spremeniti in ne bomo rabili iti skoz celo kodo. Prav tako, bos mogoce moral
-    # te vrednosti uporabiti se kje v kodi (oz si jih ze, zgoraj v kodi).
-    # 2.) Enako kot zgoraj, na hitro premisli, kako bi lahko poiskal minimum in pripadajoce x, y, IP vrednosti brez uporabe dvojne for zanke.  
-    for i in range(6):
-        for j in range(54, 64):
+    for i in range(arduinoNum):
+        for j in sensorIDs:
             try:
                 currCap = data["vrstica" + str(i)]["senzor" + str(j)]["cap"]
             except:
@@ -113,19 +103,26 @@ def parseData(data, ip):
                 minCap = currCap
                 y = i
                 x = data["vrstica" + str(i)]["senzor" + str(j)]["id"]
-    values.append([ip, y, x, minCap])
+    config.minValues.append([ind, y, x, minCap])
+
 @app.route('/spiderPos', methods=['POST', 'GET'])
 def getSpiderPos():
+    """Gets data from the spider and forwards it to the frontend for visualisation.
+
+    Returns:
+        JSON: Position of the spider.
+    """
     pins=[]
-    pose=[]
     if request.method == 'POST':
         pins = json.loads(request.get_data().decode())
-        print(pins)
-        #pose = pins["pose"]
+        config.poseData = pins["pose"]
         return 'OK'
     elif request.method == 'GET':
-    #print(pins)
-        return jsonify(pose), 200, {"Access-Control-Allow-Origin": "*"}
+        try:
+            return jsonify(config.poseData), 200, {"Access-Control-Allow-Origin": "*"}
+        except:
+            return jsonify([]), 200, {"Access-Control-Allow-Origin": "*"}
+
 @app.route('/zalij',methods=["GET"])
 def getVal():
     """Sends the location of the sensor with the smallest value.
@@ -133,6 +130,9 @@ def getVal():
     Returns:
        list: Information about the sensor with the lowest value out of all arduinos.
     """
+    for i in range(len(config.arduinoValues)):
+        
+        parseData(config.arduinoValues[i],i)
     return jsonify(getMin()), 200, {"Access-Control-Allow-Origin": "*"}
 
 @app.route('/update')
@@ -141,12 +141,13 @@ def update():
 
     Returns:
         JSON: Information about active sensors.
-    """    
+    """  
+    for i in range(len(config.arduinoValues)):
+        config.dataJson = updateVisualisationValues(i,config.arduinoValues[i])
     try:
         return jsonify(config.dataJson), 200, {"Access-Control-Allow-Origin": "*"}
     except:
         return jsonify([]), 200, {"Access-Control-Allow-Origin": "*"}
-
 
 @app.route('/ping',methods=["GET"])
 def pingPong():
@@ -165,22 +166,6 @@ def index():
         render_template: serves a webpage
     """
     return render_template('index.html')
-
-#@app.route('/data', methods=['POST', 'GET'])
-#def handleData():
-    """Function receives data and forwards data and the ip to the updateVisualisatonValues and parseData functions.
-
-    Returns:
-        string: Reply to arduino after getting the data.
-    """
-#    global ip
- #   global data
-  #  ip = request.remote_addr
-   # data = request.get_json()
- #   print(data)
-    #checkArduinoTimes(times())
-    #parseData(data, ip)
-  #  return 'OK'
 
 if __name__ == '__main__':
     app.run(host = '192.168.1.20', port = 5000, debug = True)
