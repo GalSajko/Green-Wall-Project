@@ -143,6 +143,36 @@ def convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset
         return getLegInLocal(legId, goalPositionOrOffset, spiderPose)
     return np.array(legCurrentPosition + getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset), dtype = np.float32)
 
+def getWateringLegAndPose(plantPosition, spiderStartPose):
+    """Calculate spider's pose for watering the plant and leg used for watering.
+
+    Args:
+        plantPosition (list): 1x3 array of plant's position in global origin.
+        spiderStartPose (list): Spider's current pose in global origin.
+
+    Returns:
+        tuple: Leg id and spider's pose used for watering the plant.
+    """
+    if plantPosition[0] < spiderStartPose[0]:
+        wateringLeg = spider.WATERING_LEGS_IDS[0]
+        wateringPose = np.array([
+            plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
+            plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+            0.3,
+            0.0
+        ])
+    else:
+        wateringLeg = spider.WATERING_LEGS_IDS[1]
+        wateringPose = np.array([
+            plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
+            plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+            0.3,
+            0.0
+        ])
+    
+    return wateringLeg, wateringPose
+
+
 @numba.jit(nopython = True, cache = True)
 def R_B1(qb, q1):
     """Rotation matrix from spider's to 1st segment's origin.

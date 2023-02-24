@@ -40,7 +40,7 @@ class MotorDriver:
         self.HARDWARE_ERROR_DATA_LENGTH = 1
         self.PRESENT_TEMPERATURE_DATA_LENGTH = 1
 
-        self.MAX_WORKING_TEMPERATURE = 40
+        self.MAX_WORKING_TEMPERATURE = 55
 
         self.__setUSBLowLatency()
 
@@ -60,6 +60,8 @@ class MotorDriver:
         self.__initGroupReadWrite()
 
         self.__initPort()
+        # self.rebootMotor(self.motorsIds)
+        time.sleep(5)
         if enableMotors:
             self.enableLegs()
         
@@ -184,9 +186,10 @@ class MotorDriver:
         Args:
             motorsIds (int): Ids of a motors.
         """
+        motorsIds = motorsIds.flatten()
         for motorId in motorsIds:
             with self.locker:
-                self.packetHandler.reboot(self.portHandler, motorId)
+                self.packetHandler.reboot(self.portHandler, int(motorId))
     #endregion
 
     #region private methods

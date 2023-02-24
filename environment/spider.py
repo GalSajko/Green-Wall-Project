@@ -77,6 +77,12 @@ NUMBER_OF_MOTORS_IN_LEG = 3
 # Radius of spiders platform, in meters.
 BODY_RADIUS = 0.15
 LEGS_IDS = np.array([0, 1, 2, 3, 4], dtype = np.int8)
+# Legs ids used for watering the plants.
+WATERING_LEGS_IDS = [1, 4]
+# Leg id used for (re)filling water tank.
+FILL_WATER_TANKG_LEG_ID = 2
+# Spider's watering position regarding to plant position.
+WATERING_XY_OFFSET_ABS = [0.2, 0.2]
 # Spiders legs, given as lengths of all three links in one leg.
 LEGS_DIMENSIONS = np.array([0.064, 0.3, 0.276], dtype = np.float32)
 SEGMENTS_MASSES = np.array([
@@ -93,7 +99,7 @@ VECTORS_TO_COG_SEGMENT = np.array([
     [0.032, 0.19, 0.158],
     [0.032, 0.19, 0.158]], dtype = np.float32)
 # Leg limit to avoid singularity.
-LEG_LENGTH_MAX_LIMIT = 0.6
+LEG_LENGTH_MAX_LIMIT = 0.58
 LEG_LENGTH_MIN_LIMIT = 0.32
 # Angles between legs, looking from spiders origin.
 ANGLE_BETWEEN_LEGS = np.radians(360.0 / NUMBER_OF_LEGS)

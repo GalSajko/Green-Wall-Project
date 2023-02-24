@@ -17,8 +17,8 @@ char GRIPPER_CLOSED_RESPONSE = '0';
 char GRIPPER_MOVING_RESPONSE = '2';
 
 // Values when servo is in closed or open position.
-int GRIPPERS_OPEN_THRESHOLD[NUMBER_OF_LEGS] = {700, 710, 695, 685, 680};
-int GRIPPERS_CLOSE_THRESHOLD[NUMBER_OF_LEGS] = {440, 460, 440, 440, 420};
+int GRIPPERS_OPEN_THRESHOLD[NUMBER_OF_LEGS] = {670, 670, 670, 670, 670};
+int GRIPPERS_CLOSE_THRESHOLD[NUMBER_OF_LEGS] = {460, 460, 460, 460, 460};
 
 float OPEN_STROKE_MM = 0;
 float CLOSED_STROKE_MM = 14;
@@ -59,7 +59,7 @@ void setStrokeMm(int gripperId, float strokeDesired)
 
 // Create string message from grippers states:
 // 0 - closed, 1 - open, 2 - in between.
-// Example: "11011" - all grippers except third are opened, third is closed.
+// Example: "11011" - all grippers except third are opened.
 String getGrippersStatesMessage(int currentStates[])
 {
   char message[NUMBER_OF_LEGS];
