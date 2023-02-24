@@ -43,5 +43,6 @@ global arduinoValues
 global arduinoTimes
 global minValues
 
+SENSOR_IDS = [54, 55, 56, 57, 58, 59]
 GET_SENSOR_POSITION_ADDR = 'http://192.168.1.20:5000/zalij'
 POST_SPIDER_POSITION = 'http://192.168.1.20:5000/spiderPos'

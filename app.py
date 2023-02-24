@@ -8,7 +8,7 @@ import threadmanager
 import jsonfilemanager
 from periphery import dynamixel as dmx
 from periphery import waterpumpsbno
-
+from environment.comunication import CommunicationWithServer
 from environment import spider
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
@@ -30,7 +30,8 @@ class App:
         self.pumpsBnoArduino = waterpumpsbno.PumpsBnoArduino()
         self.threadManager = threadmanager.CustomThread()
         self.jsonFileManager = jsonfilemanager.JsonFileManager()
-        
+        self.comunicationWithServer = CommunicationWithServer()
+
         self.statesObjectsLocker = threading.Lock()
         self.safetyKillEvent = threading.Event()
 
@@ -161,7 +162,8 @@ class App:
             startPose, _, startLegsPositions = self.jsonFileManager.readSpiderState()
             while True:
                 try:
-                    plantPosition = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.0], dtype = np.float32)
+                    with self.statesObjectsLocker:
+                        plantPosition = self.comunicationWithServer.sensorPosition
                     wateringLegId, endPose = tf.getWateringLegAndPose(plantPosition, startPose)
                     if isInit:
                         poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
