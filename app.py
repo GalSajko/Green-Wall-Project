@@ -162,6 +162,7 @@ class App:
             while True:
                 try:
                     if doRefillWaterTank:
+                        self.wateringCounter = 0
                         wateringLegId, endPose = tf.getWateringLegAndPose(startPose, doRefill = doRefillWaterTank)
                         wateringPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
                     else:
@@ -326,6 +327,8 @@ class App:
         # Read spider's rpy after releasing the leg.
         rpy = self.pumpsBnoArduino.getRpy()
         pinToPinLocal, legOriginOrientationInGlobal = tf.getPinToPinVectorInLocal(leg, rpy, currentPinPosition, goalPinPosition)
+        print(pinToPinLocal)
+        input("ENTER")
         globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
 
         with self.statesObjectsLocker:
@@ -462,6 +465,12 @@ class App:
         
         # Turn on water pump for 3 seconds.
         pumpId = 1 if wateringLegId == 1 else 0
+        if wateringLegId == 1:
+            pumpId = 1
+        elif wateringLegId == 4:
+            pumpId = 0
+        else:
+            pumpId = 2
         pumpTime = config.NUMBER_OF_WATERING_BEFORE_REFILL * config.WATERING_TIME if doRefill else config.WATERING_TIME
 
         print("PUMP ON")

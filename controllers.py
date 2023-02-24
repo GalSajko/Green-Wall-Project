@@ -81,7 +81,12 @@ class VelocityController:
                 self.lastLegsPositions[impedanceLegId] = xA[impedanceLegId] + xDd[impedanceLegId] * self.period
 
         xCd, self.lastXErrors = self.__eePositionVelocityPd(xA, xD, xDd, xDdd)
+
         qCd = kin.getJointsVelocities(qA, xCd)
+
+        if isForceMode:
+            qCd[qCd > 1.0] = 1.0
+            qCd[qCd < -1.0] = -1.0 
 
         return qCd
     

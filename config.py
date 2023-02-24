@@ -1,6 +1,6 @@
 """File for storing global variables.
 """
-CONTROLLER_FREQUENCY = 100.0
+CONTROLLER_FREQUENCY = 70.0
 FORCE_DAMPING = 0.01
 K_P_FORCE = 0.03
 K_P = 25.0
