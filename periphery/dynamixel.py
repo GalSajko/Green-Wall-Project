@@ -40,7 +40,7 @@ class MotorDriver:
         self.HARDWARE_ERROR_DATA_LENGTH = 1
         self.PRESENT_TEMPERATURE_DATA_LENGTH = 1
 
-        self.MAX_WORKING_TEMPERATURE = 40
+        self.MAX_WORKING_TEMPERATURE = 55
 
         self.__setUSBLowLatency()
 

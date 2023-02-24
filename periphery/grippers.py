@@ -63,6 +63,7 @@ class GrippersArduino:
                 for legId, leg in enumerate(legsIds):
                     if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
                         checkArray[legId] = True
+            time.sleep(0.05)
         return True
 
     def getSwitchesStates(self):
