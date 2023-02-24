@@ -34,6 +34,7 @@ class App:
         self.safetyKillEvent = threading.Event()
 
         self.currentState = None
+        self.wateringCounter = 0
 
         self.__initLayers()
 
@@ -156,12 +157,17 @@ class App:
         print("WORKING...") 
         
         while True:
-            # TODO: Here comes received goal point.
             startPose, _, startLegsPositions = self.jsonFileManager.readSpiderState()
+            doRefillWaterTank = self.wateringCounter >= config.NUMBER_OF_WATERING_BEFORE_REFILL
             while True:
                 try:
-                    plantPosition = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.0], dtype = np.float32)
-                    wateringLegId, endPose = tf.getWateringLegAndPose(plantPosition, startPose)
+                    if doRefillWaterTank:
+                        wateringLegId, endPose = tf.getWateringLegAndPose(startPose, doRefill = doRefillWaterTank)
+                        wateringPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
+                    else:
+                        # TODO: Here comes received plant position.
+                        wateringPosition = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.0], dtype = np.float32)
+                        wateringLegId, endPose = tf.getWateringLegAndPose(startPose, wateringPosition)
                     if isInit:
                         poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
                         break
@@ -208,9 +214,10 @@ class App:
                             print("WORKING STOPED - UNSUCCESSFULL PIN TO PIN MOVEMENT")
                             return
             
-            wateringSuccess = self.__watering(wateringLegId, plantPosition, pose)
+            wateringSuccess = self.__watering(wateringLegId, wateringPosition, pose, doRefillWaterTank)
             if not wateringSuccess:
                 return
+            self.wateringCounter += 1
         
     def rest(self, killEvent):
         """Resting procedure, includes option for manually correcting non-attached leg. Resting lasts until temperatures of all motors
@@ -435,7 +442,7 @@ class App:
 
         return True    
 
-    def __watering(self, wateringLegId, plantPosition, spiderPose): 
+    def __watering(self, wateringLegId, plantPosition, spiderPose, doRefill): 
         self.__distributeForces(np.delete(spider.LEGS_IDS, wateringLegId), config.FORCE_DISTRIBUTION_DURATION)
         with self.statesObjectsLocker:
             xALegBeforeWatering = self.xA[wateringLegId]
@@ -454,13 +461,15 @@ class App:
             return False
         
         # Turn on water pump for 3 seconds.
-        pumpId = 0 if wateringLegId == 1 else 1
-        startTime = time.perf_counter()
+        pumpId = 1 if wateringLegId == 1 else 0
+        pumpTime = config.NUMBER_OF_WATERING_BEFORE_REFILL * config.WATERING_TIME if doRefill else config.WATERING_TIME
+
         print("PUMP ON")
+        startTime = time.perf_counter()
         while True:
             elapsedTime = time.perf_counter() - startTime
             self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_ON_COMMAND, pumpId)
-            if elapsedTime > 5.0:
+            if elapsedTime > pumpTime:
                 self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
                 print("PUMP OFF")
                 break
