@@ -19,7 +19,7 @@ if __name__ == "__main__":
     input("ENTER")
     spider.pumpsBnoArduino.resetBno()
     while True:
-        rpy = spider.pumpsBnoArduino.getGravityVector()
+        rpy = spider.pumpsBnoArduino.getRpy()
         print(rpy)
         time.sleep(0.1)
     # for leg in [0, 1, 2, 3, 4]:
