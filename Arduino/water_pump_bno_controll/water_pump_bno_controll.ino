@@ -94,9 +94,9 @@ String addPlusSigns(String a, String b, String c)
 /*Create message from eulers, to send on PC.*/
 String getEulersMessage(Eulers eulers)
 {
-  String roll = String(eulers.roll);
-  String pitch = String(eulers.pitch);
-  String yaw = String(eulers.yaw);
+  String roll = String(eulers.yaw);
+  String pitch = String(eulers.roll * (-1));
+  String yaw = String(eulers.pitch);
 
   String rpy = addPlusSigns(roll, pitch, yaw);
 
@@ -209,5 +209,5 @@ void loop()
       }
     }
   }
-   Serial.print(getEulersMessage(eulers) + getGravityVectorMessage(event) + '\n');
+  Serial.print(getEulersMessage(eulers) + getGravityVectorMessage(event) + '\n');
 }
