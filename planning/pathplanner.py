@@ -75,9 +75,9 @@ def calculateSelectedPinsMaxYDistance(path):
             return 0 if xDist < 0.0 else 1 / (abs(xDist) + 10e-5)
         
         if legIdx == lowerLeftLeg:
-            return -100 if xDist > -0.1 else 1 / (abs(xDist) + 10e-5)
+            return -100 if xDist > 0.0 else 1 / (abs(xDist) + 10e-5)
         if legIdx == lowerRightLeg:
-            return -100 if xDist < 0.1 else 1 / (abs(xDist) + 10e-5)
+            return -100 if xDist < 0.0 else 1 / (abs(xDist) + 10e-5)
 
     for step, pose in enumerate(path):
         pinsInSearchRadius = pins[(np.sum(np.abs(pins - pose[:3])**2, axis = -1))**(0.5) < searchRadius]

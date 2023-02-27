@@ -70,6 +70,11 @@ def getPinToPinVectorInLocal(legId, rpy, currentPinPosition, goalPinPosition):
     legOriginOrientationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[legId][:3, :3]))
     pinToPinGlobal = goalPinPosition - currentPinPosition
     pinToPinLocal = np.dot(legOriginOrientationInGlobal, pinToPinGlobal)
+    print("GOAL PIN POSITION: ", goalPinPosition)
+    print("PIN TO PIN IN LOCAL: ", pinToPinLocal)
+
+    # pinToPinInSpider = np.dot(spiderRotationInGlobal, pinToPinGlobal)
+
 
     return pinToPinLocal, legOriginOrientationInGlobal
 
@@ -180,7 +185,7 @@ def getWateringLegAndPose(spiderStartPose, plantPosition = None, doRefill = Fals
     wateringLeg = spider.REFILLING_LEG_ID
     wateringPose = np.array([
         spiderStartPose[0], 
-        0.25,
+        0.3,
         0.3,
         0.0
     ])

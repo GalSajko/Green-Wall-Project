@@ -19,9 +19,8 @@ if __name__ == "__main__":
     input("ENTER")
     spider.pumpsBnoArduino.resetBno()
     while True:
-        rpy = spider.pumpsBnoArduino.getRpy()
-        print(rpy)
-        time.sleep(0.1)
+        spider.pinToPinMovement(2, np.array([0.2, 0.0, 0.0]), np.array([0.0, 0.0, 0.0]))
+        time.sleep(5)
     # for leg in [0, 1, 2, 3, 4]:
     #     spider.motorsVelocityController.moveLegAsync(leg, spider.xA[leg], [0.3, 0.0, 0.1], config.LEG_ORIGIN, 3, 'minJerk')
     #     time.sleep(3)

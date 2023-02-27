@@ -36,6 +36,8 @@ class App:
         self.currentState = None
         self.wateringCounter = 0
 
+        self.initBno = True
+
         self.__initLayers()
 
     def safetyLayer(self):
@@ -116,7 +118,7 @@ class App:
                     self.tauA = tauMean
 
                 # Controller.
-                qCd = self.motorsVelocityController.jointsVelocityController(qA, xA, fMean, init)           
+                qCd = self.motorsVelocityController.jointsVelocityController(qA, xA, fMean, init)          
                 if init:
                     init = False
 
@@ -171,6 +173,7 @@ class App:
                         wateringLegId, endPose = tf.getWateringLegAndPose(startPose, wateringPosition)
                     if isInit:
                         poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
+                        isInit = False
                         break
                     poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
                     break
@@ -185,24 +188,26 @@ class App:
                     xA = self.xA
 
                 if step == 0:
-                    self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, currentPinsPositions, config.GLOBAL_ORIGIN, 3, config.MINJERK_TRAJECTORY, pose)
+                    self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, currentPinsPositions, config.GLOBAL_ORIGIN, 5, config.MINJERK_TRAJECTORY, pose)
                     updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (pose, currentPinsPositions, currentLegsMovingOrder, ))
-                    if self.safetyKillEvent.wait(timeout = 3.5):
+                    if self.safetyKillEvent.wait(timeout = 5.5):
                         return
                     updateDictThread.join()
 
-                    if isInit:
+                    if self.initBno:
                         self.pumpsBnoArduino.resetBno()
-                        isInit = False
+                        time.sleep(1.5)
+                        print("Init bno: ", self.pumpsBnoArduino.getRpy())
+                        self.initBno = False
                         if self.safetyKillEvent.wait(timeout = 1.0):
                             return
                     self.__distributeForces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
                     continue
 
                 previousPinsPositions = np.array(pinsInstructions[step - 1, :, 1:])
-                self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, previousPinsPositions, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, pose)
+                self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, previousPinsPositions, config.GLOBAL_ORIGIN, 2.5, config.MINJERK_TRAJECTORY, pose)
                 updateDictThread = self.threadManager.run(self.jsonFileManager.updateWholeDict, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (pose, previousPinsPositions, currentLegsMovingOrder, ))
-                if self.safetyKillEvent.wait(timeout = 2.5):
+                if self.safetyKillEvent.wait(timeout = 3.0):
                     print("UNSUCCESSFULL BODY MOVEMENT")
                     return
                 updateDictThread.join()
@@ -239,7 +244,7 @@ class App:
         unattachedLeg = np.setdiff1d(spider.LEGS_IDS, attachedLegs)
         motorsInError = self.motorDriver.motorsIds[np.where(hwErrors != 0)]
         print("REBOOTING MOTORS WITH IDS: ", motorsInError, "...")
-        self.motorDriver.rebootMotor(motorsInError)
+        self.motorDriver.rebootMotors(motorsInError)
         while hwErrors.any():
             with self.statesObjectsLocker:
                 hwErrors = self.hwErrors
@@ -327,10 +332,11 @@ class App:
         # Read spider's rpy after releasing the leg.
         rpy = self.pumpsBnoArduino.getRpy()
         pinToPinLocal, legOriginOrientationInGlobal = tf.getPinToPinVectorInLocal(leg, rpy, currentPinPosition, goalPinPosition)
-        print(pinToPinLocal)
+        print("RPY: ", rpy)
+        print("GOAL PIN POSITION: ", goalPinPosition)
+        print("PIN TO PIN LOCAL NORM: ", np.linalg.norm(pinToPinLocal))
         input("ENTER")
         globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
-
         with self.statesObjectsLocker:
             xALeg = self.xA[leg]
         # Move leg and update spider state.
@@ -347,7 +353,7 @@ class App:
             self.motorsVelocityController.stopForceMode()
             return False
         self.motorsVelocityController.stopForceMode()
-
+        print("LEG ERROR: ", self.motorsVelocityController.lastXErrors[leg])
         # Correction in case of missed pin.
         if leg not in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
             correctionSuccess = self.__correction(leg, globalZDirectionInLegOrigin)
