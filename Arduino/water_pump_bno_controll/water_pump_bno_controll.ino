@@ -59,8 +59,8 @@ Eulers getEulerAnglesFromQuaternion(imu::Quaternion quaternion, bool doSubstract
     float q3 = quaternion.z();
     float q0 = quaternion.w();
 
-    eulers.pitch = atan2(2 * (q0 * q1 + q2 * q3), 1 - 2 * (q1 * q1 + q2 * q2));
-    eulers.roll = asin(2 * (q0 * q2 - q1 * q3));
+    eulers.roll = atan2(2 * (q0 * q1 + q2 * q3), 1 - 2 * (q1 * q1 + q2 * q2));
+    eulers.pitch = asin(2 * (q0 * q2 - q1 * q3));
     eulers.yaw = atan2(2 * (q0 * q3 + q1 * q2), -1 + 2 * (q0 * q0 + q1 * q1));
 
     if (doSubstract)
@@ -107,6 +107,7 @@ String getGravityVectorMessage(sensors_event_t event)
 {
   String x = String(event.acceleration.x);
   String y = String(event.acceleration.y);
+  // Minus because acc reading declaration.
   String z = String(-event.acceleration.z);
 
   String gravity = addPlusSigns(x, y, z);
