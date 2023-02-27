@@ -61,7 +61,7 @@ class PumpsBnoArduino:
         pitch = float(recMsg[5 : 10])
         yaw = float(recMsg[10 : 15])
 
-        return np.array([-roll, -pitch, yaw], dtype = np.float32)
+        return np.array([roll, pitch, yaw], dtype = np.float32)
     
     def getGravityVector(self):
         """Read gravity vector
@@ -74,9 +74,9 @@ class PumpsBnoArduino:
             with self.locker:
                 recMsg = self.receivedMessage
 
-        xGrav = float(recMsg[15 : 20]) * (-1)
-        yGrav = float(recMsg[20 : 25]) * (-1)
-        zGrav = float(recMsg[25 : 30]) * (-1)
+        xGrav = float(recMsg[15 : 20])
+        yGrav = float(recMsg[20 : 25])
+        zGrav = float(recMsg[25 : 30])
 
         return np.array([xGrav, yGrav, zGrav], dtype = np.float32)
     #endregion
