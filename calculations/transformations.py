@@ -20,28 +20,28 @@ def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     """
     if rotationOnly:
         if len(xyzrpy) == 3:
-            rpy = xyzrpy
+            rollAngle, pitchAngle, yawAngle = xyzrpy
         else:
             raise ValueError(f"Length of xyzrpy parameter should be 3, but it is {len(xyzrpy)}.")
     else:
         if len(xyzrpy) == 4:
             xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
-        position = xyzrpy[0:3]
-        rpy = [xyzrpy[4], xyzrpy[3], xyzrpy[5]]
+        position = xyzrpy[:3]
+        rollAngle, pitchAngle, yawAngle = xyzrpy[3:]
 
     roll = np.array([
-        [math.cos(rpy[1]), 0, math.sin(rpy[1])],
+        [math.cos(rollAngle), 0, math.sin(rollAngle)],
         [0, 1, 0],
-        [-math.sin(rpy[1]), 0, math.cos(rpy[1])]
+        [-math.sin(rollAngle), 0, math.cos(rollAngle)]
     ], dtype = np.float32)
     pitch = np.array([
         [1, 0, 0],
-        [0, math.cos(rpy[0]), -math.sin(rpy[0])],
-        [0, math.sin(rpy[0]), math.cos(rpy[0])]
+        [0, math.cos(pitchAngle), -math.sin(pitchAngle)],
+        [0, math.sin(pitchAngle), math.cos(pitchAngle)]
     ], dtype = np.float32)
     yaw = np.array([
-        [math.cos(rpy[2]), -math.sin(rpy[2]), 0],
-        [math.sin(rpy[2]), math.cos(rpy[2]), 0],
+        [math.cos(yawAngle), -math.sin(yawAngle), 0],
+        [math.sin(yawAngle), math.cos(yawAngle), 0],
         [0, 0, 1]
     ], dtype = np.float32)
     rotationMatrix = np.dot(roll, np.dot(pitch, yaw))
@@ -70,11 +70,6 @@ def getPinToPinVectorInLocal(legId, rpy, currentPinPosition, goalPinPosition):
     legOriginOrientationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[legId][:3, :3]))
     pinToPinGlobal = goalPinPosition - currentPinPosition
     pinToPinLocal = np.dot(legOriginOrientationInGlobal, pinToPinGlobal)
-    print("GOAL PIN POSITION: ", goalPinPosition)
-    print("PIN TO PIN IN LOCAL: ", pinToPinLocal)
-
-    # pinToPinInSpider = np.dot(spiderRotationInGlobal, pinToPinGlobal)
-
 
     return pinToPinLocal, legOriginOrientationInGlobal
 

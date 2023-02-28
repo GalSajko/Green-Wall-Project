@@ -109,6 +109,7 @@ class App:
                 tau, f = dyn.getTorquesAndForcesOnLegsTips(qA, iA, self.pumpsBnoArduino.getGravityVector())
                 tauMean, tauBuffer, tauCounter = mathtools.runningAverage(tauBuffer, tauCounter, tau)
                 fMean, fBuffer, fCounter = mathtools.runningAverage(fBuffer, fCounter, f)
+                self.fA = fMean
 
                 with self.statesObjectsLocker:
                     self.qA = qA
@@ -310,41 +311,50 @@ class App:
             self.motorsVelocityController.startForceMode(spider.LEGS_IDS, fDist)
 
             elapsedTime = time.perf_counter() - startTime
-            time.sleep(self.motorsVelocityController.period)
             if self.safetyKillEvent.wait(timeout = self.motorsVelocityController.period):
                 break
         
         self.motorsVelocityController.stopForceMode()
+        time.sleep(2.0)
     
     def __pinToPinMovement(self, leg, currentPinPosition, goalPinPosition):
         # Distribute forces among other legs.
         otherLegs = np.delete(spider.LEGS_IDS, leg)
         self.__distributeForces(otherLegs, config.FORCE_DISTRIBUTION_DURATION)
+        self.motorsVelocityController.startForceMode([leg], [np.array([0.0, 0.0, -2.5])])
+        if self.safetyKillEvent.wait(timeout = 1.0):
+            self.motorsVelocityController.stopForceMode()
+            return False
 
-        print("OPEN GRIPPER ", leg)
+        with self.statesObjectsLocker:
+            xALegAfterOffloading = self.xA[leg]
+
         self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
         if self.safetyKillEvent.wait(timeout = 3.5):
+            self.motorsVelocityController.stopForceMode()
             return False
         if leg in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
-            print("GRIPPER DID NOT OPEN.")
+            print(f"GRIPPER {leg} DID NOT OPEN.")
+            self.motorsVelocityController.stopForceMode()
             return
 
         # Read spider's rpy after releasing the leg.
         rpy = self.pumpsBnoArduino.getRpy()
+
         pinToPinLocal, legOriginOrientationInGlobal = tf.getPinToPinVectorInLocal(leg, rpy, currentPinPosition, goalPinPosition)
-        print("RPY: ", rpy)
-        print("GOAL PIN POSITION: ", goalPinPosition)
-        print("PIN TO PIN LOCAL NORM: ", np.linalg.norm(pinToPinLocal))
-        input("ENTER")
         globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
         with self.statesObjectsLocker:
-            xALeg = self.xA[leg]
+            xALegBeforeMovement = self.xA[leg]
+
+        self.motorsVelocityController.stopForceMode()
+        time.sleep(1)
         # Move leg and update spider state.
-        self.motorsVelocityController.moveLegAsync(leg, xALeg, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
+        self.motorsVelocityController.moveLegAsync(leg, xALegBeforeMovement, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
         updateDictThread = self.threadManager.run(self.jsonFileManager.updatePins, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (leg, goalPinPosition, ))
         if self.safetyKillEvent.wait(timeout = 4.0):
             return False
         updateDictThread.join()
+        
 
         # Before closing the gripper, put leg in force mode to avoid pulling the spider with gripper.
         self.motorsVelocityController.startForceMode(np.array([leg]), np.array([np.zeros(3, dtype = np.float32)]))
@@ -353,14 +363,14 @@ class App:
             self.motorsVelocityController.stopForceMode()
             return False
         self.motorsVelocityController.stopForceMode()
-        print("LEG ERROR: ", self.motorsVelocityController.lastXErrors[leg])
+
         # Correction in case of missed pin.
         if leg not in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
             correctionSuccess = self.__correction(leg, globalZDirectionInLegOrigin)
             print("CORRECTION SUCCESS: ", correctionSuccess)
             if not correctionSuccess:
                 return False
-        
+
         return True
     
     def __correction(self, legId, globalZDirectionInLocal):

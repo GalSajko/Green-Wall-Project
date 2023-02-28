@@ -86,7 +86,7 @@ class VelocityController:
 
         if isForceMode:
             qCd[qCd > 1.0] = 1.0
-            qCd[qCd < -1.0] = -1.0 
+            qCd[qCd < -1.0] = -1.0
 
         return qCd
     
@@ -117,6 +117,7 @@ class VelocityController:
         self.legsQueues[legId] = queue.Queue()
 
         localGoalPosition = tf.convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
+        print("LEG GOAL POSITION IN LOCAL: ", localGoalPosition)
         positionTrajectory, velocityTrajectory, accelerationTrajectory = trajPlanner.getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
 
         for idx, position in enumerate(positionTrajectory):

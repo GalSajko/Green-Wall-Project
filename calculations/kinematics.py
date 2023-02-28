@@ -182,6 +182,7 @@ def getSpiderPose(legsIds, legsGlobalPositions, qA):
     """
     legsGlobalPositions = np.array(legsGlobalPositions)
     poses = []
+    legsIds = list(legsIds)
     for legsSubset in itt.combinations(legsIds, 3):
         legsSubset = np.array(legsSubset)
         subsetIdxs = [legsIds.index(leg) for leg in legsSubset]

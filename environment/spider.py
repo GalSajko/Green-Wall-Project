@@ -88,7 +88,7 @@ REFILLING_LEG_OFFSET = np.array([-0.2, -0.6, -0.2], dtype = np.float32)
 LEGS_DIMENSIONS = np.array([0.064, 0.3, 0.276], dtype = np.float32)
 SEGMENTS_MASSES = np.array([
     [0.057, 0.62, 0.27],
-    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.29],
     [0.057, 0.62, 0.27],
     [0.057, 0.62, 0.27],
     [0.057, 0.62, 0.27]], dtype = np.float32)
