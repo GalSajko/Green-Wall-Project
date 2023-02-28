@@ -14,34 +14,31 @@ import numpy as np
 config.minValues = []
 minVal = []
 config.visualisationValues= np.zeros((7,6,6), dtype = int).tolist()
-config.arduinoValues = np.zeros((7), dtype = int).tolist()
+config.arduinoValues = [{},{},{},{},{},{},{}]
 config.arduinoTimes = np.zeros((7), dtype = int).tolist()
 sensorIDs = [54, 55, 56, 57, 58, 59]
 arduinoNum = 6
 arduinoVal.sensors = []
+arduinoVal.last = 0
 
 def getDataFromArduino():
     """Function sends GET requests to arduinos and saves timestamps and sensor values when replies arrive. If the arduino doesnt send a reply for 70 seconds it is treated as not working.
     """
     while True:
-        for i in arduinoVal.arduinoList:
+        for i in config.ARDUIONO_IP_LIST:
             dataNew = ""
             url = f'http://{i}:5000/'
             try:
-                #response = requests.get(url, timeout = 30)
-                dataNew = arduinoVal.arduino1
-                config.arduinoValues[int(i[len(i)-1])] = dataNew
-                config.arduinoTimes[int(i[len(i)-1])] = time.time()
-                time.sleep(3)
+                response = requests.get(url, timeout = 30)
+                print(response.content)
+                time.sleep(5)
             except:
-               # if time.time()-config.arduinoTimes[int(i[len(i)-1])] >= 120:
-                #    config.arduinoValues[int(i[len(i)-1])] = 0
-               
-                continue
+                config.arduinoValues[int(i[len(i)-1])] = {}
+                
             
 
-#th = threading.Thread(target = getDataFromArduino)
-#th.start()
+th = threading.Thread(target = getDataFromArduino)
+th.start()
 
 app = Flask(__name__)
 app.secret_key = b'asdasgfascajv'
@@ -133,11 +130,10 @@ def getVal():
     Returns:
        list: Information about the sensor with the lowest value out of all arduinos.
     """
-    #for i in range(len(config.arduinoValues)):
-        #parseData(config.arduinoValues[i],i)
+    for i in range(len(config.arduinoValues)):
+        parseData(config.arduinoValues[i],i)
     try:
-        ran = random.randint(0, len(arduinoVal.sensors)-1)
-        return jsonify(arduinoVal.sensors[ran]), 200, {"Access-Control-Allow-Origin": "*"}
+        return jsonify(getMin()), 200, {"Access-Control-Allow-Origin": "*"}
     except:
         return jsonify([]), 200, {"Access-Control-Allow-Origin": "*"}
     
@@ -151,7 +147,7 @@ def update():
     arduinoVal.sensors.clear()
     for i in range(len(config.arduinoValues)):
         if config.arduinoValues[i] != 0:
-            config.dataJson = updateVisualisationValues(i,config.arduinoValues[i])
+            config.dataJson = updateVisualisationValues(i, config.arduinoValues[i])
     try:
         return jsonify(config.dataJson), 200, {"Access-Control-Allow-Origin": "*"}
     except:
@@ -173,10 +169,25 @@ def index():
     Returns:
         render_template: serves a webpage
     """
-    for i in range(len(arduinoVal.arduinoList)):
-        config.arduinoValues[(i+1)] = arduinoVal.arduinoList[i] 
+    
 
     return render_template('index.html')
+
+@app.route('/test', methods=['POST'])
+def handle_data():
+    """receives data and calls the parse function
+    Returns:
+        string: reply to arduino after getting the data
+    """
+    ip = request.remote_addr
+    index = int(ip[len(ip)-1])
+    data = request.get_json()
+    try:
+        config.arduinoValues[index].update(data) 
+        config.arduinoTimes[int(ip[len(ip)-1])] = time.time()
+    except:
+        config.arduinoValues[index] = {}
+    return "OK" 
 
 if __name__ == '__main__':
     app.run(host = '192.168.1.20', port = 5000, debug = True)

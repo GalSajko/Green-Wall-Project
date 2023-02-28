@@ -1200,6 +1200,7 @@ arduino6 = {
 }
 arduinoList = [arduino1,arduino2,arduino3,arduino4,arduino5,arduino6]
 global sensors
+global last
 
 
 

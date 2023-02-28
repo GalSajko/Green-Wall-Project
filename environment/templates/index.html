@@ -4,10 +4,11 @@
 <head>
     <script src="{{ url_for('static', filename='js/jquery-3.6.3.js') }}" type="text/javascript"></script>
     <style>
-        #content{
+        #content {
             margin: auto;
         }
-        #naslov{
+
+        #naslov {
             text-align: center;
         }
     </style>
@@ -15,7 +16,7 @@
 
 <body>
     <div id="content">
-        <h1 id = "naslov">Blue - Green Wall</h1>
+        <h1 id="naslov">Blue - Green Wall</h1>
         <p class="data"></p>
         <div>
             <canvas id="canvas"></canvas>
@@ -41,7 +42,7 @@
         canvas.height = 350 * scale;
         var ctx = canvas.getContext("2d");
         var content = document.getElementById("content")
-        content.style.width = 16.5 *scale+'%';
+        content.style.width = 16.5 * scale + '%';
         for (var x = 0; x < numPinsX; x++) {
             for (var y = numPinsY - 1; y >= 0; y--) {
                 pinLocations.push([pad + x * xDim * scale, pad + y * yDim * scale])
@@ -76,7 +77,7 @@
                                 ctx.fill()
                                 ctx.stroke()
                             }
-                            
+
                             else if (data[j][y][x] != lastData[j][y][x] || lastData.length() != 0 && data[j][y][x] == 0) {
                                 if (j < 4) {
                                     brokenSensorLoc.push([((((j - 1) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 20 + ((5 - y) * (yDim * scale)) + ((yDim * scale) / 2), j, y, x])
@@ -84,9 +85,9 @@
                                 else {
                                     brokenSensorLoc.push([((((j - 4) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 6 * yDim * scale + 20 + ((5 - y) * yDim * scale) + ((yDim * scale) / 2), j, y, x])
                                 }
-                                
+
                             }
-                            
+
                         }
                         catch {
                             continue;
@@ -103,74 +104,77 @@
                 }
                 lastPinData = []
                 lastPinData = [...data]
-                ctx.clearRect(0,0,canvas.width,canvas.height);
+
+            });
+            $.get("./update", function (data) {
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 for (let i = 0; i < spiderLocation.length; i++) {
                     console.log(spiderLocation.length)
-                    const opacity = 1 / (i + 1);
+                    var opacity = 1 / (i + 1);
+                    console.log(opacity)
                     ctx.fillStyle = "#2f547d"
                     ctx.fillStyle = `rgba(47, 84, 125, ${opacity})`;
-                    ctx.beginPath();
+                    ctx.beginPath()
                     ctx.arc(spiderLocation[i][0] * 100 * scale + pad, (12 * yDim * scale + 20) - (spiderLocation[i][1] * 100 * scale), 5 * scale, 0, 2 * Math.PI)
+                    ctx.lineWidth = 0;
                     ctx.fill()
                 }
-            });
-            $.get("./update",function(data){
-                
                 console.log(data)
+
                 ctx.beginPath()
-                
-                for( var i = 0; i<pinLocations.length; i++){
-                    ctx.moveTo(pinLocations[i][0],pinLocations[i][1])
-                    ctx.arc(pinLocations[i][0],pinLocations[i][1],2,0,2*Math.PI)
+                for (var i = 0; i < pinLocations.length; i++) {
+                    ctx.moveTo(pinLocations[i][0], pinLocations[i][1])
+                    ctx.arc(pinLocations[i][0], pinLocations[i][1], 2, 0, 2 * Math.PI)
                 }
-                ctx.moveTo(10,10);
-                ctx.lineTo(10, 30+(numPinsY-1)*yDim*scale);
-                ctx.moveTo(10,10);
-                ctx.lineTo(30+(numPinsX-1)*xDim*scale,10);
-                ctx.moveTo(10, 30+(numPinsY-1)*yDim*scale);
-                ctx.lineTo(30+(numPinsX-1)*xDim*scale,30+(numPinsY-1)*yDim*scale);
-                ctx.moveTo(30+(numPinsX-1)*xDim*scale,10);
-                ctx.lineTo(30+(numPinsX-1)*xDim*scale, 30+(numPinsY-1)*yDim*scale);
-                ctx.moveTo(50 + ((numPinsX/3)-1)*xDim*scale,10);
-                ctx.lineTo(50 + ((numPinsX/3)-1)*xDim*scale,30+(numPinsY-1)*yDim*scale)
-                ctx.moveTo(30 + ((numPinsX/3)*2-1)*xDim*scale,10);
-                ctx.lineTo(30 + ((numPinsX/3)*2-1)*xDim*scale,30+(numPinsY-1)*yDim*scale)
-                ctx.moveTo(10,30 + 6*yDim*scale);
-                ctx.lineTo(30+(numPinsX-1)*xDim*scale, 30 + 6*yDim*scale);
+                ctx.moveTo(10, 10);
+                ctx.lineTo(10, 30 + (numPinsY - 1) * yDim * scale);
+                ctx.moveTo(10, 10);
+                ctx.lineTo(30 + (numPinsX - 1) * xDim * scale, 10);
+                ctx.moveTo(10, 30 + (numPinsY - 1) * yDim * scale);
+                ctx.lineTo(30 + (numPinsX - 1) * xDim * scale, 30 + (numPinsY - 1) * yDim * scale);
+                ctx.moveTo(30 + (numPinsX - 1) * xDim * scale, 10);
+                ctx.lineTo(30 + (numPinsX - 1) * xDim * scale, 30 + (numPinsY - 1) * yDim * scale);
+                ctx.moveTo(50 + ((numPinsX / 3) - 1) * xDim * scale, 10);
+                ctx.lineTo(50 + ((numPinsX / 3) - 1) * xDim * scale, 30 + (numPinsY - 1) * yDim * scale)
+                ctx.moveTo(30 + ((numPinsX / 3) * 2 - 1) * xDim * scale, 10);
+                ctx.lineTo(30 + ((numPinsX / 3) * 2 - 1) * xDim * scale, 30 + (numPinsY - 1) * yDim * scale)
+                ctx.moveTo(10, 30 + 6 * yDim * scale);
+                ctx.lineTo(30 + (numPinsX - 1) * xDim * scale, 30 + 6 * yDim * scale);
                 ctx.strokeStyle = "black"
                 ctx.stroke()
-                draw(data,lastData,brokenSensorLoc);
+                draw(data, lastData, brokenSensorLoc);
                 lastData = []
                 lastData = [...data]
                 console.log(brokenSensorLoc)
                 ctx.beginPath()
-                ctx.strokeStyle="red";
-                ctx.fillStyle="red";
-                for( var i = 0; i < brokenSensorLoc.length; i++){
-                    try{
-                        if(lastData[brokenSensorLoc[i][2]][brokenSensorLoc[i][3]][brokenSensorLoc[i][4]]!=1){
-                            ctx.moveTo(brokenSensorLoc[i][0],brokenSensorLoc[i][1])
-                            ctx.arc(brokenSensorLoc[i][0],brokenSensorLoc[i][1],4,0,2*Math.PI)           
+                ctx.strokeStyle = "red";
+                ctx.fillStyle = "red";
+                for (var i = 0; i < brokenSensorLoc.length; i++) {
+                    try {
+                        if (lastData[brokenSensorLoc[i][2]][brokenSensorLoc[i][3]][brokenSensorLoc[i][4]] != 1) {
+                            ctx.moveTo(brokenSensorLoc[i][0], brokenSensorLoc[i][1])
+                            ctx.arc(brokenSensorLoc[i][0], brokenSensorLoc[i][1], 2 * scale, 0, 2 * Math.PI)
                         }
-                        else{
-                            brokenSensorLoc.splice(i,1);
+                        else {
+                            brokenSensorLoc.splice(i, 1);
                         }
                     }
-                    catch{
+                    catch {
                         continue;
                     }
                 }
                 ctx.fill()
                 ctx.stroke()
             });
-            
+
         }
-        
+
         update();
         var inrvalId = setInterval(function () {
             update();
 
-        }, 10000)
+        }, 20000)
 
     </script>
 </body>
