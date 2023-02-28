@@ -19,22 +19,29 @@ class CommunicationWithServer:
         """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server. It also sends POST requests with spider position to the server.
         """
         def updatingSensorPositionData(killEvent):
+            
             while True:
+                start  = 0
                 try:
                     request = requests.get(config.GET_SENSOR_POSITION_ADDR)
-                    
+                    xDim = 20
+                    yDim = 25
                     if len(request._content.decode()) != 0:
                         with self.locker:
-                            data = json.loads(request._content)
-                            print(data)
-                            #Tole je zaenkrat kot placeholder, ni še končano
-                            if data[0]>3:
-                                y = (data[1]*25+(25/2))/100.0
-                                x = ((data[0]-4)*7*(config.SENSOR_IDS.index(data[2])+1)*20+20/2)/100.0
+                            self.data = json.loads(request._content)
+                            print(self.data)
+                            if self.data[0] == 1 or self.data[0] == 4:
+                                start = 20
+                            elif self.data[0] == 3 or self.data[0] == 6:
+                                start = -20
+                            if self.data[0]<4:
+                                y = (((self.data[1])+6)*yDim+yDim/2)/100.0
+                                x = (start +( (self.data[0]-1)*7+(config.SENSOR_IDS.index(self.data[2])))*xDim+xDim/2)/100.0
                             else:
-                                y = (data[1]*25+(25/2))/100.0
-                                x = ((data[0]-1)*7*(config.SENSOR_IDS.index(data[2])+1)*20+20/2)/100.0
+                                y = (((self.data[1]))*yDim+yDim/2)/100.0
+                                x = (start +(( self.data[0]-4)*7+(config.SENSOR_IDS.index(self.data[2])))*xDim+xDim/2)/100.0
                             self.sensorPosition=np.array([x,y,-0.5])
+                            print(self.sensorPosition)
                 except:
                     print("will retry in a second")
                 try:

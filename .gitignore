@@ -133,3 +133,4 @@ dmypy.json
 # Client test file
 /environment/comunicationtest.py
 /environment/static/js
+/environment/test.py

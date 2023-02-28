@@ -1,15 +1,16 @@
 from flask import Flask, request, jsonify, render_template
 import math
+import random
 from flask_socketio import SocketIO
 import requests
 import time
 import json
 import sys
 import threading
+import arduinoVal
 sys.path.append('..')
 import config
 import numpy as np
-
 config.minValues = []
 minVal = []
 config.visualisationValues= np.zeros((7,6,6), dtype = int).tolist()
@@ -17,27 +18,30 @@ config.arduinoValues = np.zeros((7), dtype = int).tolist()
 config.arduinoTimes = np.zeros((7), dtype = int).tolist()
 sensorIDs = [54, 55, 56, 57, 58, 59]
 arduinoNum = 6
+arduinoVal.sensors = []
 
 def getDataFromArduino():
     """Function sends GET requests to arduinos and saves timestamps and sensor values when replies arrive. If the arduino doesnt send a reply for 70 seconds it is treated as not working.
     """
     while True:
-        for i in config.ARDUIONO_IP_LIST:
+        for i in arduinoVal.arduinoList:
             dataNew = ""
             url = f'http://{i}:5000/'
             try:
-                response = requests.get(url, timeout = 15)
-                dataNew = json.loads(response.text)
+                #response = requests.get(url, timeout = 30)
+                dataNew = arduinoVal.arduino1
                 config.arduinoValues[int(i[len(i)-1])] = dataNew
                 config.arduinoTimes[int(i[len(i)-1])] = time.time()
+                time.sleep(3)
             except:
-                if time.time()-config.arduinoTimes[int(i[len(i)-1])] >= 120:
-                    config.arduinoValues[int(i[len(i)-1])] = 0
-                print(i)
+               # if time.time()-config.arduinoTimes[int(i[len(i)-1])] >= 120:
+                #    config.arduinoValues[int(i[len(i)-1])] = 0
+               
                 continue
             
-th = threading.Thread(target = getDataFromArduino)
-th.start()
+
+#th = threading.Thread(target = getDataFromArduino)
+#th.start()
 
 app = Flask(__name__)
 app.secret_key = b'asdasgfascajv'
@@ -52,12 +56,12 @@ def updateVisualisationValues(arduinoInd, arduinoData):
     Returns:
         list: List with sensor locations.
     """  
-    
     for i in range(arduinoNum):
         for j in sensorIDs:
             try:
                 arduinoData["vrstica" + str(i)]["senzor" + str(j)]["id"]
                 config.visualisationValues[arduinoInd][i][sensorIDs.index(j)] = 1
+                arduinoVal.sensors.append([arduinoInd, i, j])
             except:
                 config.visualisationValues[arduinoInd][i][sensorIDs.index(j)] = 0
     return config.visualisationValues
@@ -68,7 +72,6 @@ def getMin():
     Returns:
         list: Information about the sensor with the lowest value out of all arduinos.
     """
-    # Ce prav razumem je values 2d matrika, ti pa isces minimalno vrednost po 3. stolpcu matrike (kapacitivnost). Z uporabo numpy knjiznice lahko to naredis v 1 vrstici, ni pa treba za to izgubljati prevec casa.
     minVal = []
     if len(config.minValues) != 0:
         minVal = config.minValues[0]
@@ -130,11 +133,14 @@ def getVal():
     Returns:
        list: Information about the sensor with the lowest value out of all arduinos.
     """
-    for i in range(len(config.arduinoValues)):
-        
-        parseData(config.arduinoValues[i],i)
-    return jsonify(getMin()), 200, {"Access-Control-Allow-Origin": "*"}
-
+    #for i in range(len(config.arduinoValues)):
+        #parseData(config.arduinoValues[i],i)
+    try:
+        ran = random.randint(0, len(arduinoVal.sensors)-1)
+        return jsonify(arduinoVal.sensors[ran]), 200, {"Access-Control-Allow-Origin": "*"}
+    except:
+        return jsonify([]), 200, {"Access-Control-Allow-Origin": "*"}
+    
 @app.route('/update')
 def update():
     """Sends locations of active sensors to frontend.
@@ -142,8 +148,10 @@ def update():
     Returns:
         JSON: Information about active sensors.
     """  
+    arduinoVal.sensors.clear()
     for i in range(len(config.arduinoValues)):
-        config.dataJson = updateVisualisationValues(i,config.arduinoValues[i])
+        if config.arduinoValues[i] != 0:
+            config.dataJson = updateVisualisationValues(i,config.arduinoValues[i])
     try:
         return jsonify(config.dataJson), 200, {"Access-Control-Allow-Origin": "*"}
     except:
@@ -165,6 +173,9 @@ def index():
     Returns:
         render_template: serves a webpage
     """
+    for i in range(len(arduinoVal.arduinoList)):
+        config.arduinoValues[(i+1)] = arduinoVal.arduinoList[i] 
+
     return render_template('index.html')
 
 if __name__ == '__main__':
