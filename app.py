@@ -109,7 +109,6 @@ class App:
                 tau, f = dyn.getTorquesAndForcesOnLegsTips(qA, iA, self.pumpsBnoArduino.getGravityVector())
                 tauMean, tauBuffer, tauCounter = mathtools.runningAverage(tauBuffer, tauCounter, tau)
                 fMean, fBuffer, fCounter = mathtools.runningAverage(fBuffer, fCounter, f)
-                self.fA = fMean
 
                 with self.statesObjectsLocker:
                     self.qA = qA
@@ -166,7 +165,7 @@ class App:
                 try:
                     if doRefillWaterTank:
                         self.wateringCounter = 0
-                        wateringLegId, endPose = tf.getWateringLegAndPose(startPose, doRefill = doRefillWaterTank)
+                        wateringLegId, endPose = tf.getWateringLegAndPose(startPose, doRefill = True)
                         wateringPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
                     else:
                         # TODO: Here comes received plant position.
@@ -181,7 +180,7 @@ class App:
                 except:
                     print("Error in path planning. Trying again... ")
 
-            print("NEW GOAL POINT")
+            print(f"NEW GOAL POINT {endPose[:3]}")
             for step, pose in enumerate(poses):
                 currentPinsPositions = pinsInstructions[step, :, 1:]
                 currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
@@ -216,7 +215,7 @@ class App:
                 pinsOffsets = currentPinsPositions - previousPinsPositions
                 for idx, leg in enumerate(currentLegsMovingOrder):
                     if pinsOffsets[idx].any():
-                        movementSuccess = self.__pinToPinMovement(leg, previousPinsPositions[idx], currentPinsPositions[idx])
+                        movementSuccess = self.__pinToPinMovement(leg, previousPinsPositions[idx], currentPinsPositions[idx], pose)
                         if not movementSuccess:
                             print("WORKING STOPED - UNSUCCESSFULL PIN TO PIN MOVEMENT")
                             return
@@ -281,7 +280,7 @@ class App:
         self.motorsVelocityController.clearInstructionQueues()
         fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.motorsVelocityController.startForceMode(spider.LEGS_IDS, fD)
-        time.sleep(10)
+        time.sleep(15)
         self.motorsVelocityController.stopForceMode()
 
     # region private methods
@@ -317,17 +316,20 @@ class App:
         self.motorsVelocityController.stopForceMode()
         time.sleep(2.0)
     
-    def __pinToPinMovement(self, leg, currentPinPosition, goalPinPosition):
+    def __pinToPinMovement(self, leg, currentPinPosition, goalPinPosition, pose):
         # Distribute forces among other legs.
         otherLegs = np.delete(spider.LEGS_IDS, leg)
         self.__distributeForces(otherLegs, config.FORCE_DISTRIBUTION_DURATION)
-        self.motorsVelocityController.startForceMode([leg], [np.array([0.0, 0.0, -2.5])])
+
+        with self.statesObjectsLocker:
+            qALeg = self.qA[leg]
+        lastJointPositionInLocal = kin.legBaseToThirdJointForwardKinematics(qALeg)[:,3][:3]
+        lastJointToGoalPinInSpiderUnit = tf.getLastJointToGoalPinVectorInSpider(leg, lastJointPositionInLocal, goalPinPosition, pose)
+
+        self.motorsVelocityController.startForceMode([leg], [lastJointToGoalPinInSpiderUnit * 2.5])
         if self.safetyKillEvent.wait(timeout = 1.0):
             self.motorsVelocityController.stopForceMode()
             return False
-
-        with self.statesObjectsLocker:
-            xALegAfterOffloading = self.xA[leg]
 
         self.motorsVelocityController.grippersArduino.moveGripper(leg, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
         if self.safetyKillEvent.wait(timeout = 3.5):
@@ -340,21 +342,21 @@ class App:
 
         # Read spider's rpy after releasing the leg.
         rpy = self.pumpsBnoArduino.getRpy()
-
         pinToPinLocal, legOriginOrientationInGlobal = tf.getPinToPinVectorInLocal(leg, rpy, currentPinPosition, goalPinPosition)
         globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
         with self.statesObjectsLocker:
             xALegBeforeMovement = self.xA[leg]
 
         self.motorsVelocityController.stopForceMode()
-        time.sleep(1)
+        if self.safetyKillEvent.wait(timeout = 1.0):
+            return False
+        
         # Move leg and update spider state.
-        self.motorsVelocityController.moveLegAsync(leg, xALegBeforeMovement, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
+        localGoalPosition = self.motorsVelocityController.moveLegAsync(leg, xALegBeforeMovement, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
         updateDictThread = self.threadManager.run(self.jsonFileManager.updatePins, config.UPDATE_DICT_THREAD_NAME, True, True, False, False, (leg, goalPinPosition, ))
         if self.safetyKillEvent.wait(timeout = 4.0):
             return False
         updateDictThread.join()
-        
 
         # Before closing the gripper, put leg in force mode to avoid pulling the spider with gripper.
         self.motorsVelocityController.startForceMode(np.array([leg]), np.array([np.zeros(3, dtype = np.float32)]))
@@ -366,16 +368,16 @@ class App:
 
         # Correction in case of missed pin.
         if leg not in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
-            correctionSuccess = self.__correction(leg, globalZDirectionInLegOrigin)
+            correctionSuccess = self.__correction(leg, globalZDirectionInLegOrigin, localGoalPosition)
             print("CORRECTION SUCCESS: ", correctionSuccess)
             if not correctionSuccess:
                 return False
 
         return True
     
-    def __correction(self, legId, globalZDirectionInLocal):
+    def __correction(self, legId, globalZDirectionInLocal, localGoalPosition):
         print(f"LEG {legId} IS NOT ATTACHED")
-        autoSuccess = self.__automaticCorrection(legId, globalZDirectionInLocal)
+        autoSuccess = self.__automaticCorrection(legId, globalZDirectionInLocal, localGoalPosition)
         print("AUTO CORRECTION SUCCESS: ", autoSuccess)
         if autoSuccess:
             return True
@@ -383,26 +385,38 @@ class App:
         print("MANUAL CORRECTION SUCCESS: ", manualSuccess)
         return manualSuccess
 
-    def __automaticCorrection(self, legId, globalZDirectionInLocal):
-        detachOffsetZ = 0.03
-        detachOffsetInLocal = globalZDirectionInLocal * detachOffsetZ
-        numberOfTries = 0
-        while numberOfTries < 2:
+    def __automaticCorrection(self, legId, globalZDirectionInLocal, localGoalPosition):
+        detachOffsetZ = 0.08
+        offsetValue = 0.15
+        offsets = [
+            [0.0, 0.0, 0.0],
+            [0.0, offsetValue, 0.0],
+            [0.0, -offsetValue, 0.0],
+            [offsetValue, 0.0, 0.0],
+            [-offsetValue, 0.0, 0.0],
+            [offsetValue, offsetValue, 0.0],
+            [offsetValue, -offsetValue, 0.0],
+            [-offsetValue, -offsetValue, 0.0],
+            [-offsetValue, offsetValue, 0.0]
+        ]
+        
+        detachPosition = np.copy(localGoalPosition)
+        detachPosition[2] += detachOffsetZ
+        for offset in offsets:
             self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
-            if self.safetyKillEvent.wait(timeout = 1.0):
-                return False      
-
+ 
             with self.statesObjectsLocker:
                 xALeg = self.xA[legId]
-
-            self.motorsVelocityController.moveLegAsync(legId, xALeg, detachOffsetInLocal, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY, isOffset = True)
+            self.motorsVelocityController.moveLegAsync(legId, xALeg, detachPosition, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY)
             if self.safetyKillEvent.wait(timeout = 1.5):
                 return False
             
-            self.motorsVelocityController.startImpedanceMode(legId, -globalZDirectionInLocal)
-            if self.safetyKillEvent.wait(timeout = 3.0):
+            velocityDirection = -(globalZDirectionInLocal + offset)
+            self.motorsVelocityController.startImpedanceMode(legId, velocityDirection)
+            if self.safetyKillEvent.wait(timeout = 2.0):
+                self.motorsVelocityController.stopImpedanceMode()
                 return False
-            self.motorsVelocityController.stopImpedanceMode()
+            self.motorsVelocityController.stopImpedanceMode()      
 
             self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
             if self.safetyKillEvent.wait(timeout = 1.0):
@@ -410,8 +424,6 @@ class App:
 
             if legId in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
                 return True 
-        
-            numberOfTries += 1
 
         return False
 
@@ -427,6 +439,7 @@ class App:
 
         attachedLegs = self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs()
 
+        print("ATTACHED LEGS: ", attachedLegs)
         goalPinInLocal = kin.getGoalPinInLocal(legId, attachedLegs, legsGlobalPositions, qA, self.pumpsBnoArduino.getRpy())
 
         distance = np.linalg.norm(goalPinInLocal - xALeg)
@@ -472,14 +485,18 @@ class App:
             qA = self.qA
         otherLegs = list(np.delete(spider.LEGS_IDS, wateringLegId))
         spiderPose = kin.getSpiderPose(otherLegs, legsGlobalPositions[otherLegs], qA)
+
         self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
         if self.safetyKillEvent.wait(timeout = 1.0):
-            return False
+            if not doRefill:
+                return False
+
         self.motorsVelocityController.moveLegAsync(wateringLegId, xALegBeforeWatering, plantPosition, config.GLOBAL_ORIGIN, 3, config.BEZIER_TRAJECTORY, spiderPose)
         if self.safetyKillEvent.wait(timeout = 3.5):
-            return False
-        
-        # Turn on water pump for 3 seconds.
+            if not doRefill:
+                return False
+
+        # Turn on water pump.
         pumpId = 1 if wateringLegId == 1 else 0
         if wateringLegId == 1:
             pumpId = 1
@@ -487,7 +504,8 @@ class App:
             pumpId = 0
         else:
             pumpId = 2
-        pumpTime = config.NUMBER_OF_WATERING_BEFORE_REFILL * config.WATERING_TIME if doRefill else config.WATERING_TIME
+
+        pumpTime = config.REFILL_TIME if doRefill else config.WATERING_TIME
 
         print("PUMP ON")
         startTime = time.perf_counter()
@@ -495,11 +513,15 @@ class App:
             elapsedTime = time.perf_counter() - startTime
             self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_ON_COMMAND, pumpId)
             if elapsedTime > pumpTime:
-                self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
-                print("PUMP OFF")
+                if not doRefill:
+                    self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
+                    print("PUMP OFF")
                 break
             if self.safetyKillEvent.wait(timeout = 0.05):
-                return False
+                self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
+                print("PUMP OFF")
+                if not doRefill:
+                    return False
         
         # Move leg back on starting position.
         with self.statesObjectsLocker:
@@ -507,10 +529,17 @@ class App:
 
         self.motorsVelocityController.moveLegAsync(wateringLegId, xALegAfterWatering, xALegBeforeWatering, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
         if self.safetyKillEvent.wait(timeout = 3.5):
-            return False
+            if not doRefill:
+                return False
+            
+        if doRefill:
+            self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
+            
         self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
         if self.safetyKillEvent.wait(1.0):
-            return False
+            if not doRefill:
+                return False
+        
         # Correct if leg does not reach starting pin successfully.
         if wateringLegId not in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
             rpy = self.pumpsBnoArduino.getRpy()
@@ -518,7 +547,7 @@ class App:
             legOriginOrientationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[wateringLegId][:3, :3]))
             globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
 
-            return self.__correction(wateringLegId, globalZDirectionInLegOrigin)
+            return self.__correction(wateringLegId, globalZDirectionInLegOrigin, xALegBeforeWatering)
         
         return True
     #endregion

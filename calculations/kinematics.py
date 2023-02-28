@@ -232,15 +232,10 @@ def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMEN
     Returns:
         tuple: Angles in radians in first, second and third joint.
     """
-    L1 = legsDimensions[0]
-    L2 = legsDimensions[1]
-    L3 = legsDimensions[2]
+    L1, L2, L3 = legsDimensions
 
     # Angle in first joint.
     q1 = math.atan2(endEffectorPosition[1], endEffectorPosition[0])
-    # Allow passing from upper workspace of the leg (Xe > 0), to the lower (Xe < 0).
-    if endEffectorPosition[0] < 0.0:
-        q1 = math.atan2(-endEffectorPosition[1], -endEffectorPosition[0])
 
     # Position of second joint in leg-base origin.
     secondJointPosition = np.array([
@@ -254,17 +249,18 @@ def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMEN
     # Distance between second joint and end effector.
     r = np.linalg.norm(secondJointToEndVector)
     # Angle in third joint, note Pi - acos(x) = acos(-x).
-    q3 =  -math.acos(np.round((r**2 - L2**2 - L3**2) / (2 * L2 * L3), 4))
+    q3 =  math.acos(np.round((r**2 - L2**2 - L3**2) / (2 * L2 * L3), 4))
+
     # Angle in second joint.
     alpha = abs(math.atan2(L3 * math.sin(q3), L2 + L3 * math.cos(q3)))
-    xy = np.linalg.norm(secondJointToEndVector[0:2]) if endEffectorPosition[0] >= secondJointPosition[0] else -np.linalg.norm(secondJointToEndVector[0:2])
+    xy = np.linalg.norm(secondJointToEndVector[0:2])
     gamma = math.atan2(secondJointToEndVector[2], xy)
     q2 = alpha + gamma
     
     return q1, q2, q3
 #endregion
 
-#region jacobians
+#region jacobians bv  
 @numba.jit(nopython = True, cache = True)
 def legJacobi(jointsValues, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate Jacobian matrix for given leg.
@@ -324,7 +320,6 @@ def getJointsVelocities(currentAngles, xCds, numberOfLegs = spider.NUMBER_OF_LEG
     qCds = np.zeros((numberOfLegs, numberOfMotorsInLeg), dtype = np.float32)
 
     for leg, xCd in enumerate(xCds):
-        # J_inv = np.ascontiguousarray(np.linalg.pinv(legJacobi(currentAngles[leg])))
         J_inv = np.ascontiguousarray(mathTools.dampedPseudoInverse(legJacobi(currentAngles[leg])))
         xCd = np.ascontiguousarray(xCd)
         qCds[leg] = np.dot(J_inv, xCd)

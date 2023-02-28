@@ -39,7 +39,7 @@ class VelocityController:
         self.isImpedanceMode = False
         self.impedanceLegId = None
         self.impedanceDirection = np.zeros(3, dtype = np.float32)
-        self.maxAllowedForce = 3.5
+        self.maxAllowedForce = 4.0
         self.velocityFactor = 0.1
 
         time.sleep(1)
@@ -117,14 +117,13 @@ class VelocityController:
         self.legsQueues[legId] = queue.Queue()
 
         localGoalPosition = tf.convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
-        print("LEG GOAL POSITION IN LOCAL: ", localGoalPosition)
         positionTrajectory, velocityTrajectory, accelerationTrajectory = trajPlanner.getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
 
         for idx, position in enumerate(positionTrajectory):
             self.legsQueues[legId].put([position[:3], velocityTrajectory[idx][:3], accelerationTrajectory[idx][:3]])
         self.legsQueues[legId].put(self.sentinel)
 
-        return True
+        return localGoalPosition
             
     def moveLegsSync(self, legsIds, legsCurrentPositions, goalPositionsOrOffsets, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities in any number (less than 5) of leg-queues. Legs start to move at the same time. 

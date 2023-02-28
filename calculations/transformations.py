@@ -6,6 +6,7 @@ import numba
 
 import config
 from environment import spider
+from environment import wall
 
 def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     """Calculate global transformation matrix for global origin - spider relation.
@@ -179,13 +180,31 @@ def getWateringLegAndPose(spiderStartPose, plantPosition = None, doRefill = Fals
     
     wateringLeg = spider.REFILLING_LEG_ID
     wateringPose = np.array([
-        spiderStartPose[0], 
-        0.3,
+        wall.WALL_SIZE[0] / 2, 
+        0.4,
         0.3,
         0.0
     ])
 
     return wateringLeg, wateringPose
+
+def getLastJointToGoalPinVectorInSpider(legId, lastJointPositionInLocal, goalPinPositionInGlobal, spiderPose):
+    """Calculate vector from last joint to goal pin in spider's origin.
+
+    Args:
+        legId (int): Leg id.
+        lastJointPositionInLocal (list): 1x3 vector of x, y and z position of last joint in local origin.
+        goalPinPositionInGlobal (list): 1x3 vector of x, y and z position of goal pin in global origin.
+        spiderPose (list): Spider's pose.
+
+    Returns:
+        numpy.ndarray: 1x3 unit vector from last joint to goal pin, given in spider's origin.
+    """
+    goalPinPositionInLocal = getLegInLocal(legId, goalPinPositionInGlobal, spiderPose)
+    lastJointToGoalPinInLocal = np.array(goalPinPositionInLocal - lastJointPositionInLocal)
+    lastJointToGoalPinInSpider = np.dot(spider.T_ANCHORS[legId][:3, :3], lastJointToGoalPinInLocal)
+
+    return lastJointToGoalPinInSpider / np.linalg.norm(lastJointToGoalPinInSpider) 
 
 
 @numba.jit(nopython = True, cache = True)
