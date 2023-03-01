@@ -22,7 +22,7 @@ class CommunicationWithServer:
         """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server. It also sends POST requests with spider position to the server.
         """
         def updatingSensorPositionData(killEvent):
-            
+            yOffset = 16.5
             while True:
                 start  = 0
                 try:
@@ -37,10 +37,10 @@ class CommunicationWithServer:
                             elif self.data[0] == 3 or self.data[0] == 6:
                                 start = -20
                             if self.data[0]<4:
-                                y = (((self.data[1])+6)*yDim+16.5)/100.0
+                                y = (((self.data[1])+6)*yDim+yOffset)/100.0
                                 x = (start +( (self.data[0]-1)*7+(config.SENSOR_IDS.index(self.data[2])))*xDim+xDim/2)/100.0
                             else:
-                                y = (((self.data[1]))*yDim+16.5)/100.0
+                                y = (((self.data[1]))*yDim+yOffset)/100.0
                                 x = (start +(( self.data[0]-4)*7+(config.SENSOR_IDS.index(self.data[2])))*xDim+xDim/2)/100.0
                             # TODO: Calibrate plant z offset.
                             self.sensorPosition=np.array([x , y, 0.0])
