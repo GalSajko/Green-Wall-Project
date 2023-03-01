@@ -28,7 +28,7 @@
         var brokenSensorLoc = []
         var sensorLoc = []
         var lastData = []
-        var scale = 3.5
+        var scale = 2.8
         var pad = 20
         var yDim = 25
         var xDim = 20
@@ -42,7 +42,7 @@
         canvas.height = 350 * scale;
         var ctx = canvas.getContext("2d");
         var content = document.getElementById("content")
-        content.style.width = 16.5 * scale + '%';
+        content.style.width = 22 * scale + '%';
         for (var x = 0; x < numPinsX; x++) {
             for (var y = numPinsY - 1; y >= 0; y--) {
                 pinLocations.push([pad + x * xDim * scale, pad + y * yDim * scale])
