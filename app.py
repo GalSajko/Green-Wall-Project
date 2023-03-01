@@ -171,7 +171,8 @@ class App:
                         wateringPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
                     else:
                         # TODO: Here comes received plant position.
-                        wateringPosition = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.0], dtype = np.float32)
+                        # wateringPosition = np.array([random.uniform(0.2, 1.0), random.uniform(0.4, 0.8), 0.0], dtype = np.float32)
+                        wateringPosition = self.comunicationWithServer.sensorPosition
                         wateringLegId, endPose = tf.getWateringLegAndPose(startPose, wateringPosition)
                     if isInit:
                         poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)

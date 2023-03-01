@@ -1,13 +1,15 @@
 import requests
 import json
 import sys
+import numpy as np
 sys.path.append('..')
+
 import threadmanager
 import config
 import threading
 import config
 from jsonfilemanager import JsonFileManager
-import numpy as np
+
 class CommunicationWithServer:
     def __init__(self) :
         self.threadManager = threadmanager.CustomThread()
@@ -40,7 +42,7 @@ class CommunicationWithServer:
                             else:
                                 y = (((self.data[1]))*yDim+yDim/2)/100.0
                                 x = (start +(( self.data[0]-4)*7+(config.SENSOR_IDS.index(self.data[2])))*xDim+xDim/2)/100.0
-                            self.sensorPosition=np.array([x,y,-0.5])
+                            self.sensorPosition=np.array([x , y, 0.0])
                             print(self.sensorPosition)
                 except:
                     print("will retry in a second")
