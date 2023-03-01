@@ -11,10 +11,11 @@ import config
 from jsonfilemanager import JsonFileManager
 
 class CommunicationWithServer:
-    def __init__(self) :
+    def __init__(self, spiderDictPath) :
         self.threadManager = threadmanager.CustomThread()
         self.sensorPosition = []
         self.locker = threading.Lock()
+        self.spiderDictPath = spiderDictPath
         self.updateSensorPositionData()
 
     def updateSensorPositionData(self):
@@ -31,7 +32,6 @@ class CommunicationWithServer:
                     if len(request._content.decode()) != 0:
                         with self.locker:
                             self.data = json.loads(request._content)
-                            print(self.data)
                             if self.data[0] == 1 or self.data[0] == 4:
                                 start = 20
                             elif self.data[0] == 3 or self.data[0] == 6:
@@ -42,18 +42,17 @@ class CommunicationWithServer:
                             else:
                                 y = (((self.data[1]))*yDim+yDim/2)/100.0
                                 x = (start +(( self.data[0]-4)*7+(config.SENSOR_IDS.index(self.data[2])))*xDim+xDim/2)/100.0
+                            # TODO: Calibrate plant z offset.
                             self.sensorPosition=np.array([x , y, 0.0])
-                            print(self.sensorPosition)
                 except:
                     print("will retry in a second")
                 try:
-                    f = open("../spider_state_dict","r")
-                    pins = json.loads(f.read())
-                    print(pins)
+                    with open(self.spiderDictPath, "r", encoding = 'utf-8') as f:
+                        pins = json.loads(f.read())
                     request = requests.post(config.POST_SPIDER_POSITION,json=pins, headers= {"Access-Control-Allow-Origin": "*"})
                 except:
-                    print("Spider pos error")
+                    print("SPIDER STATE DICT READING ERROR.")
           
-                if killEvent.wait(timeout = 30): 
+                if killEvent.wait(timeout = 5): 
                     break
         self.updatingDataThread, self.updatingDataThreadKillEvent = self.threadManager.run(updatingSensorPositionData, config.UPDATE_DATA_THREAD_NAME, False, True)
