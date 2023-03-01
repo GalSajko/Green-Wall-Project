@@ -67,11 +67,11 @@
                                 ctx.fillStyle = "#56fc03";
                                 ctx.strokeStyle = "#56fc03";
                                 if (j < 4) {
-                                    ctx.moveTo(((((j - 1) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 20 + ((5 - y) * yDim * scale) + ((yDim * scale) / 2))
+                                    ctx.moveTo(((((j - 1) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 20 + ((5 - y) * yDim * scale) + ((16.5 * scale) / 2))
                                     ctx.arc(((((j - 1) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 20 + ((5 - y) * yDim * scale) + ((yDim * scale) / 2), 2 * scale, 0, 2 * Math.PI)
                                 }
                                 else {
-                                    ctx.moveTo(((((j - 4) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 6 * (yDim * scale) + 20 + ((5 - y) * (yDim * scale)) + ((yDim * scale) / 2))
+                                    ctx.moveTo(((((j - 4) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 6 * (yDim * scale) + 20 + ((5 - y) * (yDim * scale)) + ((16.5 * scale) / 2))
                                     ctx.arc(((((j - 4) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 6 * (yDim * scale) + 20 + ((5 - y) * (yDim * scale)) + ((yDim * scale) / 2), 2 * scale, 0, 2 * Math.PI)
                                 }
                                 ctx.fill()
@@ -80,10 +80,10 @@
 
                             else if (data[j][y][x] != lastData[j][y][x] || lastData.length() != 0 && data[j][y][x] == 0) {
                                 if (j < 4) {
-                                    brokenSensorLoc.push([((((j - 1) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 20 + ((5 - y) * (yDim * scale)) + ((yDim * scale) / 2), j, y, x])
+                                    brokenSensorLoc.push([((((j - 1) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 20 + ((5 - y) * (yDim * scale)) + ((16.5 * scale) / 2), j, y, x])
                                 }
                                 else {
-                                    brokenSensorLoc.push([((((j - 4) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 6 * yDim * scale + 20 + ((5 - y) * yDim * scale) + ((yDim * scale) / 2), j, y, x])
+                                    brokenSensorLoc.push([((((j - 4) * 7 + x) * xDim - xDim / 2) * scale) + pad + (start * scale), 6 * yDim * scale + 20 + ((5 - y) * yDim * scale) + ((16.5 * scale) / 2), j, y, x])
                                 }
 
                             }
