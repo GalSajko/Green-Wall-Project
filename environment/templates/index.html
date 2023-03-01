@@ -102,6 +102,11 @@
                 if (JSON.stringify(data) != JSON.stringify(lastPinData)) {
                     spiderLocation.unshift([data[0], data[1]])
                 }
+                
+                 while (spiderLocation.length>50){
+                    spiderLocation.pop()
+                 }
+                
                 lastPinData = []
                 lastPinData = [...data]
 

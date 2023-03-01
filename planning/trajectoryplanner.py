@@ -140,7 +140,7 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
     timeVector = np.linspace(0, duration, numberOfSteps)
 
     # Ratio beween height of trajectory and distance between start and goal points.
-    heightPercent = 1.0
+    heightPercent = 0.8
 
     startToGoalDirection = np.array(goalPosition - startPosition)
 

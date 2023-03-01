@@ -80,14 +80,15 @@ LEGS_IDS = np.array([0, 1, 2, 3, 4], dtype = np.int8)
 # Legs ids used for watering the plants.
 WATERING_LEGS_IDS = [1, 4]
 # Leg id used for (re)filling water tank.
-FILL_WATER_TANKG_LEG_ID = 2
+REFILLING_LEG_ID = 2
 # Spider's watering position regarding to plant position.
 WATERING_XY_OFFSET_ABS = [0.2, 0.2]
+REFILLING_LEG_OFFSET = np.array([-0.2, -0.65, -0.2], dtype = np.float32)
 # Spiders legs, given as lengths of all three links in one leg.
 LEGS_DIMENSIONS = np.array([0.064, 0.3, 0.276], dtype = np.float32)
 SEGMENTS_MASSES = np.array([
     [0.057, 0.62, 0.27],
-    [0.057, 0.62, 0.27],
+    [0.057, 0.62, 0.29],
     [0.057, 0.62, 0.27],
     [0.057, 0.62, 0.27],
     [0.057, 0.62, 0.27]], dtype = np.float32)

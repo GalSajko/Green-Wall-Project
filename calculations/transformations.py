@@ -6,6 +6,7 @@ import numba
 
 import config
 from environment import spider
+from environment import wall
 
 def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     """Calculate global transformation matrix for global origin - spider relation.
@@ -20,28 +21,28 @@ def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     """
     if rotationOnly:
         if len(xyzrpy) == 3:
-            rpy = xyzrpy
+            rollAngle, pitchAngle, yawAngle = xyzrpy
         else:
             raise ValueError(f"Length of xyzrpy parameter should be 3, but it is {len(xyzrpy)}.")
     else:
         if len(xyzrpy) == 4:
             xyzrpy = [xyzrpy[0], xyzrpy[1], xyzrpy[2], 0, 0, xyzrpy[3]]
-        position = xyzrpy[0:3]
-        rpy = [xyzrpy[4], xyzrpy[3], xyzrpy[5]]
+        position = xyzrpy[:3]
+        rollAngle, pitchAngle, yawAngle = xyzrpy[3:]
 
     roll = np.array([
-        [math.cos(rpy[1]), 0, math.sin(rpy[1])],
+        [math.cos(rollAngle), 0, math.sin(rollAngle)],
         [0, 1, 0],
-        [-math.sin(rpy[1]), 0, math.cos(rpy[1])]
+        [-math.sin(rollAngle), 0, math.cos(rollAngle)]
     ], dtype = np.float32)
     pitch = np.array([
         [1, 0, 0],
-        [0, math.cos(rpy[0]), -math.sin(rpy[0])],
-        [0, math.sin(rpy[0]), math.cos(rpy[0])]
+        [0, math.cos(pitchAngle), -math.sin(pitchAngle)],
+        [0, math.sin(pitchAngle), math.cos(pitchAngle)]
     ], dtype = np.float32)
     yaw = np.array([
-        [math.cos(rpy[2]), -math.sin(rpy[2]), 0],
-        [math.sin(rpy[2]), math.cos(rpy[2]), 0],
+        [math.cos(yawAngle), -math.sin(yawAngle), 0],
+        [math.sin(yawAngle), math.cos(yawAngle), 0],
         [0, 0, 1]
     ], dtype = np.float32)
     rotationMatrix = np.dot(roll, np.dot(pitch, yaw))
@@ -143,34 +144,67 @@ def convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset
         return getLegInLocal(legId, goalPositionOrOffset, spiderPose)
     return np.array(legCurrentPosition + getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset), dtype = np.float32)
 
-def getWateringLegAndPose(plantPosition, spiderStartPose):
-    """Calculate spider's pose for watering the plant and leg used for watering.
+def getWateringLegAndPose(spiderStartPose, plantPosition = None, doRefill = False):
+    """Calculate spider's pose for watering the plant or refilling water tank and leg used for the task.
 
     Args:
-        plantPosition (list): 1x3 array of plant's position in global origin.
         spiderStartPose (list): Spider's current pose in global origin.
+        plantPosition (list, optional): 1x3 array of plant's position in global origin. Should be given, if task is to water a plant. Defaults to None.
+        doRefill(bool, otpional): If True, calculate refill position, otherwise calculate watering position, defaults to False.
 
     Returns:
         tuple: Leg id and spider's pose used for watering the plant.
     """
-    if plantPosition[0] < spiderStartPose[0]:
-        wateringLeg = spider.WATERING_LEGS_IDS[0]
-        wateringPose = np.array([
-            plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
-            plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-            0.3,
-            0.0
-        ])
-    else:
-        wateringLeg = spider.WATERING_LEGS_IDS[1]
-        wateringPose = np.array([
-            plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
-            plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-            0.3,
-            0.0
-        ])
+    if not doRefill and plantPosition is None:
+        raise ValueError("If task is watering the plant, plant position should be given.")
     
+    if not doRefill:
+        if plantPosition[0] < spiderStartPose[0]:
+            wateringLeg = spider.WATERING_LEGS_IDS[0]
+            wateringPose = np.array([
+                plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
+                plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+                0.3,
+                0.0
+            ])
+        else:
+            wateringLeg = spider.WATERING_LEGS_IDS[1]
+            wateringPose = np.array([
+                plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
+                plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+                0.3,
+                0.0
+            ])
+        
+        return wateringLeg, wateringPose
+    
+    wateringLeg = spider.REFILLING_LEG_ID
+    wateringPose = np.array([
+        wall.WALL_SIZE[0] / 2, 
+        0.4,
+        0.3,
+        0.0
+    ])
+
     return wateringLeg, wateringPose
+
+def getLastJointToGoalPinVectorInSpider(legId, lastJointPositionInLocal, goalPinPositionInGlobal, spiderPose):
+    """Calculate vector from last joint to goal pin in spider's origin.
+
+    Args:
+        legId (int): Leg id.
+        lastJointPositionInLocal (list): 1x3 vector of x, y and z position of last joint in local origin.
+        goalPinPositionInGlobal (list): 1x3 vector of x, y and z position of goal pin in global origin.
+        spiderPose (list): Spider's pose.
+
+    Returns:
+        numpy.ndarray: 1x3 unit vector from last joint to goal pin, given in spider's origin.
+    """
+    goalPinPositionInLocal = getLegInLocal(legId, goalPinPositionInGlobal, spiderPose)
+    lastJointToGoalPinInLocal = np.array(goalPinPositionInLocal - lastJointPositionInLocal)
+    lastJointToGoalPinInSpider = np.dot(spider.T_ANCHORS[legId][:3, :3], lastJointToGoalPinInLocal)
+
+    return lastJointToGoalPinInSpider / np.linalg.norm(lastJointToGoalPinInSpider) 
 
 
 @numba.jit(nopython = True, cache = True)

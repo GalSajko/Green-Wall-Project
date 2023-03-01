@@ -60,7 +60,6 @@ class MotorDriver:
         self.__initGroupReadWrite()
 
         self.__initPort()
-        # self.rebootMotor(self.motorsIds)
         time.sleep(5)
         if enableMotors:
             self.enableLegs()
@@ -180,7 +179,7 @@ class MotorDriver:
                 print(f"Motor {motorId} has been successfully enabled.")
             
     
-    def rebootMotor(self, motorsIds):
+    def rebootMotors(self, motorsIds):
         """Reboot motors with given IDs. Used only, when motors are in hardware error state.
 
         Args:
@@ -190,6 +189,9 @@ class MotorDriver:
         for motorId in motorsIds:
             with self.locker:
                 self.packetHandler.reboot(self.portHandler, int(motorId))
+            if str(motorId)[1] == '3':
+                with self.locker:
+                    self.packetHandler.reboot(self.portHandler, int(motorId + 1))
     #endregion
 
     #region private methods

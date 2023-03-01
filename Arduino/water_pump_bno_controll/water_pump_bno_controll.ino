@@ -59,12 +59,9 @@ Eulers getEulerAnglesFromQuaternion(imu::Quaternion quaternion, bool doSubstract
     float q3 = quaternion.z();
     float q0 = quaternion.w();
 
-    eulers.pitch = atan2(2 * (q0 * q1 + q2 * q3), 1 - 2 * (q1 * q1 + q2 * q2));
-    // eulers.yaw = asin(2 * (q0 * q2 - q3 * q1)) * (-1);
-    // eulers.yaw = asin(2 * (q0 * q2 - q3 * q1));
-    // eulers.roll = atan2(2 * (q0 * q3 + q1 * q2), 1 - 2 * (q2 * q2 + q3 * q3));
-    eulers.roll = asin(2 * (q0 * q2 - q3 * q1));
-    eulers.yaw = atan2(2 * (q0 * q3 + q1 * q2), 1 - 2 * (q2 * q2 + q3 * q3));
+    eulers.roll = atan2(2 * (q0 * q1 + q2 * q3), 1 - 2 * (q1 * q1 + q2 * q2));
+    eulers.pitch = asin(2 * (q0 * q2 - q1 * q3));
+    eulers.yaw = atan2(2 * (q0 * q3 + q1 * q2), -1 + 2 * (q0 * q0 + q1 * q1));
 
     if (doSubstract)
     {
@@ -97,9 +94,9 @@ String addPlusSigns(String a, String b, String c)
 /*Create message from eulers, to send on PC.*/
 String getEulersMessage(Eulers eulers)
 {
-  String roll = String(eulers.roll);
-  String pitch = String(eulers.pitch);
-  String yaw = String(eulers.yaw);
+  String roll = String(eulers.yaw);
+  String pitch = String(eulers.roll * (-1));
+  String yaw = String(eulers.pitch);
 
   String rpy = addPlusSigns(roll, pitch, yaw);
 
@@ -108,10 +105,10 @@ String getEulersMessage(Eulers eulers)
 
 String getGravityVectorMessage(sensors_event_t event)
 {
-  // String x = String(event.acceleration.x * (-1));
   String x = String(event.acceleration.x);
   String y = String(event.acceleration.y);
-  String z = String(event.acceleration.z);
+  // Minus because acc reading declaration.
+  String z = String(-event.acceleration.z);
 
   String gravity = addPlusSigns(x, y, z);
 
@@ -175,9 +172,8 @@ void setup()
   delay(1000);
 
   // Remap BNO axis to match spider's orientation on the wall.
-  bno.setAxisRemap(bno.REMAP_CONFIG_P2);
+  bno.setAxisRemap(bno.REMAP_CONFIG_P1);
   bno.setAxisSign(bno.REMAP_SIGN_P2);
-  // bno.setAxisSign(bno.REMAP_SIGN_P1);
 
   bno.setExtCrystalUse(true);
   
