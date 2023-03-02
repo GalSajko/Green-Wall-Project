@@ -29,7 +29,7 @@ def createGrid(threeDim):
     return np.array(pins)
 
 # Wall size given in meters - (x, y).
-WALL_SIZE = [1.25, 1.3]
+WALL_SIZE = [4.1, 3.1]
 # Pin raster - distances between pins in (x, y).
 WALL_RASTER = [0.2, 0.25]
 PIN_HEIGHT = 0.0

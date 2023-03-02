@@ -144,7 +144,7 @@ def convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset
         return getLegInLocal(legId, goalPositionOrOffset, spiderPose)
     return np.array(legCurrentPosition + getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset), dtype = np.float32)
 
-def getWateringLegAndPose(spiderStartPose, plantPosition = None, doRefill = False):
+def getWateringLegAndPose(plantPosition = None, doRefill = False):
     """Calculate spider's pose for watering the plant or refilling water tank and leg used for the task.
 
     Args:
@@ -159,12 +159,12 @@ def getWateringLegAndPose(spiderStartPose, plantPosition = None, doRefill = Fals
         raise ValueError("If task is watering the plant, plant position should be given.")
     
     if not doRefill:
-        if plantPosition[0] < spiderStartPose[0]:
+        if plantPosition[0] <= wall.WALL_SIZE[0] / 2:
             wateringLeg = spider.WATERING_LEGS_IDS[0]
             wateringPose = np.array([
                 plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
                 plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-                0.3,
+                spider.SPIDER_WALKING_HEIGHT,
                 0.0
             ])
         else:
@@ -172,7 +172,7 @@ def getWateringLegAndPose(spiderStartPose, plantPosition = None, doRefill = Fals
             wateringPose = np.array([
                 plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
                 plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-                0.3,
+                spider.SPIDER_WALKING_HEIGHT,
                 0.0
             ])
         
@@ -181,8 +181,8 @@ def getWateringLegAndPose(spiderStartPose, plantPosition = None, doRefill = Fals
     wateringLeg = spider.REFILLING_LEG_ID
     wateringPose = np.array([
         wall.WALL_SIZE[0] / 2, 
-        0.4,
-        0.3,
+        spider.REFILLING_Y_WALL_POSITION,
+        spider.SPIDER_WALKING_HEIGHT,
         0.0
     ])
 

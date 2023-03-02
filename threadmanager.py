@@ -11,6 +11,7 @@ class CustomThread:
             isDaemon (bool): Whether or not thread to be a daemon.
             start (bool, optional): Whether or not to start thread. Defaults to True.
             useKillEvent (bool, optional): Whether or not to use event to kill a thread. Defaults to True.
+            doPrint(bool, optional): Whether or not print message.
             funcArgs (tuple, optional): Needed arguments for given function, given as a Tuple. Defaults to ().
 
         Returns:

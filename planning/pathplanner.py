@@ -184,9 +184,23 @@ def modifiedWalkingInstructions(startLegsPositions, endPose):
         tuple: Modified poses and pins instructions.
     """
     # Create new start pose as mean value of all current legs positions (from json file).
+    # Adjust the pose to avoid over-extension of any leg if necessary.
     startPose = np.mean(startLegsPositions, axis = 0)
-    startPose[2] = 0.3
+    startPose[2] = spider.SPIDER_WALKING_HEIGHT
     startPose = np.append(startPose, 0.0)
+    initOffset = 0.01
+    while True:
+        potentialLegLengths = np.zeros(len(spider.LEGS_IDS), dtype = np.float32)
+        for leg in spider.LEGS_IDS:
+            legBasePositionInGlobal = np.dot(tf.xyzRpyToMatrix(startPose), spider.T_ANCHORS[leg])[:, 3][:3]
+            potentialLegLengths[leg] = np.linalg.norm(startLegsPositions[leg] - legBasePositionInGlobal)
+        if not (potentialLegLengths > spider.LEG_LENGTH_MAX_LIMIT).any():
+            break
+        overExtendedLegsIdxs = np.where(potentialLegLengths > spider.LEG_LENGTH_MAX_LIMIT)[0]
+        if 2 in overExtendedLegsIdxs or 3 in overExtendedLegsIdxs:
+            startPose[1] -= initOffset
+        else:
+            startPose[1] += initOffset
 
     # Create path from start pose to goal pose. Prepend modified pins instructions for first step, where legs are not on same positions as calculated by path planner.
     poses, pinsInstructions = createWalkingInstructions(startPose, endPose)

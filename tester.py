@@ -11,16 +11,15 @@ from environment import wall, spider
 
 
 if __name__ == "__main__":
-    spiderApp = app.App()
-    time.sleep(1)
-    # input("ENTER")
-    # spider.motorsVelocityController.startForceMode([2, 3], [np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0])])
-    # spider.motorsVelocityController.startImpedanceMode(0, np.array([1.0, 0.0, 0.0]))
-    # spider.spiderStatesManager(config.WORKING_STATE, (np.array([0.6, 0.4, 0.3, 0.0]), ))
-    while True:
-        spiderApp.pumpsBnoArduino.pumpControll('0', 1)
-        time.sleep(0.05)
-    # pins = wall.createGrid(True)
+    # spiderApp = app.App()
+    # time.sleep(1)
+    # while True:
+    #     spiderApp.pumpsBnoArduino.pumpControll('0', 1)
+    #     time.sleep(0.05)
+    pins = wall.createGrid(True)
+    print(pins)
+    print(len(pins))
+    print(pins[272])
     # usedPins = [pins[22], pins[9], pins[12], pins[24], pins[33]]
     # startPose = [0.4, 0.5, 0.3, 0.0]
 
