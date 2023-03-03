@@ -152,9 +152,6 @@ class App:
     
     def working(self):
         """Working procedure, includes walking and watering the plants.
-
-        Args:
-            startPose (list): Initial starting pose.
         """
         import random
         self.currentState = config.WORKING_STATE
@@ -162,24 +159,23 @@ class App:
         print("WORKING...") 
         
         while True:
-            startPose, _, startLegsPositions = self.jsonFileManager.readSpiderState()
+            spiderPose, _, startLegsPositions = self.jsonFileManager.readSpiderState()
             doRefillWaterTank = self.wateringCounter >= config.NUMBER_OF_WATERING_BEFORE_REFILL
             while True:
                 try:
                     if doRefillWaterTank:
                         self.wateringCounter = 0
-                        wateringLegId, endPose = tf.getWateringLegAndPose(doRefill = True)
-                        wateringPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
+                        wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, doRefill = True)
+                        plantOrRefillPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
                     else:
-                        wateringPosition = self.comunicationWithServer.sensorPosition
-                        # wateringPosition = np.array([random.uniform(1.4, 2.5), random.uniform(0.5, 1.5), 0.0], dtype = np.float32)
-                        # print(f"PLANT POSITION {wateringPosition}")
-                        wateringLegId, endPose = tf.getWateringLegAndPose(wateringPosition)
+                        plantOrRefillPosition = self.comunicationWithServer.sensorPosition
+                        print(f"PLANT POSITION {plantOrRefillPosition}")
+                        wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, plantOrRefillPosition)
                     if isInit:
                         poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
                         isInit = False
                         break
-                    poses, pinsInstructions = pathplanner.createWalkingInstructions(startPose, endPose)
+                    poses, pinsInstructions = pathplanner.createWalkingInstructions(spiderPose, endPose)
                     break
                 except:
                     print("Error in path planning. Trying again... ")
@@ -220,7 +216,7 @@ class App:
                             print("WORKING STOPED - UNSUCCESSFULL PIN TO PIN MOVEMENT")
                             return
             
-            wateringSuccess = self.__watering(wateringLegId, wateringPosition, pose, doRefillWaterTank)
+            wateringSuccess = self.__watering(wateringLegId, plantOrRefillPosition, pose, doRefillWaterTank)
             if not wateringSuccess:
                 return
             self.wateringCounter += 1
@@ -479,12 +475,11 @@ class App:
                 goalPinInLocal = kin.getGoalPinInLocal(legId, attachedLegs, legsGlobalPositions, qA, self.pumpsBnoArduino.getRpy())
 
             distance = np.linalg.norm(goalPinInLocal - xALeg)
-            print(distance)
             switchState = int(self.motorsVelocityController.grippersArduino.getSwitchesStates()[legId])
 
             if (switchState == 0) and (distance < 0.1):
                 self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
-                time.sleep(1)
+                time.sleep(2)
                 break   
 
             if useSafety:
@@ -506,8 +501,7 @@ class App:
         _, _, legsGlobalPositions = self.jsonFileManager.readSpiderState()
         with self.statesObjectsLocker:
             qA = self.qA
-        otherLegs = list(np.delete(spider.LEGS_IDS, wateringLegId))
-        spiderPose = kin.getSpiderPose(otherLegs, legsGlobalPositions[otherLegs], qA)
+        spiderPose = kin.getSpiderPose(spider.LEGS_IDS, legsGlobalPositions, qA)
 
         self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
         if self.safetyKillEvent.wait(timeout = 1.0):
@@ -520,7 +514,6 @@ class App:
                 return False
 
         # Turn on water pump.
-        pumpId = 1 if wateringLegId == 1 else 0
         if wateringLegId == 1:
             pumpId = 1
         elif wateringLegId == 4:
@@ -530,7 +523,7 @@ class App:
 
         pumpTime = config.REFILL_TIME if doRefill else config.WATERING_TIME
 
-        print("PUMP ON")
+        print(f"PUMP {pumpId} ON")
         startTime = time.perf_counter()
         while True:
             elapsedTime = time.perf_counter() - startTime
@@ -538,11 +531,11 @@ class App:
             if elapsedTime > pumpTime:
                 if not doRefill:
                     self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
-                    print("PUMP OFF")
+                    print(f"PUMP {pumpId} OFF")
                 break
             if self.safetyKillEvent.wait(timeout = 0.05):
                 self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
-                print("PUMP OFF")
+                print(f"PUMP {pumpId} OFF")
                 if not doRefill:
                     return False
         
@@ -557,6 +550,7 @@ class App:
             
         if doRefill:
             self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
+            print(f"PUMP {pumpId} OFF")
             
         self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
         if self.safetyKillEvent.wait(1.0):
