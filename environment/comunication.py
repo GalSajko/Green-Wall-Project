@@ -38,7 +38,7 @@ class CommunicationWithServer:
                     y = (((5-self.data[1])) * yDim + yOffset) / 100.0
                     x = (start + ((self.data[0] - 4) * 7 + (config.SENSOR_IDS.index(self.data[2]))) * xDim + xDim / 2) / 100.0
                     # TODO: Calibrate plant z offset.
-                    self.sensorPosition=np.array([x , y, 0.0])
+                self.sensorPosition=np.array([x , y, 0.0])
         except Exception as e:
                     print(f"Exception {e} at reading sensor position data.")
         return self.sensorPosition
