@@ -170,7 +170,7 @@ class App:
                         wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, doRefill = True)
                         plantOrRefillPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
                     else:
-                        plantOrRefillPosition = self.comunicationWithServer.sensorPosition
+                        plantOrRefillPosition = self.comunicationWithServer.getGoalPos()
                         # plantOrRefillPosition = np.array([np.random.uniform(1.2, 3.5), np.random.uniform(0.6, 3.5), 0.0])
                         print(f"PLANT POSITION {plantOrRefillPosition}")
                         wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, plantOrRefillPosition)

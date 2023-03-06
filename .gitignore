@@ -133,3 +133,6 @@ dmypy.json
 # Client test file
 /environment/comunicationtest.py
 /environment/test.py
+
+# Spider state json file
+./spider_state_dict
