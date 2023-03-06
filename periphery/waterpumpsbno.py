@@ -106,11 +106,11 @@ class PumpsBnoArduino:
         """Constantly receiving data from Arduino. Runs in separate thread.
         """
         while True:
-            time.sleep(config.GRIPPER_BNO_ARDUINO_READING_PERIOD)
+            time.sleep(0.001)
             with self.locker:
                 msg = self.comm.readline()
             while '\\n' not in str(msg):
-                time.sleep(config.GRIPPER_BNO_ARDUINO_READING_PERIOD)
+                time.sleep(0.001)
                 with self.locker:
                     msg += self.comm.readline()
             with self.locker:
