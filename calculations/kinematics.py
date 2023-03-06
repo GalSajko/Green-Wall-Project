@@ -11,7 +11,7 @@ from calculations import transformations as tf
 from calculations import mathtools as mathTools
 
 #region forward kinematics
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def allLegsPositions(jointsValues, fkType, legs = spider.LEGS_IDS):
     """Get positions of all legs in given origin.
 
@@ -37,7 +37,7 @@ def allLegsPositions(jointsValues, fkType, legs = spider.LEGS_IDS):
     
     return xA
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def legForwardKinematics(jointsValues, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate forward kinematics for spiders leg, using transformation matrices.  
 
@@ -80,7 +80,7 @@ def legBaseToThirdJointForwardKinematics(jointValues):
         [0.0, 0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def spiderBaseToLegTipForwardKinematics(legId, jointsValues, angleBetweenLegs = spider.ANGLE_BETWEEN_LEGS, radius = spider.BODY_RADIUS, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate forward kinematics from spider base to leg-tip.
 
@@ -222,7 +222,7 @@ def getGoalPinInLocal(legId, attachedLegs, legsGlobalPositions, qA, rpy):
 #endregion
 
 #region inverse kinematics
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate inverse kinematics for leg, using geometry.
 
@@ -261,7 +261,7 @@ def legInverseKinematics(endEffectorPosition, legsDimensions = spider.LEGS_DIMEN
 #endregion
 
 #region jacobians bv  
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def legJacobi(jointsValues, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate Jacobian matrix for given leg.
 
@@ -283,7 +283,7 @@ def legJacobi(jointsValues, legsDimensions = spider.LEGS_DIMENSIONS):
         [0.0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3) * 1.0, L3 * math.cos(q2 + q3) * 1.0]
         ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def spiderBaseToLegTipJacobi(legId, jointValues, angle = spider.ANGLE_BETWEEN_LEGS, legsDimensions = spider.LEGS_DIMENSIONS):
     """Calculate Jacobian matrix for spider's origin - leg-tip relation.
 
@@ -306,7 +306,7 @@ def spiderBaseToLegTipJacobi(legId, jointValues, angle = spider.ANGLE_BETWEEN_LE
         [0, L2 * math.cos(q2) + L3 * math.cos(q2 + q3), L3 * math.cos(q2 + q3)]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def getJointsVelocities(currentAngles, xCds, numberOfLegs = spider.NUMBER_OF_LEGS, numberOfMotorsInLeg = spider.NUMBER_OF_MOTORS_IN_LEG):
     """Calculated needed joints velocities from given end-effectors' velocites, for all legs.
 
@@ -326,7 +326,7 @@ def getJointsVelocities(currentAngles, xCds, numberOfLegs = spider.NUMBER_OF_LEG
     
     return qCds
 
-# @numba.jit(nopython = True, cache = True)
+# @numba.jit(nopython = True, cache = False)
 def getXdXddFromOffsets(forceModeLegs, offsetsInSpiderOrigin, velocitiesInSpiderOrigin, spiderToLegTransforms = spider.T_ANCHORS):
     """Rotate position offets and velocities, calculated from force controller into leg-local origins.
 

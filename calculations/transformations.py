@@ -158,52 +158,53 @@ def getWateringLegAndPose(spiderPose, plantPosition = None, doRefill = False):
     if not doRefill and plantPosition is None:
         raise ValueError("If task is watering the plant, plant position should be given.")
     
-    firstLegWateringPose = np.array([
-        plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
-        plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-        spider.SPIDER_WALKING_HEIGHT,
-        0.0
-    ])
-    fourthLegWateringPose = np.array([
-        plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
-        plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-        spider.SPIDER_WALKING_HEIGHT,
-        0.0
-    ])
-    
     if not doRefill:
-        # if plantPosition[0] <= wall.WALL_SIZE[0] / 2:
-        #     wateringLeg = spider.WATERING_LEGS_IDS[0]
-        #     wateringPose = np.array([
-        #         plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
-        #         plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-        #         spider.SPIDER_WALKING_HEIGHT,
-        #         0.0
-        #     ])
-        # else:
-        #     wateringLeg = spider.WATERING_LEGS_IDS[1]
-        #     wateringPose = np.array([
-        #         plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
-        #         plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-        #         spider.SPIDER_WALKING_HEIGHT,
-        #         0.0
-        #     ])
-        maxX = wall.WALL_SIZE[0] - 0.75
-        minX = wall.WALL_SIZE[0] + 0.75
-        if spiderPose[0] <= plantPosition[0]:
-            if spiderPose[0] <= minX:
-                wateringLeg = spider.WATERING_LEGS_IDS[0]
-                wateringPose = firstLegWateringPose
-            else:
-                wateringLeg = spider.WATERING_LEGS_IDS[1]
-                wateringPose = fourthLegWateringPose
+        if plantPosition[0] <= wall.WALL_SIZE[0] / 2:
+            wateringLeg = spider.WATERING_LEGS_IDS[0]
+            wateringPose = np.array([
+                plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
+                plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+                spider.SPIDER_WALKING_HEIGHT,
+                0.0
+            ])
         else:
-            if spiderPose[0] >= maxX:
-                wateringLeg = spider.WATERING_LEGS_IDS[1]
-                wateringPose = fourthLegWateringPose
-            else:
-                wateringLeg = spider.WATERING_LEGS_IDS[0]
-                wateringPose = firstLegWateringPose         
+            wateringLeg = spider.WATERING_LEGS_IDS[1]
+            wateringPose = np.array([
+                plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
+                plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+                spider.SPIDER_WALKING_HEIGHT,
+                0.0
+            ])
+
+        # firstLegWateringPose = np.array([
+        #     plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
+        #     plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+        #     spider.SPIDER_WALKING_HEIGHT,
+        #     0.0
+        # ])
+        # fourthLegWateringPose = np.array([
+        #     plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
+        #     plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
+        #     spider.SPIDER_WALKING_HEIGHT,
+        #     0.0
+        # ])
+    
+        # maxX = wall.WALL_SIZE[0] - 0.8
+        # minX = 0.8
+        # if spiderPose[0] <= plantPosition[0]:
+        #     if spiderPose[0] <= minX:
+        #         wateringLeg = spider.WATERING_LEGS_IDS[0]
+        #         wateringPose = firstLegWateringPose
+        #     else:
+        #         wateringLeg = spider.WATERING_LEGS_IDS[1]
+        #         wateringPose = fourthLegWateringPose
+        # else:
+        #     if spiderPose[0] >= maxX:
+        #         wateringLeg = spider.WATERING_LEGS_IDS[1]
+        #         wateringPose = fourthLegWateringPose
+        #     else:
+        #         wateringLeg = spider.WATERING_LEGS_IDS[0]
+        #         wateringPose = firstLegWateringPose         
 
         return wateringLeg, wateringPose
     
@@ -236,7 +237,7 @@ def getLastJointToGoalPinVectorInSpider(legId, lastJointPositionInLocal, goalPin
     return lastJointToGoalPinInSpider / np.linalg.norm(lastJointToGoalPinInSpider) 
 
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def R_B1(qb, q1):
     """Rotation matrix from spider's to 1st segment's origin.
 
@@ -253,7 +254,7 @@ def R_B1(qb, q1):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def R_12(q2):
     """Rotation matrix from 1st to 2nd leg-segment.
 
@@ -269,7 +270,7 @@ def R_12(q2):
         [math.sin(q2), math.cos(q2), 0.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def R_23(q3):
     """Rotation matrix from 2nd to 3rd leg-segment.
 
@@ -285,7 +286,7 @@ def R_23(q3):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def R_B2(qb, q1, q2):
     """Rotation matrix from spider's to 2nd segment's origin.
 
@@ -303,7 +304,7 @@ def R_B2(qb, q1, q2):
         [math.sin(q2), math.cos(q2), 0.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def R_B3(qb, q1, q2, q3):
     return np.array([
         [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), math.sin(q1 + qb)],

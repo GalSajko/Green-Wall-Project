@@ -2,6 +2,7 @@ import numpy as np
 import threading
 import time
 import os
+import random
 
 import config
 import controllers
@@ -16,6 +17,8 @@ from calculations import dynamics as dyn
 from calculations import mathtools
 from calculations import transformations as tf
 from planning import pathplanner
+
+from environment import wall
 
 class App:
     def __init__(self):
@@ -153,7 +156,6 @@ class App:
     def working(self):
         """Working procedure, includes walking and watering the plants.
         """
-        import random
         self.currentState = config.WORKING_STATE
         isInit = True
         print("WORKING...") 
@@ -171,10 +173,14 @@ class App:
                         plantOrRefillPosition = self.comunicationWithServer.sensorPosition
                         print(f"PLANT POSITION {plantOrRefillPosition}")
                         wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, plantOrRefillPosition)
+                        print("AFTER")
                     if isInit:
+                        print("BEFORE INIT")
                         poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
                         isInit = False
+                        print("AFTER INIT")
                         break
+                        
                     poses, pinsInstructions = pathplanner.createWalkingInstructions(spiderPose, endPose)
                     break
                 except:
@@ -533,11 +539,14 @@ class App:
                     self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
                     print(f"PUMP {pumpId} OFF")
                 break
-            if self.safetyKillEvent.wait(timeout = 0.05):
-                self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
-                print(f"PUMP {pumpId} OFF")
-                if not doRefill:
+            if not doRefill:
+                if self.safetyKillEvent.wait(timeout = 0.05):
+                    self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
+                    print(f"PUMP {pumpId} OFF")
+                    # if not doRefill:
                     return False
+            else:
+                time.sleep(0.05)
         
         # Move leg back on starting position.
         with self.statesObjectsLocker:

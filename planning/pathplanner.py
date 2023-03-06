@@ -188,8 +188,9 @@ def modifiedWalkingInstructions(startLegsPositions, endPose):
     startPose = np.mean(startLegsPositions, axis = 0)
     startPose[2] = spider.SPIDER_WALKING_HEIGHT
     startPose = np.append(startPose, 0.0)
-    initOffset = 0.01
+    initOffset = 0.005
     while True:
+        print("IN LOOP")
         potentialLegLengths = np.zeros(len(spider.LEGS_IDS), dtype = np.float32)
         for leg in spider.LEGS_IDS:
             legBasePositionInGlobal = np.dot(tf.xyzRpyToMatrix(startPose), spider.T_ANCHORS[leg])[:, 3][:3]

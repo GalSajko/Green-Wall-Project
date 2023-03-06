@@ -15,7 +15,7 @@ B_TORQUE_POLYNOM = 2.9326
 C_TORQUE_POLYNOM = -0.1779
 
 #region public methods
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def getTorquesAndForcesOnLegsTips(jointsValues, currentsInMotors, spiderGravityVector, numberOfLegs = spider.NUMBER_OF_LEGS):
     """Calculate forces, applied to tips of all legs, from currents in motors.
     Args:
@@ -71,7 +71,7 @@ def calculateDistributedForces(measuredTorques, jointsValues, legsIds, offloadLe
 
     return np.reshape(distForcesArray, (len(legsIds), 3))
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def getGravityRotationMatrices(jointsValues, qb):
     q1, q2, q3 = jointsValues
 
@@ -82,7 +82,7 @@ def getGravityRotationMatrices(jointsValues, qb):
 
     return rotMatrices
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def getForceRotationMatrices(jointsValues):
     forceMatrices = np.zeros((2, 3, 3), dtype = np.float32)
     forceMatrices[0] = tf.R_23(jointsValues[2])
@@ -90,7 +90,7 @@ def getForceRotationMatrices(jointsValues):
 
     return forceMatrices
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def getTorquesInLegs(jointsValues, currentsInMotors, spiderGravityVector):
     """Calculate torques in leg-joints from measured currents. 
 
@@ -111,7 +111,7 @@ def getTorquesInLegs(jointsValues, currentsInMotors, spiderGravityVector):
 
     return torques
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def getGravityCompensationTorques(jointsValues, spiderGravityVector, numberOfLegs = spider.NUMBER_OF_LEGS, numberOfMotorsInLeg = spider.NUMBER_OF_MOTORS_IN_LEG, angleBetweenLegs = spider.ANGLE_BETWEEN_LEGS):
     """Calculate torques in joints (for all legs), required to compensate movement, caused only by gravity.
 
@@ -135,7 +135,7 @@ def getGravityCompensationTorques(jointsValues, spiderGravityVector, numberOfLeg
 
     return torques
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def calculateGravityVectors(gravityRotationMatrices, spiderGravityVector, numberOfSegments = spider.NUMBER_OF_MOTORS_IN_LEG):
     """Calculate gravity vectors in segments' origins.
 
@@ -151,7 +151,7 @@ def calculateGravityVectors(gravityRotationMatrices, spiderGravityVector, number
         localGravityVectors[i] = np.dot(np.transpose(gravityRotationMatrices[i]), spiderGravityVector)
     return localGravityVectors
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def calculateTorques(legId, forceRotationMatrices, localGravityVectors, cogVectors = spider.VECTORS_TO_COG_SEGMENT, legsDimensions = spider.LEGS_DIMENSIONS, segmentsMasses = spider.SEGMENTS_MASSES):
     """Calculate torques in the motors, using Newton-Euler method.
 
@@ -183,7 +183,7 @@ def calculateTorques(legId, forceRotationMatrices, localGravityVectors, cogVecto
     
     return np.flip(torquesValuesInLeg)
 
-@numba.jit(nopython = True, cache = True)
+@numba.jit(nopython = True, cache = False)
 def createDiagTransposeJHash(jointsValues):
     """Create diagonal matrix from transposed damped pseudo-inverses of jacobian matrices.
 
