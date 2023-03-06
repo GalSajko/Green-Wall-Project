@@ -188,20 +188,25 @@ def modifiedWalkingInstructions(startLegsPositions, endPose):
     startPose = np.mean(startLegsPositions, axis = 0)
     startPose[2] = spider.SPIDER_WALKING_HEIGHT
     startPose = np.append(startPose, 0.0)
-    initOffset = 0.005
+    correctionOffsett = 0.005
+    print("CALCULATING INITIAL POSE...")
+    counter = 0
     while True:
-        print("IN LOOP")
         potentialLegLengths = np.zeros(len(spider.LEGS_IDS), dtype = np.float32)
         for leg in spider.LEGS_IDS:
             legBasePositionInGlobal = np.dot(tf.xyzRpyToMatrix(startPose), spider.T_ANCHORS[leg])[:, 3][:3]
             potentialLegLengths[leg] = np.linalg.norm(startLegsPositions[leg] - legBasePositionInGlobal)
-        if not (potentialLegLengths > spider.LEG_LENGTH_MAX_LIMIT).any():
+        if (not (potentialLegLengths > spider.LEG_LENGTH_MAX_LIMIT).any()) or counter > 100:
+            if (potentialLegLengths > 0.6).any():
+                print("CALCULATED INITIAL POSE WOULD COSE OVER-EXTENSION OF AT LEAST ONE LEG. CHANGE LEGS' POSITIONS IN A WAY THAT WOULD NOT COUSE OVER-EXTENSION. SAFETY KILLING A PROGRAM...")
+                return False
             break
         overExtendedLegsIdxs = np.where(potentialLegLengths > spider.LEG_LENGTH_MAX_LIMIT)[0]
         if 2 in overExtendedLegsIdxs or 3 in overExtendedLegsIdxs:
-            startPose[1] -= initOffset
+            startPose[1] -= correctionOffsett
         else:
-            startPose[1] += initOffset
+            startPose[1] += correctionOffsett
+        counter += 1
 
     # Create path from start pose to goal pose. Prepend modified pins instructions for first step, where legs are not on same positions as calculated by path planner.
     poses, pinsInstructions = createWalkingInstructions(startPose, endPose)
