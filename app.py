@@ -171,11 +171,9 @@ class App:
                         plantOrRefillPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
                     else:
                         plantOrRefillPosition = self.comunicationWithServer.getGoalPos()
-                        # plantOrRefillPosition = np.array([np.random.uniform(1.2, 3.5), np.random.uniform(0.6, 3.5), 0.0])
                         print(f"PLANT POSITION {plantOrRefillPosition}")
                         wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, plantOrRefillPosition)
                     if isInit:
-                        # poses, pinsInstructions = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
                         pathPlannerReturnValue = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
                         if not pathPlannerReturnValue:
                             os._exit(0)

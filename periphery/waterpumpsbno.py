@@ -5,6 +5,8 @@ import time
 import threading
 import numpy as np
 
+import config
+
 class PumpsBnoArduino:
     """Class for controlling water pumps via serial communication with Arduino.
     """
@@ -104,11 +106,11 @@ class PumpsBnoArduino:
         """Constantly receiving data from Arduino. Runs in separate thread.
         """
         while True:
-            time.sleep(0.001)
+            time.sleep(config.GRIPPER_BNO_ARDUINO_READING_PERIOD)
             with self.locker:
                 msg = self.comm.readline()
             while '\\n' not in str(msg):
-                time.sleep(0.001)
+                time.sleep(config.GRIPPER_BNO_ARDUINO_READING_PERIOD)
                 with self.locker:
                     msg += self.comm.readline()
             with self.locker:

@@ -5,6 +5,8 @@ import threading
 import time
 import numpy as np
 
+import config
+
 class GrippersArduino:
     """Class for controlling grippers via serial communication with Arduino.
     """
@@ -110,11 +112,11 @@ class GrippersArduino:
         """Constantly receiving data from Arduino. Runs in separate thread.
         """
         while True:
-            time.sleep(0.001)
+            time.sleep(config.GRIPPER_BNO_ARDUINO_READING_PERIOD)
             with self.locker:
                 msg = self.comm.readline()
             while '\\n' not in str(msg):
-                time.sleep(0.001)
+                time.sleep(config.GRIPPER_BNO_ARDUINO_READING_PERIOD)
                 with self.locker:
                     msg += self.comm.readline()
 
