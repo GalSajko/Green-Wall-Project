@@ -184,8 +184,9 @@ class App:
                         
                     poses, pinsInstructions = pathplanner.createWalkingInstructions(spiderPose, endPose)
                     break
-                except:
+                except Exception as e:
                     print("Error in path planning. Trying again... ")
+                    print(f"EXCEPTION {e}.")
 
             print(f"NEW GOAL POINT {endPose[:3]}")
             for step, pose in enumerate(poses):
