@@ -520,6 +520,10 @@ class App:
         if self.safetyKillEvent.wait(timeout = 3.5):
             if not doRefill:
                 return False
+        
+        # Close gripper to allow refilling.
+        if doRefill:
+          self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)  
 
         # Turn on water pump.
         if wateringLegId == 1:
@@ -540,12 +544,13 @@ class App:
                 if not doRefill:
                     self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
                     print(f"PUMP {pumpId} OFF")
+                else:
+                    self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
                 break
             if not doRefill:
                 if self.safetyKillEvent.wait(timeout = 0.05):
                     self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
                     print(f"PUMP {pumpId} OFF")
-                    # if not doRefill:
                     return False
             else:
                 time.sleep(0.05)
