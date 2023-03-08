@@ -227,7 +227,6 @@ class App:
             wateringSuccess = self.__watering(wateringLegId, plantOrRefillPosition, pose, doRefillWaterTank)
             if not wateringSuccess:
                 return
-            self.wateringCounter += 1
         
     def rest(self, killEvent):
         """Resting procedure, includes option for manually correcting non-attached leg. Resting lasts until temperatures of all motors
@@ -582,6 +581,9 @@ class App:
 
             return self.__correction(wateringLegId, globalZDirectionInLegOrigin, xALegBeforeWatering)
         
+        if not doRefill:
+            self.wateringCounter += 1
+
         return True
     #endregion
 
