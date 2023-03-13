@@ -180,6 +180,7 @@ class App:
                             self.lastPlantOrRefillPosition = plantOrRefillPosition
                         else:
                             plantOrRefillPosition = self.lastPlantOrRefillPosition
+                            self.wasInRestingState = False
                         print(f"PLANT POSITION {plantOrRefillPosition}.")
                         wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, plantOrRefillPosition)
                     if isInit:
