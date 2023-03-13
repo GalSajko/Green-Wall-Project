@@ -36,10 +36,16 @@ class CommunicationWithServer:
                 try:
                     with open(self.spiderDictPath, "r", encoding = 'utf-8') as f:
                         pins = json.loads(f.read())
-                    _ = requests.post(config.POST_SPIDER_POSITION,json=pins, headers= {"Access-Control-Allow-Origin": "*"})
+                    _ = requests.post(config.POST_SPIDER_POSITION, json = pins, headers = {"Access-Control-Allow-Origin": "*"})
                 except Exception as e:
                     print(f"Exception {e} at sending spider state data.")
 
                 if killEvent.wait(timeout = 5): 
                     break
         self.updatingDataThread, self.updatingDataThreadKillEvent = self.threadManager.run(updatingSensorPositionData, config.UPDATE_DATA_THREAD_NAME, False, True)
+    
+    def postRefilling(self):
+         try:
+              _ = requests.post(config.POST_REFILL, data = "Refilling", headers = {"Access-Control-Allow-Origin": "*"})
+         except Exception as e:
+              print(f"Exception {e} at posting refilling intention.")

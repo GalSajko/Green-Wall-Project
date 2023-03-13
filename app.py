@@ -34,7 +34,7 @@ class App:
         self.pumpsBnoArduino = waterpumpsbno.PumpsBnoArduino()
         self.threadManager = threadmanager.CustomThread()
         self.jsonFileManager = jsonfilemanager.JsonFileManager()
-        self.comunicationWithServer = CommunicationWithServer(self.jsonFileManager.FILENAME)
+        self.communicationWithServer = CommunicationWithServer(self.jsonFileManager.FILENAME)
 
         self.statesObjectsLocker = threading.Lock()
         self.safetyKillEvent = threading.Event()
@@ -163,6 +163,7 @@ class App:
         """
         self.currentState = config.WORKING_STATE
         isInit = True
+        
         print("WORKING...") 
         
         while True:
@@ -174,9 +175,10 @@ class App:
                         wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, doRefill = True)
                         plantOrRefillPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
                         print("GOING TO REFILL POSITION.")
+                        self.communicationWithServer.postRefilling()
                     else:
                         if not self.wasInRestingState:
-                            plantOrRefillPosition = self.comunicationWithServer.getGoalPos()
+                            plantOrRefillPosition = self.communicationWithServer.getGoalPos()
                             self.lastPlantOrRefillPosition = plantOrRefillPosition
                         else:
                             plantOrRefillPosition = self.lastPlantOrRefillPosition
