@@ -42,6 +42,9 @@ class App:
         self.currentState = None
         self.wateringCounter = 0
 
+        self.wasInRestingState = False
+        self.lastPlantOrRefillPosition = None
+
         self.initBno = True
 
         self.__initLayers()
@@ -77,6 +80,8 @@ class App:
                     if config.RESTING_THREAD_NAME in self.spiderStateThread.name:
                         self.spiderStateThread.join()
                         print("RESTING FINISHED")
+                    
+                    self.wasInRestingState = True
 
                     self.safetyKillEvent.clear()
                     time.sleep(1)
@@ -166,12 +171,16 @@ class App:
             while True:
                 try:
                     if doRefillWaterTank:
-                        self.wateringCounter = 0
                         wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, doRefill = True)
                         plantOrRefillPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
+                        print("GOING TO REFILL POSITION.")
                     else:
-                        plantOrRefillPosition = self.comunicationWithServer.getGoalPos()
-                        print(f"PLANT POSITION {plantOrRefillPosition}")
+                        if not self.wasInRestingState:
+                            plantOrRefillPosition = self.comunicationWithServer.getGoalPos()
+                            self.lastPlantOrRefillPosition = plantOrRefillPosition
+                        else:
+                            plantOrRefillPosition = self.lastPlantOrRefillPosition
+                        print(f"PLANT POSITION {plantOrRefillPosition}.")
                         wateringLegId, endPose = tf.getWateringLegAndPose(spiderPose, plantOrRefillPosition)
                     if isInit:
                         pathPlannerReturnValue = pathplanner.modifiedWalkingInstructions(startLegsPositions, endPose)
@@ -186,9 +195,10 @@ class App:
                     break
                 except Exception as e:
                     print("Error in path planning. Trying again... ")
-                    print(f"EXCEPTION {e}.")
+                    print(f"EXCEPTION {e}")
+                time.sleep(0.05)
 
-            print(f"NEW GOAL POINT {endPose[:3]}")
+            print(f"NEW GOAL POINT {endPose[:3]}.")
             for step, pose in enumerate(poses):
                 currentPinsPositions = pinsInstructions[step, :, 1:]
                 currentLegsMovingOrder = pinsInstructions[step, :, 0].astype(int)
@@ -213,7 +223,7 @@ class App:
                 self.motorsVelocityController.moveLegsSync(currentLegsMovingOrder, xA, previousPinsPositions, config.GLOBAL_ORIGIN, 2.5, config.MINJERK_TRAJECTORY, pose)
                 self.jsonFileManager.updateWholeDict(pose, previousPinsPositions, currentLegsMovingOrder)
                 if self.safetyKillEvent.wait(timeout = 3.0):
-                    print("UNSUCCESSFULL BODY MOVEMENT")
+                    print("UNSUCCESSFULL BODY MOVEMENT.")
                     return
 
                 pinsOffsets = currentPinsPositions - previousPinsPositions
@@ -221,7 +231,7 @@ class App:
                     if pinsOffsets[idx].any():
                         movementSuccess = self.__pinToPinMovement(leg, previousPinsPositions[idx], currentPinsPositions[idx], pose)
                         if not movementSuccess:
-                            print("WORKING STOPED - UNSUCCESSFULL PIN TO PIN MOVEMENT")
+                            print("UNSUCCESSFULL PIN TO PIN MOVEMENT.")
                             return
             
             wateringSuccess = self.__watering(wateringLegId, plantOrRefillPosition, pose, doRefillWaterTank)
@@ -397,7 +407,7 @@ class App:
         return True
     
     def __correction(self, legId, globalZDirectionInLocal, localGoalPosition):
-        print(f"LEG {legId} IS NOT ATTACHED")
+        print(f"LEG {legId} IS NOT ATTACHED.")
         autoSuccess = self.__automaticCorrection(legId, globalZDirectionInLocal, localGoalPosition)
         print("AUTO CORRECTION SUCCESS: ", autoSuccess)
         if autoSuccess:
@@ -454,7 +464,7 @@ class App:
         _, usedPinsIndexes, legsGlobalPositions = self.jsonFileManager.readSpiderState()
         goalPin = usedPinsIndexes[legId]
 
-        print(f"MANUALLY CORRECT LEG {legId} ON PIN {goalPin}")
+        print(f"MANUALLY CORRECT LEG {legId} ON PIN {goalPin}.")
         self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
         with self.statesObjectsLocker:
             xALeg = self.xA[legId]
@@ -468,7 +478,7 @@ class App:
         distance = np.linalg.norm(goalPinInLocal - xALeg)
         disableLegs = not (spider.LEG_LENGTH_MIN_LIMIT < np.linalg.norm(goalPinInLocal) < spider.LEG_LENGTH_MAX_LIMIT)
         if disableLegs:
-            print("DISABLE LEGS")
+            print(f"DISABLE LEGS: {attachedLegs}.")
             self.motorDriver.disableLegs(attachedLegs)
 
         self.motorsVelocityController.startForceMode([legId], [np.zeros(3, dtype = np.float32)])
@@ -534,7 +544,7 @@ class App:
 
         pumpTime = config.REFILL_TIME if doRefill else config.WATERING_TIME
 
-        print(f"PUMP {pumpId} ON")
+        print(f"PUMP {pumpId} ON.")
         startTime = time.perf_counter()
         while True:
             elapsedTime = time.perf_counter() - startTime
@@ -542,14 +552,14 @@ class App:
             if elapsedTime > pumpTime:
                 if not doRefill:
                     self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
-                    print(f"PUMP {pumpId} OFF")
+                    print(f"PUMP {pumpId} OFF.")
                 else:
                     self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
                 break
             if not doRefill:
                 if self.safetyKillEvent.wait(timeout = 0.05):
                     self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
-                    print(f"PUMP {pumpId} OFF")
+                    print(f"PUMP {pumpId} OFF.")
                     return False
             else:
                 time.sleep(0.05)
@@ -565,7 +575,10 @@ class App:
             
         if doRefill:
             self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
-            print(f"PUMP {pumpId} OFF")
+            print(f"PUMP {pumpId} OFF.") 
+            self.wateringCounter = 0
+        else:
+            self.wateringCounter += 1
             
         self.motorsVelocityController.grippersArduino.moveGripper(wateringLegId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
         if self.safetyKillEvent.wait(1.0):
@@ -580,9 +593,6 @@ class App:
             globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
 
             return self.__correction(wateringLegId, globalZDirectionInLegOrigin, xALegBeforeWatering)
-        
-        if not doRefill:
-            self.wateringCounter += 1
 
         return True
     #endregion

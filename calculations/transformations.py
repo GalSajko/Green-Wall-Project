@@ -159,23 +159,6 @@ def getWateringLegAndPose(spiderPose, plantPosition = None, doRefill = False):
         raise ValueError("If task is watering the plant, plant position should be given.")
     
     if not doRefill:
-        # if plantPosition[0] <= wall.WALL_SIZE[0] / 2:
-        #     wateringLeg = spider.WATERING_LEGS_IDS[0]
-        #     wateringPose = np.array([
-        #         plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
-        #         plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-        #         spider.SPIDER_WALKING_HEIGHT,
-        #         0.0
-        #     ])
-        # else:
-        #     wateringLeg = spider.WATERING_LEGS_IDS[1]
-        #     wateringPose = np.array([
-        #         plantPosition[0] - spider.WATERING_XY_OFFSET_ABS[0],
-        #         plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
-        #         spider.SPIDER_WALKING_HEIGHT,
-        #         0.0
-        #     ])
-
         firstLegWateringPose = np.array([
             plantPosition[0] + spider.WATERING_XY_OFFSET_ABS[0],
             plantPosition[1] - spider.WATERING_XY_OFFSET_ABS[1],
