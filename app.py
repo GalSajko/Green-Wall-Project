@@ -2,12 +2,12 @@ import numpy as np
 import threading
 import time
 import os
-import random
 
 import config
 import controllers
 import threadmanager
 import jsonfilemanager
+import csvfilemanager
 from periphery import dynamixel as dmx
 from periphery import waterpumpsbno
 from environment.comunication import CommunicationWithServer
@@ -17,8 +17,6 @@ from calculations import dynamics as dyn
 from calculations import mathtools
 from calculations import transformations as tf
 from planning import pathplanner
-
-from environment import wall
 
 class App:
     def __init__(self):
@@ -34,6 +32,7 @@ class App:
         self.pumpsBnoArduino = waterpumpsbno.PumpsBnoArduino()
         self.threadManager = threadmanager.CustomThread()
         self.jsonFileManager = jsonfilemanager.JsonFileManager()
+        self.csvFileManager = csvfilemanager.CsvFileManager()
         self.communicationWithServer = CommunicationWithServer(self.jsonFileManager.FILENAME)
 
         self.statesObjectsLocker = threading.Lock()
@@ -347,6 +346,11 @@ class App:
         time.sleep(2.0)
     
     def __pinToPinMovement(self, leg, currentPinPosition, goalPinPosition, pose):
+        # Read legs positions before movement.
+        with self.statesObjectsLocker:
+            xABefore = self.xA
+        legMovementData = xABefore.flatten()
+
         # Distribute forces among other legs.
         otherLegs = np.delete(spider.LEGS_IDS, leg)
         self.__distributeForces(otherLegs, config.FORCE_DISTRIBUTION_DURATION)
@@ -376,6 +380,11 @@ class App:
             qA = self.qA
         spiderPose = kin.getSpiderPose(otherLegs, legsGlobalPositions[otherLegs], qA)
         rpy = spiderPose[3:]
+        rpyBno = self.pumpsBnoArduino.getRpy()
+
+        legMovementData = np.append(legMovementData, rpyBno)
+        legMovementData = np.append(legMovementData, rpy)
+        legMovementData = np.append(legMovementData, leg)
 
         pinToPinLocal, legOriginOrientationInGlobal = tf.getPinToPinVectorInLocal(leg, rpy, currentPinPosition, goalPinPosition)
         globalZDirectionInLegOrigin = np.dot(legOriginOrientationInGlobal, np.array([0.0, 0.0, 1.0], dtype = np.float32))
@@ -388,6 +397,7 @@ class App:
         with self.statesObjectsLocker:
             xALeg = self.xA[leg]
         localGoalPosition = self.motorsVelocityController.moveLegAsync(leg, xALeg, pinToPinLocal, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY, isOffset = True)
+        legMovementData = np.append(legMovementData, localGoalPosition.flatten())
         self.jsonFileManager.updatePins(leg, goalPinPosition)
         if self.safetyKillEvent.wait(timeout = 4.0):
             return False
@@ -400,24 +410,34 @@ class App:
             return False
         self.motorsVelocityController.stopForceMode()
 
+        numberOfTries = 1
         # Correction in case of missed pin.
         if leg not in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
-            correctionSuccess = self.__correction(leg, globalZDirectionInLegOrigin, localGoalPosition)
+            correctionSuccess, numberOfCorrections = self.__correction(leg, globalZDirectionInLegOrigin, localGoalPosition)
             print("CORRECTION SUCCESS: ", correctionSuccess)
             if not correctionSuccess:
                 return False
+            numberOfTries += numberOfCorrections
+
+        legMovementData = np.append(legMovementData, numberOfTries)
+
+        with self.statesObjectsLocker:
+            xAAfter = self.xA
+        legMovementData = np.append(legMovementData, xAAfter.flatten())
+
+        self.csvFileManager.writeRow(np.round(legMovementData, 4))
 
         return True
     
     def __correction(self, legId, globalZDirectionInLocal, localGoalPosition):
         print(f"LEG {legId} IS NOT ATTACHED.")
-        autoSuccess = self.__automaticCorrection(legId, globalZDirectionInLocal, localGoalPosition)
+        autoSuccess, numberOfCorrections = self.__automaticCorrection(legId, globalZDirectionInLocal, localGoalPosition)
         print("AUTO CORRECTION SUCCESS: ", autoSuccess)
         if autoSuccess:
-            return True
+            return (autoSuccess, numberOfCorrections)
         manualSuccess = self.__manualCorrection(legId)
         print("MANUAL CORRECTION SUCCESS: ", manualSuccess)
-        return manualSuccess
+        return (manualSuccess, 10)
 
     def __automaticCorrection(self, legId, globalZDirectionInLocal, localGoalPosition):
         detachOffsetZ = 0.08
@@ -436,32 +456,33 @@ class App:
         
         detachPosition = np.copy(localGoalPosition)
         detachPosition[2] += detachOffsetZ
-        for offset in offsets:
+        for idx, offset in enumerate(offsets):
+            numberOfTries = idx + 1
             self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
             if self.safetyKillEvent.wait(timeout = 1.5):
-                return False
+                return (False, numberOfTries)
  
             with self.statesObjectsLocker:
                 xALeg = self.xA[legId]
             self.motorsVelocityController.moveLegAsync(legId, xALeg, detachPosition, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY)
             if self.safetyKillEvent.wait(timeout = 1.5):
-                return False
+                return (False, numberOfTries)
             
             velocityDirection = -(globalZDirectionInLocal + offset)
             self.motorsVelocityController.startImpedanceMode(legId, velocityDirection)
             if self.safetyKillEvent.wait(timeout = 2.0):
                 self.motorsVelocityController.stopImpedanceMode()
-                return False
+                return (False, numberOfTries)
             self.motorsVelocityController.stopImpedanceMode()      
 
             self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.CLOSE_COMMAND)
             if self.safetyKillEvent.wait(timeout = 2.0):
-                return False 
+                return (False, numberOfTries) 
 
             if legId in self.motorsVelocityController.grippersArduino.getIdsOfAttachedLegs():
-                return True 
+                return (True, numberOfTries) 
 
-        return False
+        return (False, numberOfTries)
 
     def __manualCorrection(self, legId, useSafety = True):
         _, usedPinsIndexes, legsGlobalPositions = self.jsonFileManager.readSpiderState()

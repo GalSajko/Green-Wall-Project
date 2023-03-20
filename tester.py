@@ -1,53 +1,37 @@
-"""
-This module is meant as a testing sandbox for other modules, during implementation.
-"""
-import app
-import time
+import csv
 import numpy as np
-from planning import pathplanner
+import pandas as pd
 
-import config
-from environment import wall, spider
+FILENAME = 'leg_movement_data.csv'
 
+headers = [
+    'xA_before_0_x', 'xA_before_0_y', 'xA_before_0_z', 
+    'xA_before_1_x', 'xA_before_1_y', 'xA_before_1_z',
+    'xA_before_2_x', 'xA_before_2_y', 'xA_before_2_z',
+    'xA_before_3_x', 'xA_before_3_y', 'xA_before_3_z',
+    'xA_before_4_x', 'xA_before_4_y', 'xA_before_4_z',
+    'roll_bno', 'pitch_bno', 'yaw_bno',
+    'roll_calculated', 'pitch_calculated', 'yaw_calculated',
+    'leg_to_move_id',
+    'xC_x', 'xC_y', 'xC_z',
+    'number_of_tries',
+    'xA_after_0_x', 'xA_after_0_y', 'xA_after_0_z', 
+    'xA_after_1_x', 'xA_after_1_y', 'xA_after_1_z',
+    'xA_after_2_x', 'xA_after_2_y', 'xA_after_2_z',
+    'xA_after_3_x', 'xA_after_3_y', 'xA_after_3_z',
+    'xA_after_4_x', 'xA_after_4_y', 'xA_after_4_z',
+]
 
-if __name__ == "__main__":
-    # spiderApp = app.App()
-    # time.sleep(1)
-    # while True:
-    #     spiderApp.pumpsBnoArduino.pumpControll('0', 1)
-    #     time.sleep(0.05)
-    pins = wall.createGrid(True)
-    print(pins)
-    print(len(pins))
-    print(pins[272])
-    # usedPins = [pins[22], pins[9], pins[12], pins[24], pins[33]]
-    # startPose = [0.4, 0.5, 0.3, 0.0]
-
-    # xA = spiderApp.xA
-    # spiderApp.motorsVelocityController.moveLegsSync(spider.LEGS_IDS, xA, usedPins, config.GLOBAL_ORIGIN, 5, config.MINJERK_TRAJECTORY, startPose)
-    # time.sleep(6)
-    # spiderApp.pumpsBnoArduino.resetBno()
-    # time.sleep(1)
-
-    # poses = [
-    #     [0.4, 0.5, 0.3, 0.1, 0.1, 0.0],
-    #     [0.4, 0.5, 0.3, -0.1, 0.1, -0.0],
-    #     [0.4, 0.5, 0.3, 0.1, -0.1, 0.0],
-    #     [0.4, 0.5, 0.3, -0.1, -0.1, -0.0],
-    # ]
-
-
-    # while True:
-    #     for pose in poses:
-    #         spiderApp.motorsVelocityController.moveLegsSync(spider.LEGS_IDS, spiderApp.xA, usedPins, config.GLOBAL_ORIGIN, 3, config.MINJERK_TRAJECTORY, pose)
-    #         time.sleep(4)
-    #         print("RPY BEFORE OFFLOADING: ", spiderApp.pumpsBnoArduino.getRpy())
-
-
-
-    #         spiderApp.pinToPinMovement(1, usedPins[1], pins[3])
-    #         time.sleep(3)
-    #         spiderApp.pinToPinMovement(1, pins[3], usedPins[1])
-    #         time.sleep(3)
+if __name__ == '__main__':
+    # with open('leg_movement_data.csv', 'w') as file:
+    #     writer = csv.writer(file)
+    #     writer.writerow(headers)
+    data = pd.read_csv(FILENAME)
     
+    print(data['number_of_tries'])
+    print(data['leg_to_move_id'])
+    print(f"XA BEFORE: {data['xA_before_4_x'][1]}, {data['xA_before_4_y'][1]}, {data['xA_before_4_z'][1]}")
+    print(f"XC: {data['xC_x'][1]}, {data['xC_y'][1]}, {data['xC_z'][1]}")
+    print(f"XA AFTER: {data['xA_after_4_x'][1]}, {data['xA_after_4_y'][1]}, {data['xA_after_4_z'][1]}")
+
 

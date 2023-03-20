@@ -56,12 +56,24 @@ class PumpsBnoArduino:
             numpy.ndarray: 1x3 array of roll, pitch and yaw values in radians.
         """
         recMsg = ''
+        startTime = time.perf_counter()
+        elapsedTime = time.perf_counter() - startTime
+        useReading = True
+        
         while len(recMsg) != self.RECEIVED_MESSAGE_LENGTH:
             with self.locker:
                 recMsg = self.receivedMessage
-        roll = float(recMsg[0 : 5])
-        pitch = float(recMsg[5 : 10])
-        yaw = float(recMsg[10 : 15])
+            elapsedTime = time.process_time() - startTime
+            if elapsedTime > 1.0:
+                useReading = False
+                break
+            
+        if useReading:   
+            roll = float(recMsg[0 : 5])
+            pitch = float(recMsg[5 : 10])
+            yaw = float(recMsg[10 : 15])
+        else:
+            roll, pitch, yaw = [1000, 1000, 1000]
 
         return np.array([roll, pitch, yaw], dtype = np.float32)
     
