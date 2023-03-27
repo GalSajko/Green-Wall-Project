@@ -49,3 +49,10 @@ class CommunicationWithServer:
               _ = requests.post(config.POST_REFILL, data = "Refilling", headers = {"Access-Control-Allow-Origin": "*"})
          except Exception as e:
               print(f"Exception {e} at posting refilling intention.")
+
+    def postStop(self):
+         try:
+              _ = requests.post(config.POST_STOP, data = "stop refilling", headers = {"Access-Control-Allow-Origin": "*"})
+         except Exception as e:
+              print(f"Exception {e} at posting refilling intention.")
+

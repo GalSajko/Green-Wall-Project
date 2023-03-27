@@ -136,3 +136,4 @@ dmypy.json
 
 # Spider state json file
 ./spider_state_dict
+*.swp

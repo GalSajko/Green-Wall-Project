@@ -601,6 +601,7 @@ class App:
             self.pumpsBnoArduino.pumpControll(self.pumpsBnoArduino.PUMP_OFF_COMMAND, pumpId)
             print(f"PUMP {pumpId} OFF.") 
             self.wateringCounter = 0
+            self.communicationWithServer.postStop()
         else:
             self.wateringCounter += 1
             
