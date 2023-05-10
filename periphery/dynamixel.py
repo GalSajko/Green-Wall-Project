@@ -163,7 +163,7 @@ class MotorDriver:
         """Enable all of the motors in given legs.
 
         Args:
-            legId (list, optional): Ids of legs, which are to be enabled, if value is 5 all legs will be enabled. Defaults to 5.
+            leg_id (list, optional): Ids of legs, which are to be enabled, if value is 5 all legs will be enabled. Defaults to 5.
         """
         if legsIds == 5:
             motorsArray = self.motorsIds.flatten()

@@ -36,15 +36,15 @@ class JsonFileManager():
 
         self.__writeJson()
     
-    def updatePins(self, legId, pin):
+    def updatePins(self, leg_id, pin):
         """Update only one pin position in dictionary and write it in JSON file.
 
         Args:
-            legId (int): Leg id.
+            leg_id (int): Leg id.
             pin (list): 1x3 array of pin position.
         """
         pinIndex = np.flatnonzero((self.pins == pin).all(1))[0]
-        self.stateDict['pins'][legId] = int(pinIndex)
+        self.stateDict['pins'][leg_id] = int(pinIndex)
 
         self.__writeJson()
     

@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import matplotlib
 import matplotlib.pyplot as plt
 
 import config
@@ -109,6 +110,31 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         velocities[idx] = (30 * t**2 * (duration - t)**2 * (goalPose - startPose)) / duration**5
         accelerations[idx] = -(60 * (startPose - goalPose) * t * (2 * t**2 - 3 * t * duration + duration**2)) / duration**5
 
+    matplotlib.rc('xtick', labelsize=20) 
+    matplotlib.rc('ytick', labelsize=20) 
+    plt.subplot(3, 1, 1)
+    plt.plot(timeVector, trajectory[:, 0], 'g')
+    plt.plot(timeVector, trajectory[:, 1], 'r')
+    plt.plot(timeVector, trajectory[:, 2], 'b')   
+    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
+    plt.title("Pozicijske trajektorije")
+    plt.subplot(3, 1, 2)
+    plt.plot(timeVector, velocities[:, 0], 'g')
+    plt.plot(timeVector, velocities[:, 1], 'r')
+    plt.plot(timeVector, velocities[:, 2], 'b')
+    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
+    plt.title("Hitrostne trajektorije")
+    plt.subplot(3, 1, 3)
+    plt.plot(timeVector, accelerations[:, 0], 'g')
+    plt.plot(timeVector, accelerations[:, 1], 'r')
+    plt.plot(timeVector, accelerations[:, 2], 'b')
+    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
+    plt.title("Pospeškovne trajektorije")
+
+    plt.subplots_adjust(hspace = 0.85)
+
+    plt.show()
+
     return trajectory, velocities, accelerations
 
 def _bezierTrajectory(startPosition, goalPosition, duration):
@@ -178,27 +204,28 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
                     10 * P5 * t**3 * duration**2 + 60 * P2 * t**2 * duration**3 - 40 * P3 * t**2 * duration**3 + \
                         10 * P4 * t**2 * duration**3 - 15 * P2 * t * duration**4 + 5 * P3 * t * duration**4 + P2 * duration**5) / duration**7
     
-
-    # plt.subplot(1, 3, 1)
-    # plt.plot(timeVector, trajectory[:, 0], 'g*')
-    # plt.plot(timeVector, trajectory[:, 1], 'r*')
-    # plt.plot(timeVector, trajectory[:, 2], 'b*')   
-    # plt.legend(['x', 'y', 'z'])
-    # plt.title("Positions")
-    # plt.subplot(1, 3, 2)
-    # plt.plot(timeVector, velocity[:, 0], 'g*')
-    # plt.plot(timeVector, velocity[:, 1], 'r*')
-    # plt.plot(timeVector, velocity[:, 2], 'b*')
-    # plt.legend(['x', 'y', 'z'])
-    # plt.title("Velocities")
-    # plt.subplot(1, 3, 3)
-    # plt.plot(timeVector, acceleration[:, 0], 'g*')
-    # plt.plot(timeVector, acceleration[:, 1], 'r*')
-    # plt.plot(timeVector, acceleration[:, 2], 'b*')
-    # plt.legend(['x', 'y', 'z'])
-    # plt.title("Acceleration")
-
-    # plt.show()
+    matplotlib.rc('xtick', labelsize=20) 
+    matplotlib.rc('ytick', labelsize=20) 
+    plt.subplot(3, 1, 1)
+    plt.plot(timeVector, trajectory[:, 0], 'g')
+    plt.plot(timeVector, trajectory[:, 1], 'r')
+    plt.plot(timeVector, trajectory[:, 2], 'b')   
+    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
+    plt.title("Pozicijske trajektorije")
+    plt.subplot(3, 1, 2)
+    plt.plot(timeVector, velocity[:, 0], 'g')
+    plt.plot(timeVector, velocity[:, 1], 'r')
+    plt.plot(timeVector, velocity[:, 2], 'b')
+    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
+    plt.title("Hitrostne trajektorije")
+    plt.subplot(3, 1, 3)
+    plt.plot(timeVector, accelerations[:, 0], 'g')
+    plt.plot(timeVector, accelerations[:, 1], 'r')
+    plt.plot(timeVector, accelerations[:, 2], 'b')
+    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
+    plt.title("Pospeškovne trajektorije")
+    plt.subplots_adjust(hspace = 0.85)
+    plt.show()
 
     return trajectory, velocity, accelerations
 #endregion

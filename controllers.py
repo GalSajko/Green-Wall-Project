@@ -5,10 +5,8 @@ import queue
 
 import config
 from environment import spider
-from calculations import mathtools as mathTools
 from calculations import transformations as tf
 from calculations import kinematics as kin
-from calculations import dynamics as dyn
 from planning import trajectoryplanner as trajPlanner
 from periphery import grippers
 
@@ -37,7 +35,7 @@ class VelocityController:
         self.fD = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
 
         self.isImpedanceMode = False
-        self.impedanceLegId = None
+        self.impedanceleg_id = None
         self.impedanceDirection = np.zeros(3, dtype = np.float32)
         self.maxAllowedForce = 4.0
         self.velocityFactor = 0.1
@@ -45,17 +43,17 @@ class VelocityController:
         time.sleep(1)
 
     #region public methods
-    def jointsVelocityController(self, qA, xA, fA, init):
+    def jointsVelocityController(self, qA, x_a, fA, init):
         # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
         with self.locker:
             if init:
-                self.lastLegsPositions = xA
+                self.lastLegsPositions = x_a
             isForceMode = self.isForceMode
             fD = self.fD
             forceModeLegsIds = np.array(self.forceModeLegsIds)
             isImpedanceMode = self.isImpedanceMode
             impedanceDirection = self.impedanceDirection
-            impedanceLegId = self.impedanceLegId
+            impedanceleg_id = self.impedanceleg_id
 
         xD, xDd, xDdd = self.__getXdXddXdddFromQueues()
         
@@ -70,17 +68,17 @@ class VelocityController:
 
             xD[forceModeLegsIds[allowedIdx]] = newXd[allowedIdx]
             xDd[forceModeLegsIds[allowedIdx]] = localVelocities[allowedIdx]
-            xD[forceModeLegsIds[onLimitIdx]] = xA[forceModeLegsIds[onLimitIdx]]
+            xD[forceModeLegsIds[onLimitIdx]] = x_a[forceModeLegsIds[onLimitIdx]]
 
             with self.locker:
-                self.lastLegsPositions[forceModeLegsIds] = xA[forceModeLegsIds]
+                self.lastLegsPositions[forceModeLegsIds] = x_a[forceModeLegsIds]
         
         if isImpedanceMode:
-            xDd[impedanceLegId] = self.velocityFactor * impedanceDirection * int(np.linalg.norm(fA[impedanceLegId]) < self.maxAllowedForce)
+            xDd[impedanceleg_id] = self.velocityFactor * impedanceDirection * int(np.linalg.norm(fA[impedanceleg_id]) < self.maxAllowedForce)
             with self.locker:
-                self.lastLegsPositions[impedanceLegId] = xA[impedanceLegId] + xDd[impedanceLegId] * self.period
+                self.lastLegsPositions[impedanceleg_id] = x_a[impedanceleg_id] + xDd[impedanceleg_id] * self.period
 
-        xCd, self.lastXErrors = self.__eePositionVelocityPd(xA, xD, xDd, xDdd)
+        xCd, self.lastXErrors = self.__eePositionVelocityPd(x_a, xD, xDd, xDdd)
 
         qCd = kin.getJointsVelocities(qA, xCd)
 
@@ -90,11 +88,11 @@ class VelocityController:
 
         return qCd
     
-    def moveLegAsync(self, legId, legCurrentPosition, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
+    def moveLegAsync(self, leg_id, legCurrentPosition, goalPositionOrOffset, origin, duration, trajectoryType, spiderPose = None, isOffset = False):
         """Write reference positions and velocities into leg-queue.
 
         Args:
-            legId (int): Leg id.
+            leg_id (int): Leg id.
             goalPositionOrOffset (list): 1x3 array of  desired x, y, and z goal positons or offsets.
             origin (str): Origin that goal position is given in. Wheter 'l' for leg-local or 'g' for global.
             duration (float): Desired movement duration.
@@ -114,14 +112,14 @@ class VelocityController:
         if origin == config.GLOBAL_ORIGIN and spiderPose is None:
             raise TypeError("Parameter spiderPose should not be None.")
 
-        self.legsQueues[legId] = queue.Queue()
+        self.legsQueues[leg_id] = queue.Queue()
 
-        localGoalPosition = tf.convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
+        localGoalPosition = tf.convertIntoLocalGoalPosition(leg_id, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose)
         positionTrajectory, velocityTrajectory, accelerationTrajectory = trajPlanner.getTrajectory(legCurrentPosition, localGoalPosition, duration, trajectoryType)
 
         for idx, position in enumerate(positionTrajectory):
-            self.legsQueues[legId].put([position[:3], velocityTrajectory[idx][:3], accelerationTrajectory[idx][:3]])
-        self.legsQueues[legId].put(self.sentinel)
+            self.legsQueues[leg_id].put([position[:3], velocityTrajectory[idx][:3], accelerationTrajectory[idx][:3]])
+        self.legsQueues[leg_id].put(self.sentinel)
 
         return localGoalPosition
             
@@ -184,14 +182,14 @@ class VelocityController:
         """
         self.legsQueues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
     
-    def updateLastLegsPositions(self, xA):
+    def updateLastLegsPositions(self, x_a):
         """Update last legs positions.
 
         Args:
-            xA (list): 5x3 array of legs' positions in leg-local origins.
+            x_a (list): 5x3 array of legs' positions in leg-local origins.
         """
         with self.locker:
-            self.lastLegsPositions = xA
+            self.lastLegsPositions = x_a
 
     def startForceMode(self, legsIds, desiredForces):
         """Start force mode inside main velocity controller loop.
@@ -213,17 +211,17 @@ class VelocityController:
         with self.locker:
             self.isForceMode = False
     
-    def startImpedanceMode(self, legId, velocityDirection):
+    def startImpedanceMode(self, leg_id, velocityDirection):
         """Start impedance mode.
 
         Args:
-            legId (int): Id of leg.
+            leg_id (int): Id of leg.
             velocityDirection (list): 1x3 array of desired velocity direction, given in leg's origin.
         """
         with self.locker:
             self.isImpedanceMode = True
             self.impedanceDirection = velocityDirection
-            self.impedanceLegId = legId
+            self.impedanceleg_id = leg_id
     
     def stopImpedanceMode(self):
         with self.locker:
@@ -265,12 +263,12 @@ class VelocityController:
 
         return xD, xDd, xDdd
 
-    def __eePositionVelocityPd(self, xA, xD, xDd, xDdd):
+    def __eePositionVelocityPd(self, x_a, xD, xDd, xDdd):
         """PD controller. Feed-forward velocity is used only in force mode, otherwise its values are zeros.
 
         Args:
             xD (numpy.ndarray): 5x3 array of desired legs' positions.
-            xA (numpy.ndarray): 5x3 array of actual legs' positions.
+            x_a (numpy.ndarray): 5x3 array of actual legs' positions.
             xDd (numpy.ndarray): 5x3 array of feed-forward velocities.
             xDdd (numpy.ndarray): 5x3 array of feed-forward accelerations.
             lastErrors (numpy.ndarray): 5x3 array of position errors from previous loop.
@@ -278,7 +276,7 @@ class VelocityController:
         Returns:
             tuple: Two 5x3 arrays of commanded legs velocities and current position errors.
         """
-        xErrors = np.array(xD - xA)
+        xErrors = np.array(xD - x_a)
         dXe = (xErrors - self.lastXErrors) / self.period
         xCd = np.array(self.Kp * xErrors + self.Kd * dXe + xDd + config.K_ACC * xDdd, dtype = np.float32)
 

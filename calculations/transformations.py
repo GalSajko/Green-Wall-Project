@@ -55,11 +55,11 @@ def xyzRpyToMatrix(xyzrpy, rotationOnly = False):
     
     return rotationMatrix
 
-def getPinToPinVectorInLocal(legId, rpy, currentPinPosition, goalPinPosition):
+def getPinToPinVectorInLocal(leg_id, rpy, currentPinPosition, goalPinPosition):
     """Calculate pin-to-pin vector in leg's local origin.
 
     Args:
-        legId (int): Leg id.
+        leg_id (int): Leg id.
         rpy (list): 1x3 array of roll, pitch and yaw values of spider's orientation.
         currentPinPosition (list): 1x3 array of current pin's position in global origin
         goalPinPosition (list): 1x3 array of goal pin's position in global origin.
@@ -68,17 +68,17 @@ def getPinToPinVectorInLocal(legId, rpy, currentPinPosition, goalPinPosition):
         tuple: 1x3 pin-to-pin vector in leg's local origin and 3x3 orientation matrix of leg's anchor in global origin.
     """
     spiderRotationInGlobal = xyzRpyToMatrix(rpy, True)
-    legOriginOrientationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[legId][:3, :3]))
+    legOriginOrientationInGlobal = np.linalg.inv(np.dot(spiderRotationInGlobal, spider.T_ANCHORS[leg_id][:3, :3]))
     pinToPinGlobal = goalPinPosition - currentPinPosition
     pinToPinLocal = np.dot(legOriginOrientationInGlobal, pinToPinGlobal)
 
     return pinToPinLocal, legOriginOrientationInGlobal
 
-def getLegInLocal(legId, globalLegPosition, spiderPose):
+def getLegInLocal(leg_id, globalLegPosition, spiderPose):
     """Calculate local leg's position from given global position.
 
     Args:
-        legId (int): Leg id.
+        leg_id (int): Leg id.
         globalLegPosition (list): Global position of leg.
         spiderPose (list): Global spider's pose. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
 
@@ -86,14 +86,14 @@ def getLegInLocal(legId, globalLegPosition, spiderPose):
         numpy.ndarray: 1x3 array of with x, y and z leg's positions in leg-local origin.
     """
     T_GS = xyzRpyToMatrix(spiderPose)
-    T_GA = np.dot(T_GS, spider.T_ANCHORS[legId])
+    T_GA = np.dot(T_GS, spider.T_ANCHORS[leg_id])
     globalLegPosition = np.append(globalLegPosition, 1)
 
     return np.dot(np.linalg.inv(T_GA), globalLegPosition)[:3]
 
-def getGlobalDirectionInLocal(legId, spiderPose, globalDirection):
+def getGlobalDirectionInLocal(leg_id, spiderPose, globalDirection):
     T_GS = xyzRpyToMatrix(spiderPose)
-    T_GA = np.dot(T_GS, spider.T_ANCHORS[legId])[:3,:3]
+    T_GA = np.dot(T_GS, spider.T_ANCHORS[leg_id])[:3,:3]
     localDirection = np.dot(np.linalg.inv(T_GA), globalDirection)
 
     return localDirection
@@ -121,11 +121,11 @@ def getLegsInGlobal(legsIds, localLegsPositions, spiderPose, origin):
 
     return legsGlobalPositions
 
-def convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose):
+def convertIntoLocalGoalPosition(leg_id, legCurrentPosition, goalPositionOrOffset, origin, isOffset, spiderPose):
     """Transform given leg's goal position into local origin.
 
     Args:
-        legId (int): Leg id.
+        leg_id (int): Leg id.
         legCurrentPosition (list): 1x3 array of current leg's position, given in local origin
         goalPositionOrOffset (list): 1x3 array of leg's goal position given as absolute position or offset. 
         origin (str): Origin that goal position or offset is given in.
@@ -141,8 +141,8 @@ def convertIntoLocalGoalPosition(legId, legCurrentPosition, goalPositionOrOffset
             localGoalPosition += legCurrentPosition
         return localGoalPosition
     if not isOffset:
-        return getLegInLocal(legId, goalPositionOrOffset, spiderPose)
-    return np.array(legCurrentPosition + getGlobalDirectionInLocal(legId, spiderPose, goalPositionOrOffset), dtype = np.float32)
+        return getLegInLocal(leg_id, goalPositionOrOffset, spiderPose)
+    return np.array(legCurrentPosition + getGlobalDirectionInLocal(leg_id, spiderPose, goalPositionOrOffset), dtype = np.float32)
 
 def getWateringLegAndPose(spiderPose, plantPosition = None, doRefill = False):
     """Calculate spider's pose for watering the plant or refilling water tank and leg used for the task.
@@ -201,11 +201,11 @@ def getWateringLegAndPose(spiderPose, plantPosition = None, doRefill = False):
 
     return wateringLeg, wateringPose
 
-def getLastJointToGoalPinVectorInSpider(legId, lastJointPositionInLocal, goalPinPositionInGlobal, spiderPose):
+def getLastJointToGoalPinVectorInSpider(leg_id, lastJointPositionInLocal, goalPinPositionInGlobal, spiderPose):
     """Calculate vector from last joint to goal pin in spider's origin.
 
     Args:
-        legId (int): Leg id.
+        leg_id (int): Leg id.
         lastJointPositionInLocal (list): 1x3 vector of x, y and z position of last joint in local origin.
         goalPinPositionInGlobal (list): 1x3 vector of x, y and z position of goal pin in global origin.
         spiderPose (list): Spider's pose.
@@ -213,27 +213,27 @@ def getLastJointToGoalPinVectorInSpider(legId, lastJointPositionInLocal, goalPin
     Returns:
         numpy.ndarray: 1x3 unit vector from last joint to goal pin, given in spider's origin.
     """
-    goalPinPositionInLocal = getLegInLocal(legId, goalPinPositionInGlobal, spiderPose)
+    goalPinPositionInLocal = getLegInLocal(leg_id, goalPinPositionInGlobal, spiderPose)
     lastJointToGoalPinInLocal = np.array(goalPinPositionInLocal - lastJointPositionInLocal)
-    lastJointToGoalPinInSpider = np.dot(spider.T_ANCHORS[legId][:3, :3], lastJointToGoalPinInLocal)
+    lastJointToGoalPinInSpider = np.dot(spider.T_ANCHORS[leg_id][:3, :3], lastJointToGoalPinInLocal)
 
     return lastJointToGoalPinInSpider / np.linalg.norm(lastJointToGoalPinInSpider) 
 
 
 @numba.jit(nopython = True, cache = False)
-def R_B1(qb, q1):
+def R_B1(q_b, q1):
     """Rotation matrix from spider's to 1st segment's origin.
 
     Args:
-        qb (float): Angle from spider's origin to leg-base origin, in radians. 
+        q_b (float): Angle from spider's origin to leg-base origin, in radians. 
         q1 (float): Angle in first joint, in radians.
 
     Returns:
         numpy.ndarray: 3x3 rotation matrix.
     """
     return np.array([
-        [math.cos(q1 + qb), -math.sin(q1 + qb), 0.0],
-        [math.sin(q1 + qb), math.cos(q1 + qb), 0.0],
+        [math.cos(q1 + q_b), -math.sin(q1 + q_b), 0.0],
+        [math.sin(q1 + q_b), math.cos(q1 + q_b), 0.0],
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
@@ -270,11 +270,11 @@ def R_23(q3):
     ], dtype = np.float32)
 
 @numba.jit(nopython = True, cache = False)
-def R_B2(qb, q1, q2):
+def R_B2(q_b, q1, q2):
     """Rotation matrix from spider's to 2nd segment's origin.
 
     Args:
-        qb (float): Angle from spider's origin to leg-base origin, in radians.
+        q_b (float): Angle from spider's origin to leg-base origin, in radians.
         q1 (float): Angle in first joint, in radians.
         q2 (float): Angle in second joint, in radians.
 
@@ -282,15 +282,15 @@ def R_B2(qb, q1, q2):
         numpy.ndarray: 3x3 rotation matrix.
     """
     return np.array([
-        [math.cos(q2) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2), math.sin(q1 + qb)],
-        [math.cos(q2) * math.sin(q1 + qb), -math.sin(q2) * math.sin(q1 + qb), -math.cos(q1 + qb)],
+        [math.cos(q2) * math.cos(q1 + q_b), -math.cos(q1 + q_b) * math.sin(q2), math.sin(q1 + q_b)],
+        [math.cos(q2) * math.sin(q1 + q_b), -math.sin(q2) * math.sin(q1 + q_b), -math.cos(q1 + q_b)],
         [math.sin(q2), math.cos(q2), 0.0]
     ], dtype = np.float32)
 
 @numba.jit(nopython = True, cache = False)
-def R_B3(qb, q1, q2, q3):
+def R_B3(q_b, q1, q2, q3):
     return np.array([
-        [math.cos(q2 + q3) * math.cos(q1 + qb), -math.cos(q1 + qb) * math.sin(q2 + q3), math.sin(q1 + qb)],
-        [math.cos(q2 + q3) * math.sin(q1 + qb), -math.sin(q2 + q3) * math.sin(q1 + qb), -math.cos(q1 + qb)],
+        [math.cos(q2 + q3) * math.cos(q1 + q_b), -math.cos(q1 + q_b) * math.sin(q2 + q3), math.sin(q1 + q_b)],
+        [math.cos(q2 + q3) * math.sin(q1 + q_b), -math.sin(q2 + q3) * math.sin(q1 + q_b), -math.cos(q1 + q_b)],
         [math.sin(q2 + q3), math.cos(q2 + q3), 0.0],
     ], dtype = np.float32)

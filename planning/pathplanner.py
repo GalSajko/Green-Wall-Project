@@ -60,23 +60,23 @@ def calculateSelectedPinsMaxYDistance(path):
     selectedPins = np.zeros((len(path), 5, 3))
     searchRadius = 1.0
     
-    def xCrit(pinPos, legIdx):
-        xDist = pinPos[0] - anchorsPositions[legIdx].flatten()[0]
+    def xCrit(pinPos, leg_idx):
+        xDist = pinPos[0] - anchorsPositions[leg_idx].flatten()[0]
 
-        if legIdx == upperMiddleLeg:
+        if leg_idx == upperMiddleLeg:
             return 1 / (abs(pin[0] - pose[0]) + 10e-5)
-        if legIdx == upperLeftLeg:
+        if leg_idx == upperLeftLeg:
             if pinPos[0] == selectedMiddleLegPin[0]:
                 return -1000
             return 0 if xDist > 0.0 else 1 / (abs(xDist) + 10e-5)
-        if legIdx == upperRightLeg:
+        if leg_idx == upperRightLeg:
             if pinPos[0] == selectedMiddleLegPin[0]:
                 return -1000
             return 0 if xDist < 0.0 else 1 / (abs(xDist) + 10e-5)
         
-        if legIdx == lowerLeftLeg:
+        if leg_idx == lowerLeftLeg:
             return -100 if xDist > 0.0 else 1 / (abs(xDist) + 10e-5)
-        if legIdx == lowerRightLeg:
+        if leg_idx == lowerRightLeg:
             return -100 if xDist < 0.0 else 1 / (abs(xDist) + 10e-5)
 
     for step, pose in enumerate(path):
@@ -329,11 +329,11 @@ def _calculateIdealPinsFromValidCombinations(pinsCombinations, path):
         rgValuesSumArray = np.zeros(len(pinsCombinations[step]))
         for combIdx, pins in enumerate(pinsCombinations[step]):
             rgValuesSum = 0
-            for legId, pin in enumerate(pins):
-                anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[legId][:,3][:3]), dtype = np.float32)
-                anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[legId][:3,:3]), anchorToPinGlobal)
-                jointsValues = kin.legInverseKinematics(anchorToPinLegLocal)
-                rgValue = dyn.getForceEllipsoidLengthInGivenDirection(legId, jointsValues, gravityVectorInSpider)
+            for leg_id, pin in enumerate(pins):
+                anchorToPinGlobal = np.array(np.array(pin) - np.array(anchorsPoses[leg_id][:,3][:3]), dtype = np.float32)
+                anchorToPinLegLocal = np.dot(np.linalg.inv(anchorsPoses[leg_id][:3,:3]), anchorToPinGlobal)
+                joints_values = kin.legInverseKinematics(anchorToPinLegLocal)
+                rgValue = dyn.getForceEllipsoidLengthInGivenDirection(leg_id, joints_values, gravityVectorInSpider)
                 rgValuesSum += rgValue
             rgValuesSumArray[combIdx] = rgValuesSum
 

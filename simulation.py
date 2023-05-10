@@ -1,10 +1,10 @@
 """ Module for simulating Green Wall environment and Spiders movement. """
 import matplotlib.pyplot as plt
 import numpy as np
+from gwpwall import wall
 
-import environment.wall as wall
-import environment.spider as spider
-import calculations.transformations as tf
+from environment import spider  
+from calculations import transformations as tf
 
 class Plotter:
     """Class for ploting a 2d representation of a wall and spiders movement.
@@ -128,6 +128,9 @@ class Plotter:
             path (list): nxm array of spider's body poses along the way. Only x and y values are used for animation.
             legPositions (list): nx5x3 array of legs positions on each step of the path.
         """
+        import string
+        import random
+
         self.plotWallGrid()
         self.plotSpidersPath(path)
 
@@ -135,27 +138,31 @@ class Plotter:
 
         def plotLegs(step, pose, inLoopPause, deleteLegs):
             for i in range(len(pinsInstructions[step])):
-                legIdx = int(pinsInstructions[step][i][0])
+                leg_idx = int(pinsInstructions[step][i][0])
                 legPosition = pinsInstructions[step][i][1:]
 
                 if deleteLegs:
-                    legs[legIdx].remove()
+                    legs[leg_idx].remove()
                 if len(pose) > 2:
                     T_GA = tf.xyzRpyToMatrix(pose)
-                    anchorPosition = np.dot(T_GA, spider.T_ANCHORS[legIdx])[:,3][:3]
+                    anchorPosition = np.dot(T_GA, spider.T_ANCHORS[leg_idx])[:,3][:3]
                     xVals = [anchorPosition[0], legPosition[0]]
                     yVals = [anchorPosition[1], legPosition[1]]
                 else:
-                    xVals = [pose[0] + spider.LEG_ANCHORS[legIdx][0], legPosition[0]]
-                    yVals = [pose[1] + spider.LEG_ANCHORS[legIdx][1], legPosition[1]]
-                legs[legIdx] = self.board.plot(xVals, yVals, 'g')[0]
+                    xVals = [pose[0] + spider.LEG_ANCHORS[leg_idx][0], legPosition[0]]
+                    yVals = [pose[1] + spider.LEG_ANCHORS[leg_idx][1], legPosition[1]]
+                legs[leg_idx] = self.board.plot(xVals, yVals, 'g')[0]
                 if inLoopPause:
                     plt.draw()
+                    plt.savefig('slike/' + ''.join(random.choice(string.ascii_lowercase) for i in range(10)) + '.jpg', dpi=500)
                     if (legPosition - pinsInstructions[step - 1][i][1:]).any():
                         plt.pause(0.5)
+
             if not inLoopPause:
                 plt.draw()
+                plt.savefig('slike/' + ''.join(random.choice(string.ascii_lowercase) for i in range(10)) + '.jpg', dpi=500)
                 plt.pause(0.75)
+            
 
         for step, pose in enumerate(path):
             spiderBody = plt.Circle((pose[0], pose[1]), spider.BODY_RADIUS, color = 'blue')

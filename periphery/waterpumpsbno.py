@@ -5,8 +5,6 @@ import time
 import threading
 import numpy as np
 
-import config
-
 class PumpsBnoArduino:
     """Class for controlling water pumps via serial communication with Arduino.
     """

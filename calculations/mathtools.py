@@ -70,7 +70,7 @@ def runningAverage(buffer, counter, newValue):
     return average, buffer, counter
 
 @numba.njit
-def dampedPseudoInverse(J, damping = config.FORCE_DAMPING):
+def damped_pseudo_inverse(J, damping = config.FORCE_DAMPING):
     """Calculate damped Moore-Penrose pseudo inverse.
 
     Args:

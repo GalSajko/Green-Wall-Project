@@ -5,8 +5,6 @@ import threading
 import time
 import numpy as np
 
-import config
-
 class GrippersArduino:
     """Class for controlling grippers via serial communication with Arduino.
     """
@@ -35,15 +33,15 @@ class GrippersArduino:
         self.__handshake()
 
     #region public methods
-    def moveGripper(self, legId, command):
+    def moveGripper(self, leg_id, command):
         """Send command to move a gripper on selected leg.
 
         Args:
-            legId (int): Leg id.
+            leg_id (int): Leg id.
             command (str): Command to execute on gripper - 'o' for opening, 'c' for closing .
         """
         if command in (self.OPEN_COMMAND, self.CLOSE_COMMAND):
-            msg = command + str(legId) + "\n"
+            msg = command + str(leg_id) + "\n"
             self.__sendData(msg)
 
     def openGrippersAndWait(self, legsIds):
@@ -62,9 +60,9 @@ class GrippersArduino:
             with self.locker:
                 recMsg = self.receivedMessage
             if len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
-                for legId, leg in enumerate(legsIds):
+                for leg_id, leg in enumerate(legsIds):
                     if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
-                        checkArray[legId] = True
+                        checkArray[leg_id] = True
             time.sleep(0.05)
         return True
 
@@ -94,9 +92,9 @@ class GrippersArduino:
         grippersStates = recMsg[:5]
         switchesStates = recMsg[5:]
         attachedLegsIds = []
-        for legId, gripperState in enumerate(grippersStates):
-            if gripperState == self.GRIPPER_CLOSED_RESPONSE and switchesStates[legId] == self.SWITCH_CLOSE_RESPONSE:
-                attachedLegsIds.append(int(legId))
+        for leg_id, gripperState in enumerate(grippersStates):
+            if gripperState == self.GRIPPER_CLOSED_RESPONSE and switchesStates[leg_id] == self.SWITCH_CLOSE_RESPONSE:
+                attachedLegsIds.append(int(leg_id))
 
         return attachedLegsIds
     #endregion
