@@ -3,7 +3,6 @@ import numpy as np
 from gwpwall import wall
 
 import config
-from environment import wall
 
 class JsonFileManager():
     def __init__(self):
