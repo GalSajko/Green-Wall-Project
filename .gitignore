@@ -138,4 +138,4 @@ dmypy.json
 ./spider_state_dict
 *.swp
 
-*.code_workspace
+*.code-workspace
