@@ -6,71 +6,55 @@ import numba
 
 import config
 
-def calculateSignedAngleBetweenTwoVectors(firstVector, secondVector):
+def calculate_signed_angle_between_two_vectors(first_vector, second_vector):
     """Calculate signed angle between two vectors.
 
     Args:
-        firstVector (list): First vector.
-        secondVector (list): Second vector.
+        first_vector (list): First vector.
+        second_vector (list): Second vector.
 
     Returns:
         float: Signed angle in radians.
     """
-    dotProduct = np.dot(firstVector, secondVector)
-    productOfNorms = np.linalg.norm(firstVector) * np.linalg.norm(secondVector)
-    angle = math.acos(np.round(dotProduct / productOfNorms, 4))
-    crossProduct = np.cross(firstVector, secondVector)
+    dot_product = np.dot(first_vector, second_vector)
+    product_of_norms = np.linalg.norm(first_vector) * np.linalg.norm(second_vector)
+    angle = math.acos(np.round(dot_product / product_of_norms, 4))
+    cross_product = np.cross(first_vector, second_vector)
     # 2d vector.
-    if len(firstVector) <= 2 and crossProduct < 0:
+    if len(first_vector) <= 2 and cross_product < 0:
         angle = -angle
     # 3d vector.
-    elif (crossProduct < 0).any() < 0:
+    elif (cross_product < 0).any() < 0:
         angle = -angle
 
     return angle
 
-def wrapToPi(angle):
-    """Wrap angle to Pi.
-
-    Args:
-        angle (float): Angle.
-
-    Returns:
-        float: Wrapped angle.
-    """
-    if angle < -math.pi:
-        angle += math.pi * 2
-    elif angle > math.pi:
-        angle -= math.pi * 2
-
-    return angle
-
-def runningAverage(buffer, counter, newValue):
+def running_average(buffer, counter, new_value):
     """Calculate running average of values in buffer.
 
     Args:
         buffer (list): Values, used to calculate average.
         counter (int): Index at which new values are writen in buffer, if it is not already full.
-        newValue (list): New values, which will be written in the buffer.
+        new_value (list): New values, which will be written in the buffer.
 
     Returns:
         tuple: Average of the buffer (element wise), shifted buffer and updated counter.
     """
     if counter < len(buffer):
-        buffer[counter] = newValue
+        buffer[counter] = new_value
         counter += 1
         average = np.mean(buffer[:counter], axis = 0)
 
         return average, buffer, counter
     
     buffer = np.roll(buffer, -1, axis = 0)
-    buffer[-1] = newValue
+    buffer[-1] = new_value
     average = np.mean(buffer, axis = 0)
 
     return average, buffer, counter
 
 @numba.njit
-def damped_pseudo_inverse(J, damping = config.FORCE_DAMPING):
+def damped_pseudoinverse(J, damping = config.FORCE_DAMPING):
     """Calculate damped Moore-Penrose pseudo inverse.
 
     Args:
@@ -79,17 +63,17 @@ def damped_pseudo_inverse(J, damping = config.FORCE_DAMPING):
     Returns:
         numpy.ndarray: 3x3 damped pseudo inverse of J.
     """
-    Jtrans = np.transpose(J).astype(np.float32)
-    JJtrans = np.dot(J, Jtrans).astype(np.float32)
-    alpha = np.eye(len(JJtrans), dtype = np.float32) * damping
-    dampedFactor = np.linalg.inv(JJtrans + alpha).astype(np.float32)
+    J_trans = np.transpose(J).astype(np.float32)
+    J_J_trans = np.dot(J, J_trans).astype(np.float32)
+    alpha = np.eye(len(J_J_trans), dtype = np.float32) * damping
+    damped_factor = np.linalg.inv(J_J_trans + alpha).astype(np.float32)
 
-    return np.dot(Jtrans, dampedFactor)
+    return np.dot(J_trans, damped_factor)
 
 @numba.njit
-def weightedPseudoInverse(J, A):
-    Jtrans = np.transpose(J).astype(np.float32)
-    Ainv = np.linalg.inv(A).astype(np.float32)
-    Jw = np.dot(np.dot(Ainv, Jtrans), np.linalg.inv(np.dot(J.astype(np.float32), np.dot(Ainv, Jtrans))))
+def weighted_pseudoinverse(J, A):
+    J_trans = np.transpose(J).astype(np.float32)
+    A_inv = np.linalg.inv(A).astype(np.float32)
+    J_w = np.dot(np.dot(A_inv, J_trans), np.linalg.inv(np.dot(J.astype(np.float32), np.dot(A_inv, J_trans))))
 
-    return Jw
+    return J_w

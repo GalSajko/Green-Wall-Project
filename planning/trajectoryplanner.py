@@ -1,70 +1,41 @@
 import numpy as np
-import math
-import matplotlib
-import matplotlib.pyplot as plt
 
 import config
 
 #region public methods
-def getTrajectory(legCurrentPosition, legGoalPosition, duration, trajectoryType):
-    """Get trajectory for leg's movements. If planned movement goes through point X = 0 split the movement on two separate movements: one to the point X, Y = 0 and 
-    second from this point to the goal position. 
-
-    Args:
-        legCurrentPosition (list): 1x3 array of leg's current position.
-        legGoalPosition (list): 1x3 array of leg's goal position.
-        duration (float): Desired duration of the movement.
-        trajectoryType (str): Type of trajectory.
-
-    Returns:
-        Tuple: Position, velocity and acceleration trajectories.
-    """
-    # If movement goes over x = 0, add additional point at (0, 0, dz/2).
-    xSigns = [np.sign(legCurrentPosition[0]), np.sign(legGoalPosition[0])]
-    legCurrentPosition = np.array(legCurrentPosition, dtype = np.float32)
-    legGoalPosition = np.array(legGoalPosition, dtype = np.float32)
-    if xSigns[0] != xSigns[1] and 0 not in xSigns:
-        interPoint = np.array([0.0, 0.0, (legCurrentPosition[2] + legGoalPosition[2]) / 2.0])
-        firstPositionTrajectory, firstVelocityTrajectory, firstAccelerationTrajectory = _calculateTrajectoryWrapper(legCurrentPosition, interPoint, duration / 2, trajectoryType)
-        secondPositionTrajectory, secondVelocityTrajectory, secondAccelerationTrajectory = _calculateTrajectoryWrapper(interPoint, legGoalPosition, duration / 2, trajectoryType)
-
-        return np.append(firstPositionTrajectory, secondPositionTrajectory, axis = 0), np.append(firstVelocityTrajectory, secondVelocityTrajectory, axis = 0), np.append(firstAccelerationTrajectory, secondAccelerationTrajectory, axis = 0)
-
-    return _calculateTrajectoryWrapper(legCurrentPosition, legGoalPosition, duration, trajectoryType)
-#endregion
-
-#region private methods
-def _calculateTrajectoryWrapper(start, goal, duration, trajectoryType):
+def get_trajectory(leg_current_position, leg_goal_position, duration, trajectory_type):
     """Wrapper for calcuating trajectories of desired type.
 
     Args:
         start: Start pose or position.
         goal: Goal pose or position.
         duration: Desired duration of movement.
-        trajectoryType: Desired trajectory type (bezier or minJerk).
+        trajectory_type: Desired trajectory type (bezier or minJerk).
 
     Raises:
-        ValueError: If trajectory type is unknown.      
+        ValueError: If trajectory type is unknown.
 
     Returns:
         Tuple: Position, velocity and acceleration trajectory, if calculation was succesfull.
     """
-    if trajectoryType == config.BEZIER_TRAJECTORY:
-        return _bezierTrajectory(start, goal, duration)
-    if trajectoryType == config.MINJERK_TRAJECTORY:
-        return _minJerkTrajectory(start, goal, duration)
+    if trajectory_type == config.BEZIER_TRAJECTORY:
+        return _bezierTrajectory(leg_current_position, leg_goal_position, duration)
+    if trajectory_type == config.MINJERK_TRAJECTORY:
+        return _min_jerk_trajectory(leg_current_position, leg_goal_position, duration)
 
     raise ValueError("Unknown trajectory type!")
+#endregion
 
-def _minJerkTrajectory(startPose, goalPose, duration):
+#region private methods
+def _min_jerk_trajectory(start_pose, goal_pose, duration):
     """Calculate minimum jerk trajectory of positions and velocities between two points.
 
     Args:
-        startPose (list): 1xn array of starting pose, where n can be: 
+        start_pose (list): 1xn array of starting pose, where n can be: 
             - 3 for representing x, y, and z starting position,
             - 4 for representing x, y, z and rotZ, where rotZ is rotation around global z axis,
             - 6 for representing x, y, z, r, p and y pose given in global origin.
-        goalPose (list): 1xn array of goal pose, where n can be: 
+        goal_pose (list): 1xn array of goal pose, where n can be: 
             - 3 for representing x, y, and z goal position,
             - 4 for representing x, y, z and rotZ, where rotZ is rotation around global z axis,
             - 6 for representing x, y, z, r, p and y pose given in global origin.
@@ -78,71 +49,46 @@ def _minJerkTrajectory(startPose, goalPose, duration):
         Tuple: Three nx7 array, representing pose trajectory with x, y, z, r, p, y and t values, where t are time stamps, 
         velocity trajectory and acceleration trajectory, where n is the number of steps in trajectory.
     """
-    if len(startPose) == 3:
-        startPose = [startPose[0], startPose[1], startPose[2], 0.0 , 0.0, 0.0]
-    elif len(startPose) == 4:
-        startPose = [startPose[0], startPose[1], startPose[2], 0.0, 0.0, startPose[3]]
+    if len(start_pose) == 3:
+        start_pose = [start_pose[0], start_pose[1], start_pose[2], 0.0 , 0.0, 0.0]
+    elif len(start_pose) == 4:
+        start_pose = [start_pose[0], start_pose[1], start_pose[2], 0.0, 0.0, start_pose[3]]
     
-    if len(goalPose) == 3:
-        goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, 0.0]
-    elif len(goalPose) == 4:
-        goalPose = [goalPose[0], goalPose[1], goalPose[2], 0.0, 0.0, goalPose[3]]
+    if len(goal_pose) == 3:
+        goal_pose = [goal_pose[0], goal_pose[1], goal_pose[2], 0.0, 0.0, 0.0]
+    elif len(goal_pose) == 4:
+        goal_pose = [goal_pose[0], goal_pose[1], goal_pose[2], 0.0, 0.0, goal_pose[3]]
 
-    if (len(startPose) != len(goalPose)):
-        raise ValueError("Lengths of startPose and goalPose do not match.")
+    if (len(start_pose) != len(goal_pose)):
+        raise ValueError("Lengths of start_pose and goal_pose do not match.")
     if duration <= 0:
         raise ValueError("Movement duration cannot be shorter than 0 seconds.")
     
-    startPose = np.array(startPose, dtype = np.float32)
-    goalPose = np.array(goalPose, dtype = np.float32)
+    start_pose = np.array(start_pose, dtype = np.float32)
+    goal_pose = np.array(goal_pose, dtype = np.float32)
 
-    timeStep = 1 / config.CONTROLLER_FREQUENCY
-    numberOfSteps = int(duration / timeStep)
-    timeVector = np.linspace(0, duration, numberOfSteps)
+    time_step = 1 / config.CONTROLLER_FREQUENCY
+    number_of_steps = int(duration / time_step)
+    time_vector = np.linspace(0, duration, number_of_steps)
 
-    trajectory = np.zeros((len(timeVector), len(startPose) + 1), dtype = np.float32)
-    velocities = np.zeros((len(timeVector), len(startPose)), dtype = np.float32)
-    accelerations = np.zeros((len(timeVector), len(startPose)), dtype = np.float32)
+    trajectory = np.zeros((len(time_vector), len(start_pose) + 1), dtype = np.float32)
+    velocities = np.zeros((len(time_vector), len(start_pose)), dtype = np.float32)
+    accelerations = np.zeros((len(time_vector), len(start_pose)), dtype = np.float32)
 
-    for idx, t in enumerate(timeVector):
-        trajectory[idx, :-1] = startPose + (goalPose - startPose) * (6 * (t / duration)**5 - 15 * (t / duration)**4 + 10 * (t / duration)**3)
+    for idx, t in enumerate(time_vector):
+        trajectory[idx, :-1] = start_pose + (goal_pose - start_pose) * (6 * (t / duration)**5 - 15 * (t / duration)**4 + 10 * (t / duration)**3)
         trajectory[idx, -1] = t
-        velocities[idx] = (30 * t**2 * (duration - t)**2 * (goalPose - startPose)) / duration**5
-        accelerations[idx] = -(60 * (startPose - goalPose) * t * (2 * t**2 - 3 * t * duration + duration**2)) / duration**5
-
-    matplotlib.rc('xtick', labelsize=20) 
-    matplotlib.rc('ytick', labelsize=20) 
-    plt.subplot(3, 1, 1)
-    plt.plot(timeVector, trajectory[:, 0], 'g')
-    plt.plot(timeVector, trajectory[:, 1], 'r')
-    plt.plot(timeVector, trajectory[:, 2], 'b')   
-    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
-    plt.title("Pozicijske trajektorije")
-    plt.subplot(3, 1, 2)
-    plt.plot(timeVector, velocities[:, 0], 'g')
-    plt.plot(timeVector, velocities[:, 1], 'r')
-    plt.plot(timeVector, velocities[:, 2], 'b')
-    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
-    plt.title("Hitrostne trajektorije")
-    plt.subplot(3, 1, 3)
-    plt.plot(timeVector, accelerations[:, 0], 'g')
-    plt.plot(timeVector, accelerations[:, 1], 'r')
-    plt.plot(timeVector, accelerations[:, 2], 'b')
-    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
-    plt.title("Pospeškovne trajektorije")
-
-    plt.subplots_adjust(hspace = 0.85)
-
-    plt.show()
+        velocities[idx] = (30 * t**2 * (duration - t)**2 * (goal_pose - start_pose)) / duration**5
+        accelerations[idx] = -(60 * (start_pose - goal_pose) * t * (2 * t**2 - 3 * t * duration + duration**2)) / duration**5
 
     return trajectory, velocities, accelerations
 
-def _bezierTrajectory(startPosition, goalPosition, duration):
+def _bezierTrajectory(start_position, goal_position, duration):
     """Calculate cubic bezier trajectory between start and goal point with fixed intermediat control points.
 
     Args:
-        startPosition (list): 1x3 array of x, y, z values, representing starting position of trajectory, given in global origin.
-        goalPosition (list): 1x3 array of x, y, z values, representing goal position of trajectory, given in global origin.
+        start_position (list): 1x3 array of x, y, z values, representing starting position of trajectory, given in global origin.
+        goal_position (list): 1x3 array of x, y, z values, representing goal position of trajectory, given in global origin.
         duration (float): Duration of trajectory.
 
     Raises:
@@ -154,78 +100,55 @@ def _bezierTrajectory(startPosition, goalPosition, duration):
         velocity trajectory and acceleration trajectory, where n is the number of steps in trajectory.
     """
 
-    if len(startPosition) != 3 or len(goalPosition) != 3:
+    if len(start_position) != 3 or len(goal_position) != 3:
         raise ValueError("Start and/or goal position were not given correctly.")
     if duration <= 0:
         raise ValueError("Movement duration cannot be shorter than 0 seconds.")
 
-    startPosition, goalPosition = np.array(startPosition), np.array(goalPosition)
+    start_position, goal_position = np.array(start_position), np.array(goal_position)
 
-    timeStep = 1 / config.CONTROLLER_FREQUENCY
-    numberOfSteps = int(duration / timeStep)
-    timeVector = np.linspace(0, duration, numberOfSteps)
+    time_step = 1 / config.CONTROLLER_FREQUENCY
+    number_of_steps = int(duration / time_step)
+    time_vector = np.linspace(0, duration, number_of_steps)
 
     # Ratio beween height of trajectory and distance between start and goal points.
-    heightPercent = 0.8 if np.linalg.norm(goalPosition - startPosition) > 0.25 else 1.0
+    height_percent = 0.8 if np.linalg.norm(goal_position - start_position) > 0.25 else 1.0
 
-    startToGoalDirection = np.array(goalPosition - startPosition)
+    start_to_goal_direction = np.array(goal_position - start_position)
 
-    P0 = np.copy(startPosition)
-    P1 = np.copy(startPosition)
-    P2 = np.copy(startPosition)
+    p_0 = np.copy(start_position)
+    p_1 = np.copy(start_position)
+    p_2 = np.copy(start_position)
 
-    P3 = np.copy(startPosition)
-    P3[2] += heightPercent * np.linalg.norm(startToGoalDirection)
-    P4 = np.copy(goalPosition)
-    P4[2] += heightPercent * np.linalg.norm(startToGoalDirection)
+    p_3 = np.copy(start_position)
+    p_3[2] += height_percent * np.linalg.norm(start_to_goal_direction)
+    p_4 = np.copy(goal_position)
+    p_4[2] += height_percent * np.linalg.norm(start_to_goal_direction)
 
-    P5 = np.copy(goalPosition)
-    P6 = np.copy(goalPosition)
-    P7 = np.copy(goalPosition)
+    p_5 = np.copy(goal_position)
+    p_6 = np.copy(goal_position)
+    p_7 = np.copy(goal_position)
 
-    trajectory = np.empty([len(timeVector), len(startPosition) + 1], dtype = np.float32)
-    velocity = np.empty([len(timeVector), len(startPosition)], dtype = np.float32)
-    accelerations = np.empty([len(timeVector), len(startPosition)], dtype = np.float32)
+    trajectory = np.empty([len(time_vector), len(start_position) + 1], dtype = np.float32)
+    velocity = np.empty([len(time_vector), len(start_position)], dtype = np.float32)
+    accelerations = np.empty([len(time_vector), len(start_position)], dtype = np.float32)
 
-    for idx, t in enumerate(timeVector):
+    for idx, t in enumerate(time_vector):
         param = t / duration
 
-        trajectoryPoint = P0 * (1 - param)**7 + P1 * 7 * (1 - param)**6 * param + P2 * 21 * (1 - param)**5 * param**2 + P3 * 35 * (1 - param)**4 * param**3 + \
-            P4 * 35 * (1 - param)**3 * param**4 + P5 * 21 * (1 - param)**2 * param**5 + P6 * 7 * (1 - param) * param**6 + P7 * param**7
-        trajectory[idx] = [trajectoryPoint[0], trajectoryPoint[1], trajectoryPoint[2], t]
+        trajectory_point = p_0 * (1 - param)**7 + p_1 * 7 * (1 - param)**6 * param + p_2 * 21 * (1 - param)**5 * param**2 + p_3 * 35 * (1 - param)**4 * param**3 + \
+            p_4 * 35 * (1 - param)**3 * param**4 + p_5 * 21 * (1 - param)**2 * param**5 + p_6 * 7 * (1 - param) * param**6 + p_7 * param**7
+        trajectory[idx] = [trajectory_point[0], trajectory_point[1], trajectory_point[2], t]
 
-        velocity[idx] = -(7 * (P0 * (t - duration)**6 - P1 * (t - duration)**5 * (7 * t - duration) + t * (3 * P2 * (7 * t - 2 * duration) * (t - duration)**4 - \
-            t * (5 * P3 * ( 7 * t - 3 * duration) * (t - duration)**3 + t * (-5 * P4 * (7 * t - 4 * duration) * (t - duration)**2 + \
-                t * (t * (-7 * P6 * t + P7 * t + 6 * P6 * duration) + 3 * P5 * (7 * t**2 - 12 * t * duration + 5 * duration**2))))))) / duration**7
+        velocity[idx] = -(7 * (p_0 * (t - duration)**6 - p_1 * (t - duration)**5 * (7 * t - duration) + t * (3 * p_2 * (7 * t - 2 * duration) * (t - duration)**4 - \
+            t * (5 * p_3 * ( 7 * t - 3 * duration) * (t - duration)**3 + t * (-5 * p_4 * (7 * t - 4 * duration) * (t - duration)**2 + \
+                t * (t * (-7 * p_6 * t + p_7 * t + 6 * p_6 * duration) + 3 * p_5 * (7 * t**2 - 12 * t * duration + 5 * duration**2))))))) / duration**7
 
-        accelerations[idx] = 42 * (-21 * P2 * t**5 + 35 * P3 * t**5 - 35 * P4 * t**5 + 21 * P5 * t**5 - 7 * P6 * t**5 + P7 * t**5 + P1 * (7 * t - 2 * duration) * (t - duration)**4 - \
-            P0 * (t - duration)**5 + 75 * P2 * t**4 * duration - 100 * P3 * t**4 * duration + 75 * P4 * t**4 * duration - 30 * P5 * t**4 * duration + \
-                  5 * P6 * t**4 * duration - 100 * P2 * t**3 * duration**2 + 100 * P3 * t**3 * duration**2 - 50 * P4 * t**3 * duration**2 + \
-                    10 * P5 * t**3 * duration**2 + 60 * P2 * t**2 * duration**3 - 40 * P3 * t**2 * duration**3 + \
-                        10 * P4 * t**2 * duration**3 - 15 * P2 * t * duration**4 + 5 * P3 * t * duration**4 + P2 * duration**5) / duration**7
-    
-    matplotlib.rc('xtick', labelsize=20) 
-    matplotlib.rc('ytick', labelsize=20) 
-    plt.subplot(3, 1, 1)
-    plt.plot(timeVector, trajectory[:, 0], 'g')
-    plt.plot(timeVector, trajectory[:, 1], 'r')
-    plt.plot(timeVector, trajectory[:, 2], 'b')   
-    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
-    plt.title("Pozicijske trajektorije")
-    plt.subplot(3, 1, 2)
-    plt.plot(timeVector, velocity[:, 0], 'g')
-    plt.plot(timeVector, velocity[:, 1], 'r')
-    plt.plot(timeVector, velocity[:, 2], 'b')
-    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
-    plt.title("Hitrostne trajektorije")
-    plt.subplot(3, 1, 3)
-    plt.plot(timeVector, accelerations[:, 0], 'g')
-    plt.plot(timeVector, accelerations[:, 1], 'r')
-    plt.plot(timeVector, accelerations[:, 2], 'b')
-    plt.legend(['x', 'y', 'z'], prop = {'size': 20}, loc = 'center left', bbox_to_anchor=(1, 0.5))
-    plt.title("Pospeškovne trajektorije")
-    plt.subplots_adjust(hspace = 0.85)
-    plt.show()
+        accelerations[idx] = 42 * (-21 * p_2 * t**5 + 35 * p_3 * t**5 - 35 * p_4 * t**5 + 21 * p_5 * t**5 - 7 * p_6 * t**5 + p_7 * t**5 + p_1 * (7 * t - 2 * duration) * (t - duration)**4 - \
+            p_0 * (t - duration)**5 + 75 * p_2 * t**4 * duration - 100 * p_3 * t**4 * duration + 75 * p_4 * t**4 * duration - 30 * p_5 * t**4 * duration + \
+                  5 * p_6 * t**4 * duration - 100 * p_2 * t**3 * duration**2 + 100 * p_3 * t**3 * duration**2 - 50 * p_4 * t**3 * duration**2 + \
+                    10 * p_5 * t**3 * duration**2 + 60 * p_2 * t**2 * duration**3 - 40 * p_3 * t**2 * duration**3 + \
+                        10 * p_4 * t**2 * duration**3 - 15 * p_2 * t * duration**4 + 5 * p_3 * t * duration**4 + p_2 * duration**5) / duration**7
 
     return trajectory, velocity, accelerations
 #endregion

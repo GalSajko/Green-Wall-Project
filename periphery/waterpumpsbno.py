@@ -31,15 +31,15 @@ class PumpsBnoArduino:
         self.__handshake()
     
     #region public methods
-    def pumpControll(self, command, pumpId):
+    def water_pump_controll(self, command, pump_id):
         """Controll water pump - turn it on or off.
 
         Args:
             command (str): Command to execute on water pump - '1' for on, '0' for off.
-            pumpId (int): Water pump id.
+            pump_id (int): Water pump id.
         """
         if command in (self.PUMP_ON_COMMAND, self.PUMP_OFF_COMMAND):
-            msg = command + str(pumpId) + '\n'
+            msg = command + str(pump_id) + '\n'
             self.__sendData(msg)
     
     def resetBno(self):
@@ -54,15 +54,15 @@ class PumpsBnoArduino:
             numpy.ndarray: 1x3 array of roll, pitch and yaw values in radians.
         """
         recMsg = ''
-        startTime = time.perf_counter()
-        elapsedTime = time.perf_counter() - startTime
+        start_time = time.perf_counter()
+        elapsed_time = time.perf_counter() - start_time
         useReading = True
         
         while len(recMsg) != self.RECEIVED_MESSAGE_LENGTH:
             with self.locker:
                 recMsg = self.receivedMessage
-            elapsedTime = time.process_time() - startTime
-            if elapsedTime > 1.0:
+            elapsed_time = time.process_time() - start_time
+            if elapsed_time > 1.0:
                 useReading = False
                 break
             

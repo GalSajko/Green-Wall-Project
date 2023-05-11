@@ -33,7 +33,7 @@ class GrippersArduino:
         self.__handshake()
 
     #region public methods
-    def moveGripper(self, leg_id, command):
+    def move_gripper(self, leg_id, command):
         """Send command to move a gripper on selected leg.
 
         Args:
@@ -44,23 +44,23 @@ class GrippersArduino:
             msg = command + str(leg_id) + "\n"
             self.__sendData(msg)
 
-    def openGrippersAndWait(self, legsIds):
+    def openGrippersAndWait(self, legs_ids):
         """Open grippers on given legs and wait for them to come in open state.
 
         Args:
-            legsIds (list): Ids of used legs.
+            legs_ids (list): Ids of used legs.
 
         Returns:
             bool: True, when all grippers reach open state.
         """
-        for leg in legsIds:
-            self.moveGripper(leg, self.OPEN_COMMAND)
-        checkArray = np.array([False] * len(legsIds))
+        for leg in legs_ids:
+            self.move_gripper(leg, self.OPEN_COMMAND)
+        checkArray = np.array([False] * len(legs_ids))
         while not checkArray.all():
             with self.locker:
                 recMsg = self.receivedMessage
             if len(recMsg) == self.RECEIVED_MESSAGE_LENGTH:
-                for leg_id, leg in enumerate(legsIds):
+                for leg_id, leg in enumerate(legs_ids):
                     if recMsg[leg] == self.GRIPPER_OPENED_RESPONSE:
                         checkArray[leg_id] = True
             time.sleep(0.05)
@@ -79,7 +79,7 @@ class GrippersArduino:
 
         return recMsg[5:]
 
-    def getIdsOfAttachedLegs(self):
+    def get_ids_of_attached_legs(self):
         """Get ids of attached legs. Leg is attached if switch and gripper are both in closed state.
 
         Returns:
@@ -91,12 +91,12 @@ class GrippersArduino:
                 recMsg = self.receivedMessage
         grippersStates = recMsg[:5]
         switchesStates = recMsg[5:]
-        attachedLegsIds = []
+        attachedlegs_ids = []
         for leg_id, gripperState in enumerate(grippersStates):
             if gripperState == self.GRIPPER_CLOSED_RESPONSE and switchesStates[leg_id] == self.SWITCH_CLOSE_RESPONSE:
-                attachedLegsIds.append(int(leg_id))
+                attachedlegs_ids.append(int(leg_id))
 
-        return attachedLegsIds
+        return attachedlegs_ids
     #endregion
     
     #region private methods

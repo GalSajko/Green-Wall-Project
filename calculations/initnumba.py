@@ -29,11 +29,11 @@ def initNumbaFunctions():
     kin.all_legs_positions(five_three_array, config.LEG_ORIGIN)
     kin.leg_forward_kinematics(one_three_array)
     kin.spider_base_to_leg_tip_forward_kinematics(0, one_three_array)
-    kin.legInverseKinematics(np.array((0.3, 0.0, 0.0), dtype = np.float32))
-    kin.legJacobi(one_three_array)
+    kin.leg_inverse_kinematics(np.array((0.3, 0.0, 0.0), dtype = np.float32))
+    kin.leg_jacobi(one_three_array)
     kin.spider_base_to_leg_tip_jacobi(0, one_three_array)
-    kin.getJointsVelocities(random_five_three_array, five_three_array)
-    kin.getXdXddFromOffsets(spider.LEGS_IDS, five_three_array, five_three_array)
+    kin.get_joints_velocities(random_five_three_array, five_three_array)
+    kin.get_xd_xdd_from_offsets(spider.LEGS_IDS, five_three_array, five_three_array)
 
     tf.R_B1(0.0, 0.25)
     tf.R_12(0.25)
@@ -41,4 +41,4 @@ def initNumbaFunctions():
     tf.R_B2(0.0, 0.3, 0.2)
     tf.R_B3(0.0, 0.12, 0.2, 0.3)
 
-    mt.damped_pseudo_inverse(random_three_three_matrix)
+    mt.damped_pseudoinverse(random_three_three_matrix)

@@ -1,5 +1,6 @@
 import json
 import numpy as np
+from gwpwall import wall
 
 import config
 from environment import wall
@@ -9,60 +10,60 @@ class JsonFileManager():
         self.FILENAME = 'spider_state_dict'
 
         self.pins = wall.createGrid(True)
-        self.stateDict = {
+        self.state_dict = {
             'pose' : [],
             'pins' : []
         }     
 
-    def updateWholeDict(self, pose, currentPins, legsOrder):
+    def update_whole_dict(self, pose, current_pins, legs_moving_order):
         """Update pose and pins in dictionary and write it in JSON file.
 
         Args:
             pose (list): Spider's pose.
-            currentPins (list): 5x3 array of pins positions.
-            legsOrder (list): Legs moving order.
+            current_pins (list): 5x3 array of pins positions.
+            legs_moving_order (list): Legs moving order.
         """
-        sortedLegsIndexes = np.argsort(legsOrder)
-        sortedPins = currentPins[sortedLegsIndexes]
+        sorted_legs_ids = np.argsort(legs_moving_order)
+        sorted_pins = current_pins[sorted_legs_ids]
 
-        pinsIndexes = []
-        for usedPin in sortedPins:
-            for pinIndex, pin in enumerate(self.pins):
-                if pin.tolist() == usedPin.tolist():
-                    pinsIndexes.append(pinIndex)
+        pins_ids = []
+        for used_pin in sorted_pins:
+            for pin_id, pin in enumerate(self.pins):
+                if pin.tolist() == used_pin.tolist():
+                    pins_ids.append(pin_id)
 
-        self.stateDict['pose'] = pose.tolist()
-        self.stateDict['pins'] = pinsIndexes
+        self.state_dict['pose'] = pose.tolist()
+        self.state_dict['pins'] = pins_ids
 
-        self.__writeJson()
+        self.__write_json()
     
-    def updatePins(self, leg_id, pin):
+    def update_pins(self, leg_id, pin):
         """Update only one pin position in dictionary and write it in JSON file.
 
         Args:
             leg_id (int): Leg id.
             pin (list): 1x3 array of pin position.
         """
-        pinIndex = np.flatnonzero((self.pins == pin).all(1))[0]
-        self.stateDict['pins'][leg_id] = int(pinIndex)
+        pin_id = np.flatnonzero((self.pins == pin).all(1))[0]
+        self.state_dict['pins'][leg_id] = int(pin_id)
 
-        self.__writeJson()
+        self.__write_json()
     
-    def readSpiderState(self):
+    def read_spider_state(self):
         """Read pose and pins from JSON file and save them into dictionary.
 
         Returns:
             tuple: Spider's pose, used pins indexes and used pins positions.
         """
         with open(self.FILENAME, 'r', encoding = 'utf-8') as file:
-            self.stateDict = json.load(file)
+            self.state_dict = json.load(file)
         
-        pose = np.array(self.stateDict[config.STATE_DICT_POSE_KEY])
-        pinsIndexes = np.array(self.stateDict[config.STATE_DICT_PINS_KEY])
-        pinsPositions = self.pins[pinsIndexes]
+        pose = np.array(self.state_dict[config.STATE_DICT_POSE_KEY])
+        pins_ids = np.array(self.state_dict[config.STATE_DICT_PINS_KEY])
+        pins_positions = self.pins[pins_ids]
 
-        return pose, pinsIndexes, pinsPositions
+        return pose, pins_ids, pins_positions
 
-    def __writeJson(self):
+    def __write_json(self):
         with open(self.FILENAME, 'w', encoding = 'utf-8') as file:
-            json.dump(self.stateDict, file)
+            json.dump(self.state_dict, file)

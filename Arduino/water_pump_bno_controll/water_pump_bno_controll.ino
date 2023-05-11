@@ -39,7 +39,7 @@ struct Eulers
 struct PcCommands
 {
   char command;
-  int pumpId;
+  int pump_id;
 };
 
 /*Substract starting rpy values from eulers.*/
@@ -54,14 +54,14 @@ void substractInitRpyValues(Eulers *eulers)
 Eulers getEulerAnglesFromQuaternion(imu::Quaternion quaternion, bool doSubstract = true)
 {
     Eulers eulers;
-    float q1 = quaternion.x();
-    float q2 = quaternion.y();
-    float q3 = quaternion.z();
+    float q_1 = quaternion.x();
+    float q_2 = quaternion.y();
+    float q_3 = quaternion.z();
     float q0 = quaternion.w();
 
-    eulers.roll = atan2(2 * (q0 * q1 + q2 * q3), 1 - 2 * (q1 * q1 + q2 * q2));
-    eulers.pitch = asin(2 * (q0 * q2 - q1 * q3));
-    eulers.yaw = atan2(2 * (q0 * q3 + q1 * q2), -1 + 2 * (q0 * q0 + q1 * q1));
+    eulers.roll = atan2(2 * (q0 * q_1 + q_2 * q_3), 1 - 2 * (q_1 * q_1 + q_2 * q_2));
+    eulers.pitch = asin(2 * (q0 * q_2 - q_1 * q_3));
+    eulers.yaw = atan2(2 * (q0 * q_3 + q_1 * q_2), -1 + 2 * (q0 * q0 + q_1 * q_1));
 
     if (doSubstract)
     {
@@ -122,10 +122,10 @@ struct PcCommands parseData(String data)
   if (data[0] == PUMP_ON_COMMAND || data[0] == PUMP_OFF_COMMAND)
   {
     commands.command = data[0];
-    int pumpId = data[1] - '0';
-    if (pumpId < 3 && pumpId >= 0)
+    int pump_id = data[1] - '0';
+    if (pump_id < 3 && pump_id >= 0)
     {
-      commands.pumpId = pumpId;
+      commands.pump_id = pump_id;
     }
   }
   else if (data[0] == INIT_BNO || data[0] == READ_BNO_RPY)
@@ -137,7 +137,7 @@ struct PcCommands parseData(String data)
 }
 
 /*Controll water pumps.*/
-void pumpControl(char command, int pumpId)
+void pumpControl(char command, int pump_id)
 {
   int value;
   if (command == PUMP_ON_COMMAND)
@@ -149,7 +149,7 @@ void pumpControl(char command, int pumpId)
     value = PUMP_OFF_VOLTAGE;
   }
 
-  analogWrite(PWM_PINS[pumpId], value);
+  analogWrite(PWM_PINS[pump_id], value);
 }
 
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
@@ -201,7 +201,7 @@ void loop()
       struct PcCommands commands = parseData(data);
       if (commands.command == PUMP_ON_COMMAND || commands.command == PUMP_OFF_COMMAND)
       {
-        pumpControl(commands.command, commands.pumpId); 
+        pumpControl(commands.command, commands.pump_id); 
       }
       else if (commands.command == INIT_BNO)
       {

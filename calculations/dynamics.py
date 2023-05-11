@@ -14,9 +14,10 @@ A_TORQUE_POLYNOM = 0.0
 B_TORQUE_POLYNOM = 2.9326
 C_TORQUE_POLYNOM = -0.1779
 
-#region public methods
-@numba.jit(nopython = True, cache = False)
-def get_torques_and_forces_on_legs_tips(joints_values, currents_in_motors, spider_gravity_vector, number_of_legs = spider.NUMBER_OF_LEGS):
+
+# region public methods
+@numba.jit(nopython=True, cache=False)
+def get_torques_and_forces_on_legs_tips(joints_values, currents_in_motors, spider_gravity_vector, number_of_legs=spider.NUMBER_OF_LEGS,):
     """Calculate forces, applied to tips of all legs, from currents in motors.
     Args:
         joints_values (list): 5x3 array of angles in joints.
@@ -27,15 +28,15 @@ def get_torques_and_forces_on_legs_tips(joints_values, currents_in_motors, spide
         tuple: 5x3 array of forces, applied to leg tips in x, y, z direction of spider's origin and 5x3x3 array of damped pseudo inverses of jacobian matrices.
     """
     torques = get_torques_in_legs(joints_values, currents_in_motors, spider_gravity_vector)
-    forces = np.zeros((number_of_legs, 3), dtype = np.float32)
+    forces = np.zeros((number_of_legs, 3), dtype=np.float32)
 
     for leg_id, joint_values in enumerate(joints_values):
         J = kin.spider_base_to_leg_tip_jacobi(leg_id, joint_values)
-        J_hash = mathTools.damped_pseudo_inverse(J)
+        J_hash = mathTools.damped_pseudoinverse(J)
         forces[leg_id] = np.dot(np.transpose(J_hash), torques[leg_id])
-    
+
     return torques, forces
-    
+
 def calculate_distributed_forces(measured_torques, joints_values, legs_ids, offload_leg_id):
     """Calculated distributed forces from minimized torques.
 
@@ -56,43 +57,58 @@ def calculate_distributed_forces(measured_torques, joints_values, legs_ids, offl
     # weights[9, 9] = 0.1
     # weights[12, 12] = 0.1
 
-    
     if len(offload_leg_id):
-        J_x = np.delete(J_x, range(offload_leg_id[0] * 3, (offload_leg_id[0] * 3) + 3), axis = 1)
-        # weights = np.delete(weights, range(offloadleg_id[0] * 3, (offloadleg_id[0] * 3) + 3), axis = 0)
-        # weights = np.delete(weights, range(offloadleg_id[0] * 3, (offloadleg_id[0] * 3) + 3), axis = 1)
-        J_hash_trans_diag = np.delete(J_hash_trans_diag, range(offload_leg_id[0] * 3, (offload_leg_id[0] * 3) + 3), axis = 0)
-        J_hash_trans_diag = np.delete(J_hash_trans_diag, range(offload_leg_id[0] * 3, (offload_leg_id[0] * 3) + 3), axis = 1)
+        J_x = np.delete(J_x, range(offload_leg_id[0] * 3, (offload_leg_id[0] * 3) + 3), axis=1)
+        # weights = np.delete(weights, range(offload_leg_id[0] * 3, (offload_leg_id[0] * 3) + 3), axis = 0)
+        # weights = np.delete(weights, range(offload_leg_id[0] * 3, (offload_leg_id[0] * 3) + 3), axis = 1)
+        J_hash_trans_diag = np.delete(J_hash_trans_diag, range(offload_leg_id[0] * 3, (offload_leg_id[0] * 3) + 3), axis=0)
+        J_hash_trans_diag = np.delete(J_hash_trans_diag, range(offload_leg_id[0] * 3, (offload_leg_id[0] * 3) + 3), axis=1)
 
-    # Jxw = mathTools.weightedPseudoInverse(J_x, weights)
+    # Jxw = mathTools.weighted_pseudoinverse(J_x, weights)
     dist_torques_array = np.dot(np.linalg.pinv(J_x), W)
     # distTorquesArray = np.dot(Jxw, W)
     dist_forces_array = np.dot(J_hash_trans_diag, dist_torques_array)
 
     return np.reshape(dist_forces_array, (len(legs_ids), 3))
 
-@numba.jit(nopython = True, cache = False)
-def get_gravity_rotation_matrices(joints_values, q_b):
-    q_1, q_2, q_3 = joints_values
+@numba.jit(nopython=True, cache=False)
+def get_gravity_rotation_matrices(joints_values_in_leg, q_b):
+    """Get array of rotation matrices from spider's origin to segments' origins in order that can be used in recursive dynamics calculations.
+    Args:
+        joints_values_in_leg (list): 1x3 array of values in joints, in radians.
+        q_b (float): Z-axis rotation between spider's and leg's origin.
 
-    rotation_matrices = np.zeros((3, 3, 3), dtype = np.float32)
+    Returns:
+        numpy.ndarray: 3x3x3 array of rotation matrices.
+    """
+    q_1, q_2, q_3 = joints_values_in_leg
+
+    rotation_matrices = np.zeros((3, 3, 3), dtype=np.float32)
     rotation_matrices[0] = tf.R_B1(q_b, q_1)
     rotation_matrices[1] = tf.R_B2(q_b, q_1, q_2)
     rotation_matrices[2] = tf.R_B3(q_b, q_1, q_2, q_3)
 
     return rotation_matrices
 
-@numba.jit(nopython = True, cache = False)
-def get_force_rotation_matrices(joints_values):
-    force_matrices = np.zeros((2, 3, 3), dtype = np.float32)
-    force_matrices[0] = tf.R_23(joints_values[2])
-    force_matrices[1] = tf.R_12(joints_values[1])
+@numba.jit(nopython=True, cache=False)
+def get_force_rotation_matrices(joints_values_in_leg):
+    """Get array of rotation matrices from consecutive segments' origins in order that can be used in recursive dynamics calculations.
+
+    Args:
+        joints_values_in_leg (list): 1x3 array of values in joints, in radians.
+
+    Returns:
+        numpy.ndarray: 2x3x3 array of rotation matrices.
+    """
+    force_matrices = np.zeros((2, 3, 3), dtype=np.float32)
+    force_matrices[0] = tf.R_23(joints_values_in_leg[2])
+    force_matrices[1] = tf.R_12(joints_values_in_leg[1])
 
     return force_matrices
 
-@numba.jit(nopython = True, cache = False)
+@numba.jit(nopython=True, cache=False)
 def get_torques_in_legs(joints_values, currents_in_motors, spider_gravity_vector):
-    """Calculate torques in leg-joints from measured currents. 
+    """Calculate torques in leg-joints from measured currents.
 
     Args:
         joints_values (list): 5x3 array of angles in joints.
@@ -111,8 +127,14 @@ def get_torques_in_legs(joints_values, currents_in_motors, spider_gravity_vector
 
     return torques
 
-@numba.jit(nopython = True, cache = False)
-def calculate_gravity_compensation_torques(joints_values, spider_gravity_vector, number_of_legs = spider.NUMBER_OF_LEGS, number_of_motors_in_leg = spider.NUMBER_OF_MOTORS_IN_LEG, angle_between_legs = spider.ANGLE_BETWEEN_LEGS):
+@numba.jit(nopython=True, cache=False)
+def calculate_gravity_compensation_torques(
+    joints_values,
+    spider_gravity_vector,
+    number_of_legs=spider.NUMBER_OF_LEGS,
+    number_of_motors_in_leg=spider.NUMBER_OF_MOTORS_IN_LEG,
+    angle_between_legs=spider.ANGLE_BETWEEN_LEGS,
+):
     """Calculate torques in joints (for all legs), required to compensate movement, caused only by gravity.
 
     Args:
@@ -122,7 +144,7 @@ def calculate_gravity_compensation_torques(joints_values, spider_gravity_vector,
     Returns:
         numpy.ndarray: 5x3 array of required torques in joints.
     """
-    torques = np.zeros((number_of_legs, number_of_motors_in_leg), dtype = np.float32)
+    torques = np.zeros((number_of_legs, number_of_motors_in_leg), dtype=np.float32)
 
     for leg_id, joints_in_leg in enumerate(joints_values):
         q_b = leg_id * angle_between_legs + math.pi / 2.0
@@ -135,8 +157,12 @@ def calculate_gravity_compensation_torques(joints_values, spider_gravity_vector,
 
     return torques
 
-@numba.jit(nopython = True, cache = False)
-def calculate_gravity_vectors(gravity_rotation_matrices, spider_gravity_vector, number_of_segments = spider.NUMBER_OF_MOTORS_IN_LEG):
+@numba.jit(nopython=True, cache=False)
+def calculate_gravity_vectors(
+    gravity_rotation_matrices,
+    spider_gravity_vector,
+    number_of_segments=spider.NUMBER_OF_MOTORS_IN_LEG,
+):
     """Calculate gravity vectors in segments' origins.
 
     Args:
@@ -146,13 +172,22 @@ def calculate_gravity_vectors(gravity_rotation_matrices, spider_gravity_vector, 
     Returns:
         numpy.ndarray: 3x3 array of three local gravity vectors, given in segments' origins.
     """
-    local_gravity_vectors = np.zeros((number_of_segments, 3), dtype = np.float32)
+    local_gravity_vectors = np.zeros((number_of_segments, 3), dtype=np.float32)
     for i in range(3):
-        local_gravity_vectors[i] = np.dot(np.transpose(gravity_rotation_matrices[i]), spider_gravity_vector)
+        local_gravity_vectors[i] = np.dot(
+            np.transpose(gravity_rotation_matrices[i]), spider_gravity_vector
+        )
     return local_gravity_vectors
 
-@numba.jit(nopython = True, cache = False)
-def calculate_torques(leg_id, force_rotation_matrices, local_gravity_vectors, cog_vectors = spider.VECTORS_TO_COG_SEGMENT, legs_dimensions = spider.LEGS_DIMENSIONS, segment_masses = spider.SEGMENTS_MASSES):
+@numba.jit(nopython=True, cache=False)
+def calculate_torques(
+    leg_id,
+    force_rotation_matrices,
+    local_gravity_vectors,
+    cog_vectors=spider.VECTORS_TO_COG_SEGMENT,
+    legs_dimensions=spider.LEGS_DIMENSIONS,
+    segment_masses=spider.SEGMENTS_MASSES,
+):
     """Calculate torques in the motors, using Newton-Euler method.
 
     Args:
@@ -162,46 +197,50 @@ def calculate_torques(leg_id, force_rotation_matrices, local_gravity_vectors, co
     Returns:
         numpy.ndarray: 1x3 array of torques in joints.
     """
-    torques_vectors_in_leg = np.zeros((3, 3), dtype = np.float32)
-    torques_values_in_leg = np.zeros(3, dtype = np.float32)
-    forces = np.zeros((3, 3), dtype = np.float32)
+    torques_vectors_in_leg = np.zeros((3, 3), dtype=np.float32)
+    torques_values_in_leg = np.zeros(3, dtype=np.float32)
+    forces = np.zeros((3, 3), dtype=np.float32)
 
     for i in range(3):
-        l_c = np.array([1, 0, 0], dtype = np.float32) * cog_vectors[leg_id][2 - i]
-        l = np.array([1, 0, 0], dtype = np.float32) * legs_dimensions[2 - i]
+        l_c = np.array([1, 0, 0], dtype=np.float32) * cog_vectors[leg_id][2 - i]
+        l = np.array([1, 0, 0], dtype=np.float32) * legs_dimensions[2 - i]
 
         if i != 0:
             f_g_segment = segment_masses[leg_id][2 - i] * local_gravity_vectors[2 - i]
-            forces[i] = np.dot(force_rotation_matrices[i - 1], forces[i - 1]) - f_g_segment
-            torques_vectors_in_leg[i] = np.dot(force_rotation_matrices[i - 1], torques_vectors_in_leg[i - 1]) + np.cross(f_g_segment, l_c) - np.cross(np.dot(force_rotation_matrices[i - 1], forces[i - 1]), l)
+            forces[i] = (np.dot(force_rotation_matrices[i - 1], forces[i - 1]) - f_g_segment)
+            torques_vectors_in_leg[i] = (
+                np.dot(force_rotation_matrices[i - 1], torques_vectors_in_leg[i - 1])
+                + np.cross(f_g_segment, l_c)
+                - np.cross(np.dot(force_rotation_matrices[i - 1], forces[i - 1]), l)
+            )
             torques_values_in_leg[i] = torques_vectors_in_leg[i][2]
             continue
 
         forces[i] = -segment_masses[leg_id][2 - i] * local_gravity_vectors[2 - i]
         torques_vectors_in_leg[i] = (-1) * np.cross(forces[i], l_c)
         torques_values_in_leg[i] = torques_vectors_in_leg[i][2]
-    
+
     return np.flip(torques_values_in_leg)
 
-@numba.jit(nopython = True, cache = False)
+@numba.jit(nopython=True, cache=False)
 def create_diag_transpose_J_hash(joints_values):
     """Create diagonal matrix from transposed damped pseudo-inverses of jacobian matrices.
 
     Args:
         joints_values (list): nx3 array of angles in joints in radians, where n is number of used legs.
- 
+
     Returns:
         numpy.ndarray: (3*n)x(3*n) diagonal matrix of transposed damped-pseudo-inverses of jacobian matrices.
     """
     diag_J_hash_trans = np.zeros((3 * len(joints_values), 3 * len(joints_values)))
     for leg_id, joints_in_leg in enumerate(joints_values):
-        J_hash_trans = np.transpose(mathTools.damped_pseudo_inverse(kin.spider_base_to_leg_tip_jacobi(leg_id, joints_in_leg)))
+        J_hash_trans = np.transpose(mathTools.damped_pseudoinverse(kin.spider_base_to_leg_tip_jacobi(leg_id, joints_in_leg)))
         diag_J_hash_trans[3 * leg_id : 3 * leg_id + len(J_hash_trans), 3 * leg_id : 3 * leg_id + len(J_hash_trans)] = J_hash_trans
-    
-    return diag_J_hash_trans
-#endregion
 
-#region private methods
+    return diag_J_hash_trans
+# endregion
+
+# region private methods
 def _get_spider_external_forces(measured_torques, joints_values):
     """Calculate external forces and torques from all internal torques and joints values.
 
@@ -223,23 +262,23 @@ def _get_spider_external_forces(measured_torques, joints_values):
 
     return W, J_x, diag_J_hash_trans
 
-def _create_J_m_matrix(x_a):
+def _create_J_m_matrix(legs_positions):
     """Create J_m matrix from antisimetric matrices of position vectors
 
     Args:
-        x_a (list): nx3 array of legs' positions.
+        legs_positions (list): nx3 array of legs' positions.
 
     Returns:
-        numpy.ndarray: 3x(3xn) J_m matrix, where n is number of used legs.
+        numpy.ndarray: 3x(3*n) J_m matrix, where n is number of used legs.
     """
-    x_a = np.array(x_a, dtype = np.float32)
-    for i in range(len(x_a)):
-        x, y, z = x_a[i]
-        antisim_matrix = np.array([
-            [0, -z, y],
-            [z, 0, -x],
-            [-y, x, 0]
-        ], dtype = np.float32)
+    legs_positions = np.array(legs_positions, dtype=np.float32)
+    for i, leg_position in enumerate(legs_positions):
+        x, y, z = leg_position
+        antisim_matrix = np.array(
+            [[0, -z, y], 
+             [z, 0, -x], 
+             [-y, x, 0]], dtype=np.float32
+        )
         if i == 0:
             J_m = antisim_matrix
             continue
@@ -248,10 +287,15 @@ def _create_J_m_matrix(x_a):
     return J_m
 
 def _create_J_f_matrix():
+    """Create J_f matrix from 3x3 identity matrices.
+
+    Returns:
+        numpy.ndarray: 3x(3*n) J_f matrix, where n is number of legs.
+    """
     for i in range(spider.NUMBER_OF_LEGS):
         if i == 0:
-            J_f = np.eye(3, dtype = np.float32)
+            J_f = np.eye(3, dtype=np.float32)
             continue
-        J_f = np.c_[J_f, np.eye(3, dtype = np.float32)]
+        J_f = np.c_[J_f, np.eye(3, dtype=np.float32)]
     return J_f
-#endregion
+# endregion

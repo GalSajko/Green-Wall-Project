@@ -2,16 +2,15 @@ import requests
 import json
 import sys
 import numpy as np
+import threading
 sys.path.append('..')
 
-import threadmanager
-import config
-import threading
+from utils import threadmanager
 import config
 
 class CommunicationWithServer:
     def __init__(self, spiderDictPath) :
-        self.threadManager = threadmanager.CustomThread()
+        self.thread_manager = threadmanager.CustomThread()
         self.sensorPosition = []
         self.locker = threading.Lock()
         self.spiderDictPath = spiderDictPath
@@ -31,7 +30,7 @@ class CommunicationWithServer:
     def updateSensorPositionData(self):
         """Comunication procedure, creates a thread that continuously sends GET requests to the server and updates the data variable with values from the server. It also sends POST requests with spider position to the server.
         """
-        def updatingSensorPositionData(killEvent):
+        def updatingSensorPositionData(kill_event):
             while True:
                 try:
                     with open(self.spiderDictPath, "r", encoding = 'utf-8') as f:
@@ -40,11 +39,11 @@ class CommunicationWithServer:
                 except Exception as e:
                     print(f"Exception {e} at sending spider state data.")
 
-                if killEvent.wait(timeout = 5): 
+                if kill_event.wait(timeout = 5): 
                     break
-        self.updatingDataThread, self.updatingDataThreadKillEvent = self.threadManager.run(updatingSensorPositionData, config.UPDATE_DATA_THREAD_NAME, False, True)
+        self.updatingDataThread, self.updatingDataThreadKillEvent = self.thread_manager.run(updatingSensorPositionData, config.UPDATE_DATA_THREAD_NAME, False, True)
     
-    def postRefilling(self):
+    def post_refilling(self):
          try:
               _ = requests.post(config.POST_REFILL, data = "Refilling", headers = {"Access-Control-Allow-Origin": "*"})
          except Exception as e:
