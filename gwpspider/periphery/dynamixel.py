@@ -7,7 +7,7 @@ import numpy as np
 from dynamixel_sdk import *
 
 from utils import mappers
-from environment import spider
+import spider
 import config
 
 class MotorDriver:
@@ -20,29 +20,6 @@ class MotorDriver:
             motors_ids (list): List of motors ids.
             enable_motors (bool, optional): If True, enable torque in motors. Defaults to True.
         """
-        # Motor series - we are using XM series.
-        self.MOTOR_SERIES = "X_SERIES"
-        # Control table addresses.
-        self.TORQUE_ENABLE_ADDR = 64
-        self.GOAL_VELOCITY_ADDR = 104
-        self.PRESENT_POSITION_ADDR = 132
-        self.PRESENT_CURRENT_ADDR = 126
-        self.BUS_WATCHDOG_ADDR = 98
-        self.HARDWARE_ERROR_ADDR = 70
-        self.PRESENT_TEMPERATURE_ADDR = 146
-
-        self.BAUDRATE = 4000000
-        self.PROTOCOL_VERSION = 2.0
-        self.USB_DEVICE_NAME = "/dev/ttyUSB_DXL"
-
-        self.PRESENT_POSITION_DATA_LENGTH = 4
-        self.PRESENT_CURRENT_DATA_LENGTH = 2
-        self.GOAL_VELOCITY_DATA_LENGTH = 4
-        self.HARDWARE_ERROR_DATA_LENGTH = 1
-        self.PRESENT_TEMPERATURE_DATA_LENGTH = 1
-
-        self.MAX_WORKING_TEMPERATURE = 55
-
         self.__set_usb_low_latency()
 
         self.locker = threading.Lock()
@@ -67,6 +44,78 @@ class MotorDriver:
         
         # Disable (reset) watchdogs on motors.
         self.set_bus_watchdog(0)
+    
+    #region properties
+    @property
+    def MOTOR_SERIES(self):
+        return 'X_SERIES'
+
+    @property
+    def TORQUE_ENABLE_ADDR(self):
+        return 64
+    
+    @property
+    def GOAL_VELOCITY_ADDR(self):
+        return 104
+    
+    @property
+    def PRESENT_POSITION_ADDR(self):
+        return 132
+    
+    @property
+    def PRESENT_CURRENT_ADDR(self):
+        return 126
+    
+    @property
+    def BUS_WATCHDOG_ADDR(self):
+        return 98
+    
+    @property
+    def HARDWARE_ERROR_ADDR(self):
+        return 70
+    
+    @property
+    def PRESENT_TEMPERATURE_ADDR(self):
+        return 146
+    
+    @property
+    def BAUDRATE(self):
+        return 4000000
+    
+    @property
+    def PROTOCOL_VERSION(self):
+        return 2.0
+    
+    @property
+    def USB_DEVICE_NAME(self):
+        return '/dev/ttyUSB_DXL'
+    
+    @property
+    def PRESENT_POSITION_DATA_LENGTH(self):
+        return 4
+    
+    @property
+    def PRESENT_CURRENT_DATA_LENGTH(self):
+        return 2
+    
+    @property
+    def GOAL_VELOCITY_DATA_LENGTH(self):
+        return 4
+    
+    @property
+    def HARDWARE_ERROR_DATA_LENGTH(self):
+        return 1
+    
+    @property
+    def PRESENT_TEMPERATURE_DATA_LENGTH(self):
+        return 1
+    
+    @property
+    def MAX_WORKING_TEMPERATURE(self):
+        return 55
+    
+
+    #endregion
 
     #region public methods 
     def sync_read_motors_data(self):

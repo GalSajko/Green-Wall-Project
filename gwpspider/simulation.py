@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gwpwall import wall
 
-from environment import spider  
+import spider  
 from calculations import transformations as tf
 
 class Plotter:
@@ -86,12 +86,12 @@ class Plotter:
             for i in range(len(legs_positions[idx])):
                 if len(pose) > 2:
                     T_GA = tf.xyzrpy_to_matrix(pose)
-                    leg_base_position = np.dot(T_GA, spider.T_ANCHORS[i])[:,3][:3]
+                    leg_base_position = np.dot(T_GA, spider.T_BASES[i])[:,3][:3]
                     x_values = [leg_base_position[0], legs_positions[idx][i][0]]
                     y_values = [leg_base_position[1], legs_positions[idx][i][1]]
                 else:
-                    x_values = [pose[0] + spider.LEG_ANCHORS[i][0], legs_positions[idx][i][0]]
-                    y_values = [pose[1] + spider.LEG_ANCHORS[i][1], legs_positions[idx][i][1]]
+                    x_values = [pose[0] + spider.LEG_BASES[i][0], legs_positions[idx][i][0]]
+                    y_values = [pose[1] + spider.LEG_BASES[i][1], legs_positions[idx][i][1]]
                 legs.append(self.board.plot(x_values, y_values, 'g')[0])
                 # Mark 1st leg with red tip and 2nd leg with yellow (to check legs orientation)
                 leg_tip_color = "orange"
@@ -145,12 +145,12 @@ class Plotter:
                     legs[leg_idx].remove()
                 if len(pose) > 2:
                     T_GA = tf.xyzrpy_to_matrix(pose)
-                    leg_base_position = np.dot(T_GA, spider.T_ANCHORS[leg_idx])[:,3][:3]
+                    leg_base_position = np.dot(T_GA, spider.T_BASES[leg_idx])[:,3][:3]
                     x_values = [leg_base_position[0], leg_position[0]]
                     y_values = [leg_base_position[1], leg_position[1]]
                 else:
-                    x_values = [pose[0] + spider.LEG_ANCHORS[leg_idx][0], leg_position[0]]
-                    y_values = [pose[1] + spider.LEG_ANCHORS[leg_idx][1], leg_position[1]]
+                    x_values = [pose[0] + spider.LEG_BASES[leg_idx][0], leg_position[0]]
+                    y_values = [pose[1] + spider.LEG_BASES[leg_idx][1], leg_position[1]]
                 legs[leg_idx] = self.board.plot(x_values, y_values, 'g')[0]
                 if in_loop_pause:
                     plt.draw()

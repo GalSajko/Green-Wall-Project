@@ -4,11 +4,11 @@ import threading
 import queue
 
 import config
-from environment import spider
+import spider
 from calculations import transformations as tf
 from calculations import kinematics as kin
 from planning import trajectoryplanner as trajPlanner
-from periphery import grippers
+from periphery import arduinocomm
 
 
 class VelocityController:
@@ -16,7 +16,7 @@ class VelocityController:
     from other legs. Reference positions for each legs are writen in legs-queues. On each control-loop controller takes first values from all of the legs-queues.
     """
     def __init__ (self):
-        self.grippers_arduino = grippers.GrippersArduino()
+        self.grippers_arduino = arduinocomm.GrippersArduino()
 
         self.legs_queues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
         self.sentinel = object()
@@ -26,7 +26,6 @@ class VelocityController:
 
         self.locker = threading.Lock()
 
-        self.period = 1.0 / config.CONTROLLER_FREQUENCY
         self.k_p = np.ones((spider.NUMBER_OF_LEGS, 3), dtype = np.float32) * config.K_P
         self.k_d = np.ones((spider.NUMBER_OF_LEGS, 3), dtype = np.float32) * config.K_D
 
@@ -37,13 +36,35 @@ class VelocityController:
         self.is_velocity_mode = False
         self.velocity_mode_legs_ids = None
         self.velocity_mode_direction = np.zeros(3, dtype = np.float32)
-        self.max_allowed_force = 4.0
-        self.velocity_amp_factor = 0.1
 
         time.sleep(1)
+    
+    @property
+    def MAX_ALLOWED_FORCE(self):
+        return 4.0
+    
+    @property
+    def VELOCITY_AMP_FACTOR(self):
+        return 0.1
+    
+    @property
+    def PERIOD(self):
+        return 1.0 / config.CONTROLLER_FREQUENCY
+
 
     #region public methods
     def joints_velocity_controller(self, q_a, x_a, f_a, do_init):
+        """Control of joints velocities with implemented position, force and velocity modes.
+
+        Args:
+            q_a (list): 5x3 array of current angles in joints.
+            x_a (list): 5x3 array of current legs positions, given in local origins.
+            f_a (list): 5x3 array of current forces on leg tips, given in spider origin.
+            do_init (bool): If True set values of last legs positions to current legs positions. Should be True only at the start.
+
+        Returns:
+            numpy.ndarray: 5x3 array of commanded joints velocities.
+        """
         # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
         with self.locker:
             if do_init:
@@ -74,9 +95,9 @@ class VelocityController:
                 self.last_legs_positions[force_mode_legs_ids] = x_a[force_mode_legs_ids]
         
         if is_velocity_mode:
-            dx_d[velocity_mode_legs_ids] = self.velocity_amp_factor * velocity_mode_direction * int(np.linalg.norm(f_a[velocity_mode_legs_ids]) < self.max_allowed_force)
+            dx_d[velocity_mode_legs_ids] = self.VELOCITY_AMP_FACTOR * velocity_mode_direction * int(np.linalg.norm(f_a[velocity_mode_legs_ids]) < self.MAX_ALLOWED_FORCE)
             with self.locker:
-                self.last_legs_positions[velocity_mode_legs_ids] = x_a[velocity_mode_legs_ids] + dx_d[velocity_mode_legs_ids] * self.period
+                self.last_legs_positions[velocity_mode_legs_ids] = x_a[velocity_mode_legs_ids] + dx_d[velocity_mode_legs_ids] * self.PERIOD
 
         dx_c, self.last_legs_position_errors = self.__ee_position_velocity_pd_controlloer(x_a, x_d, dx_d, ddx_d)
 
@@ -156,9 +177,9 @@ class VelocityController:
         for leg in legs_ids:
             self.legs_queues[leg] = queue.Queue()
 
-        x_d = np.zeros((len(legs_ids), int(duration / self.period), 3), dtype = np.float32)
-        dx_d = np.zeros((len(legs_ids), int(duration / self.period), 3), dtype = np.float32)
-        ddx_d = np.zeros((len(legs_ids), int(duration / self.period), 3) , dtype = np.float32)
+        x_d = np.zeros((len(legs_ids), int(duration / self.PERIOD), 3), dtype = np.float32)
+        dx_d = np.zeros((len(legs_ids), int(duration / self.PERIOD), 3), dtype = np.float32)
+        ddx_d = np.zeros((len(legs_ids), int(duration / self.PERIOD), 3) , dtype = np.float32)
 
         for idx, leg in enumerate(legs_ids):          
             leg_goal_position_in_local = tf.convert_in_local_goal_positions(leg, legs_current_positions[leg], legs_goal_positions_or_offsets[idx], origin, is_offset, spider_pose) 
@@ -226,7 +247,6 @@ class VelocityController:
     def stop_velocity_mode(self):
         with self.locker:
             self.is_velocity_mode = False
-
     #endregion
 
     #region private methods
@@ -276,7 +296,7 @@ class VelocityController:
             tuple: Two 5x3 arrays of commanded legs velocities and current position errors.
         """
         legs_position_errors = np.array(x_d - x_a)
-        dx_e = (legs_position_errors - self.last_legs_position_errors) / self.period
+        dx_e = (legs_position_errors - self.last_legs_position_errors) / self.PERIOD
         dx_c = np.array(self.k_p * legs_position_errors + self.k_d * dx_e + dx_d + config.K_ACC * ddx_d, dtype = np.float32)
 
         return dx_c, legs_position_errors
@@ -293,7 +313,7 @@ class VelocityController:
         """
         force_errors = f_d - f_a
         legs_positions_in_spider = force_errors * config.K_P_FORCE
-        offsets = legs_positions_in_spider * self.period
+        offsets = legs_positions_in_spider * self.PERIOD
 
         return offsets, legs_positions_in_spider
     #endregion

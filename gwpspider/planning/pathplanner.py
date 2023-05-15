@@ -5,14 +5,16 @@ import math
 import itertools
 from gwpwall import wall
 
-from environment import spider
+import spider
 from calculations import mathtools as mt
 from calculations import transformations as tf
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
 
 
-MAX_LINEAR_STEP = 0.06
+@property
+def MAX_LINEAR_STEP():
+    return 0.06
 
 #region public methods
 def calculate_spider_body_path(start_pose, goal_pose):
@@ -75,7 +77,7 @@ def calculate_selected_pins_over_max_y_distance(path):
     for step, pose in enumerate(path):
         pins_in_search_radius = pins[(np.sum(np.abs(pins - pose[:3])**2, axis = -1))**(0.5) < search_radius]
         T_GS = tf.xyzrpy_to_matrix(pose)
-        legs_bases_positions = np.array([np.dot(T_GS, t)[:,3][:3] for t in spider.T_ANCHORS])
+        legs_bases_positions = np.array([np.dot(T_GS, t)[:,3][:3] for t in spider.T_BASES])
         selected_pins_on_step = np.zeros((5, 3))
 
         upper_left_leg, upper_right_leg, upper_middle_leg, lower_left_leg, lower_right_leg = _get_legs_roles(legs_bases_positions, pose)
@@ -169,7 +171,7 @@ def modified_walking_instructions(start_legs_positions, goal_pose):
     while True:
         potential_legs_lengths = np.zeros(len(spider.LEGS_IDS), dtype = np.float32)
         for leg in spider.LEGS_IDS:
-            leg_base_position_in_global = np.dot(tf.xyzrpy_to_matrix(start_pose), spider.T_ANCHORS[leg])[:, 3][:3]
+            leg_base_position_in_global = np.dot(tf.xyzrpy_to_matrix(start_pose), spider.T_BASES[leg])[:, 3][:3]
             potential_legs_lengths[leg] = np.linalg.norm(start_legs_positions[leg] - leg_base_position_in_global)
         if (not (potential_legs_lengths > spider.LEG_LENGTH_MAX_LIMIT).any()) or counter > 100:
             if (potential_legs_lengths > 0.6).any():

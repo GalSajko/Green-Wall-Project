@@ -5,8 +5,8 @@ import numpy as np
 import itertools as itt
 import numba
 
+import spider
 from config import SPIDER_ORIGIN, LEG_ORIGIN
-from environment import spider
 from calculations import transformations as tf
 from calculations import mathtools as mathTools
 
@@ -217,7 +217,7 @@ def get_goal_pin_in_local(leg_id, attached_legs_ids, legs_positions_in_global, j
     rotation = tf.xyzrpy_to_matrix(rpy, True)
     pose[:3, :3] = rotation
     goal_pin_in_spider = np.dot(np.linalg.inv(pose), np.append(legs_positions_in_global[leg_id], 1))
-    goal_pin_in_local = np.dot(np.linalg.inv(spider.T_ANCHORS[leg_id]), goal_pin_in_spider)[:3]
+    goal_pin_in_local = np.dot(np.linalg.inv(spider.T_BASES[leg_id]), goal_pin_in_spider)[:3]
 
     return goal_pin_in_local
 #endregion
@@ -326,8 +326,8 @@ def get_joints_velocities(joints_values, legs_velocities, number_of_legs = spide
     
     return joints_velocities
 
-# @numba.jit(nopython = True, cache = False)
-def get_xd_xdd_from_offsets(force_mode_legs_ids, offsets_in_spider, velocities_in_spider, spider_to_leg_transformations = spider.T_ANCHORS):
+@numba.jit(nopython = True, cache = False)
+def get_xd_xdd_from_offsets(force_mode_legs_ids, offsets_in_spider, velocities_in_spider, spider_to_leg_transformations = spider.T_BASES):
     """Rotate position offets and velocities, calculated from force controller into leg-local origins.
 
     Args:

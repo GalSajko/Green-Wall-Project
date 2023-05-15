@@ -2,11 +2,10 @@
 """
 import numpy as np
 import math
-import numba
 from gwpwall import wall
 
 import config
-from environment import spider
+import spider
 
 def xyzrpy_to_matrix(xyzrpy, rotation_only = False):
     """Calculate global transformation matrix for global origin - spider relation.
@@ -68,7 +67,7 @@ def get_pin_to_pin_vector_in_local(leg_id, rpy, current_pin_position, goal_pin_p
         tuple: 1x3 pin-to-pin vector in leg's local origin and 3x3 orientation matrix of leg's anchor in global origin.
     """
     spider_rotation_in_global = xyzrpy_to_matrix(rpy, True)
-    leg_base_orientation_in_global = np.linalg.inv(np.dot(spider_rotation_in_global, spider.T_ANCHORS[leg_id][:3, :3]))
+    leg_base_orientation_in_global = np.linalg.inv(np.dot(spider_rotation_in_global, spider.T_BASES[leg_id][:3, :3]))
     pin_to_pin_in_global = goal_pin_position - current_pin_position
     pin_to_pin_in_local = np.dot(leg_base_orientation_in_global, pin_to_pin_in_global)
 
@@ -86,14 +85,14 @@ def get_leg_position_in_local(leg_id, leg_position_in_global, spider_pose):
         numpy.ndarray: 1x3 array of with x, y and z leg's positions in leg-local origin.
     """
     T_GS = xyzrpy_to_matrix(spider_pose)
-    T_GA = np.dot(T_GS, spider.T_ANCHORS[leg_id])
+    T_GA = np.dot(T_GS, spider.T_BASES[leg_id])
     leg_position_in_global = np.append(leg_position_in_global, 1)
 
     return np.dot(np.linalg.inv(T_GA), leg_position_in_global)[:3]
 
 def get_global_direction_in_local(leg_id, spider_pose, global_direction):
     T_GS = xyzrpy_to_matrix(spider_pose)
-    T_GA = np.dot(T_GS, spider.T_ANCHORS[leg_id])[:3,:3]
+    T_GA = np.dot(T_GS, spider.T_BASES[leg_id])[:3,:3]
     local_direction = np.dot(np.linalg.inv(T_GA), global_direction)
 
     return local_direction
@@ -164,7 +163,7 @@ def get_watering_leg_and_pose(spider_pose, plant_position = None, do_refill = Fa
                 watering_pose = fourth_leg_watering_pose
             else:
                 watering_leg = spider.WATERING_LEGS_IDS[0]
-                watering_pose = first_leg_watering_pose         
+                watering_pose = first_leg_watering_pose       
 
         return watering_leg, watering_pose
     
@@ -192,12 +191,10 @@ def get_last_joint_to_goal_pin_vector_in_spider(leg_id, last_joint_position_in_l
     """
     leg_goal_position_in_local = get_leg_position_in_local(leg_id, goal_pin_position_in_global, spider_pose)
     last_joint_to_goal_pin_in_local = np.array(leg_goal_position_in_local - last_joint_position_in_local)
-    last_joint_to_goal_pin_in_spider = np.dot(spider.T_ANCHORS[leg_id][:3, :3], last_joint_to_goal_pin_in_local)
+    last_joint_to_goal_pin_in_spider = np.dot(spider.T_BASES[leg_id][:3, :3], last_joint_to_goal_pin_in_local)
 
     return last_joint_to_goal_pin_in_spider / np.linalg.norm(last_joint_to_goal_pin_in_spider) 
 
-
-@numba.jit(nopython = True, cache = False)
 def R_B1(q_b, q_1):
     """Rotation matrix from spider's to 1st segment's origin.
 
@@ -214,7 +211,6 @@ def R_B1(q_b, q_1):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = False)
 def R_12(q_2):
     """Rotation matrix from 1st to 2nd leg-segment.
 
@@ -230,7 +226,6 @@ def R_12(q_2):
         [math.sin(q_2), math.cos(q_2), 0.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = False)
 def R_23(q_3):
     """Rotation matrix from 2nd to 3rd leg-segment.
 
@@ -246,7 +241,6 @@ def R_23(q_3):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = False)
 def R_B2(q_b, q_1, q_2):
     """Rotation matrix from spider's to 2nd segment's origin.
 
@@ -264,7 +258,6 @@ def R_B2(q_b, q_1, q_2):
         [math.sin(q_2), math.cos(q_2), 0.0]
     ], dtype = np.float32)
 
-@numba.jit(nopython = True, cache = False)
 def R_B3(q_b, q_1, q_2, q_3):
     return np.array([
         [math.cos(q_2 + q_3) * math.cos(q_1 + q_b), -math.cos(q_1 + q_b) * math.sin(q_2 + q_3), math.sin(q_1 + q_b)],

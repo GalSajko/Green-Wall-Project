@@ -1,12 +1,10 @@
 import numpy as np
 
 import config
+import spider
 from calculations import kinematics as kin
 from calculations import dynamics as dyn
-from calculations import transformations as tf
 from calculations import mathtools as mt
-
-from environment import spider
 
 five_three_array = np.zeros((5, 3), dtype = np.float32)
 one_three_array = np.zeros(3, dtype = np.float32)
@@ -34,11 +32,5 @@ def initNumbaFunctions():
     kin.spider_base_to_leg_tip_jacobi(0, one_three_array)
     kin.get_joints_velocities(random_five_three_array, five_three_array)
     kin.get_xd_xdd_from_offsets(spider.LEGS_IDS, five_three_array, five_three_array)
-
-    tf.R_B1(0.0, 0.25)
-    tf.R_12(0.25)
-    tf.R_23(0.3)
-    tf.R_B2(0.0, 0.3, 0.2)
-    tf.R_B3(0.0, 0.12, 0.2, 0.3)
 
     mt.damped_pseudoinverse(random_three_three_matrix)

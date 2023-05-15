@@ -34,3 +34,4 @@ class CustomThread:
         if use_kill_event:
             return thread, kill_thread_event
         return thread 
+

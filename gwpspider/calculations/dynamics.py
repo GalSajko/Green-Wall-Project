@@ -5,15 +5,24 @@ import math
 import numba
 
 import config
-from environment import spider
+import spider
 from calculations import kinematics as kin
 from calculations import mathtools as mathTools
 from calculations import transformations as tf
 
-A_TORQUE_POLYNOM = 0.0
-B_TORQUE_POLYNOM = 2.9326
-C_TORQUE_POLYNOM = -0.1779
+#region properties
+@property
+def A_TORQUE_POLYNOM():
+    return 0.0
 
+@property
+def B_TORQUE_POLYNOM():
+    return 2.9326
+
+@property
+def C_TORQUE_POLYNOM():
+    return -0.1779
+#endregion
 
 # region public methods
 @numba.jit(nopython=True, cache=False)

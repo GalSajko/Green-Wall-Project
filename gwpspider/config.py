@@ -44,22 +44,8 @@ GRIPPER_BNO_ARDUINO_READING_PERIOD = 0.01
 ENABLE_LEGS_COMMAND = 'enable'
 DISABLE_LEGS_COMMAND = 'disable'
 
-
-
-
-
-SERVER_IP = '192.168.1.20'
-ARDUIONO_IP_LIST = ['192.168.1.11','192.168.1.12','192.168.1.13','192.168.1.14','192.168.1.15','192.168.1.16']
-
-global visualisationValues
-global dataJson
-global poseData
-global arduinoValues
-global arduinoTimes
-global minValues
-
-SENSOR_IDS = [54, 55, 56, 57, 58, 59]
-GET_SENSOR_POSITION_ADDR = 'http://192.168.1.20:5000/zalij'
-POST_SPIDER_POSITION = 'http://192.168.1.20:5000/spiderPos'
-POST_REFILL = 'http://192.168.1.20:5000/refill'
-POST_STOP = 'http://192.168.1.20:5000/stop'
+REQUEST_SENSOR_POSITION_ADDR = 'http://192.168.1.20:5000/zalij'
+POST_SPIDER_POSITION_ADDR = 'http://192.168.1.20:5000/spiderPos'
+POST_GO_REFILLING_ADDR = 'http://192.168.1.20:5000/refill'
+POST_STOP_REFILLING_ADDR = 'http://192.168.1.20:5000/stop'
+POST_STATE_MESSAGE_ADDR = 'http://192.168.1.20:5000/message'
