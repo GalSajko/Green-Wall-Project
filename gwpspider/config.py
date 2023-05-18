@@ -16,9 +16,6 @@ MINJERK_TRAJECTORY = 'minJerk'
 
 FORCE_DISTRIBUTION_DURATION = 1.0
 
-FORCE_MODE = 'forceMode'
-IMPEDANCE_MODE = 'impedanceMode'
-
 WORKING_STATE = 'working'
 RESTING_STATE = 'resting'
 TRANSITION_STATE = 'transition'

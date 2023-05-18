@@ -7,7 +7,7 @@ import config
 import spider
 from calculations import transformations as tf
 from calculations import kinematics as kin
-from planning import trajectoryplanner as trajPlanner
+from planning import trajectoryplanner as tp
 from periphery import arduinocomm
 
 
@@ -136,7 +136,7 @@ class VelocityController:
         self.legs_queues[leg_id] = queue.Queue()
 
         leg_goal_position_in_local = tf.convert_in_local_goal_positions(leg_id, leg_current_position, leg_goal_position_or_offset, origin, is_offset, spider_pose)
-        position_trajectory, velocity_trajectory, acceleration_trajectory = trajPlanner.get_trajectory(leg_current_position, leg_goal_position_in_local, duration, trajectory_type)
+        position_trajectory, velocity_trajectory, acceleration_trajectory = tp.get_trajectory(leg_current_position, leg_goal_position_in_local, duration, trajectory_type)
 
         for idx, position in enumerate(position_trajectory):
             self.legs_queues[leg_id].put([position[:3], velocity_trajectory[idx][:3], acceleration_trajectory[idx][:3]])
@@ -183,7 +183,7 @@ class VelocityController:
 
         for idx, leg in enumerate(legs_ids):          
             leg_goal_position_in_local = tf.convert_in_local_goal_positions(leg, legs_current_positions[leg], legs_goal_positions_or_offsets[idx], origin, is_offset, spider_pose) 
-            position_trajectory, velocity_trajectory, acceleration_trajectory = trajPlanner.get_trajectory(legs_current_positions[leg], leg_goal_position_in_local, duration, trajectory_type)
+            position_trajectory, velocity_trajectory, acceleration_trajectory = tp.get_trajectory(legs_current_positions[leg], leg_goal_position_in_local, duration, trajectory_type)
 
             x_d[idx] = position_trajectory[:, :3]
             dx_d[idx] = velocity_trajectory[:, :3]
@@ -245,6 +245,8 @@ class VelocityController:
             self.velocity_mode_legs_ids = leg_id
     
     def stop_velocity_mode(self):
+        """Stop velocity mode.
+        """
         with self.locker:
             self.is_velocity_mode = False
     #endregion

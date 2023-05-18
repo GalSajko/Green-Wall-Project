@@ -3,6 +3,7 @@ import threading
 import time
 import numpy as np
 
+#TODO: Test new implementation with inheritance.
 class ArduinoComm:
     """Parent class for communication with all Arduinos in system.
     """

@@ -12,7 +12,7 @@ class JsonFileManager():
         self.state_dict = {
             'pose' : [],
             'pins' : []
-        }     
+        } 
 
     def update_whole_dict(self, pose, current_pins, legs_moving_order):
         """Update pose and pins in dictionary and write it in JSON file.
