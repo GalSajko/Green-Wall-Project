@@ -106,6 +106,14 @@ class GrippersArduino(ArduinoComm):
     @property
     def RECEIVED_MESSAGE_LENGTH(self):
         return 10
+    
+    @property
+    def GRIPPER(self):
+        return 'g'
+    
+    @property
+    def SWITCH(self):
+        return 's'
     #endregion
     
     def move_gripper(self, leg_id, command):
@@ -118,18 +126,29 @@ class GrippersArduino(ArduinoComm):
         if command in (self.OPEN_COMMAND, self.CLOSE_COMMAND):
             msg = command + str(leg_id) + "\n"
             self._send_data(msg)
+    
+    def get_tools_states(self, tool):
+        """Get states of desired tool (grippers or switches).
 
-    def get_switches_states(self):
-        """Get switches states - 0 for closed switch (attached leg), 1 otherwise.
+        Args:
+            tool (str): Tool identification.
+
+        Raises:
+            ValueError: If selected tool is not valid (not gripper or switch).
 
         Returns:
-            string: String of five characters, each represeting switch state - either '1' or '0', depends on the state of the switch.
+            string: String of five characters, each represeting tool's state - either '1' or '0'.
         """
+        if tool not in (self.GRIPPER, self.SWITCH):
+            raise ValueError("Wrong tool selected.")
+        
         rec_msg = ''
         while len(rec_msg) != self.RECEIVED_MESSAGE_LENGTH:
             with self.locker:
                 rec_msg = self.received_message
 
+        if tool == self.GRIPPER:
+            return rec_msg[:5]
         return rec_msg[5:]
     
     def get_ids_of_attached_legs(self):

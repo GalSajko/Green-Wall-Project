@@ -24,68 +24,68 @@ float OPEN_STROKE_MM = 0;
 float CLOSED_STROKE_MM = 14;
 float MAX_STROKE_MM = 30;
 
-int switchValue;
-int servoValue;
+int switch_value;
+int servo_value;
 Servo grippers[NUMBER_OF_LEGS];
 
 struct CommandGrippersIds 
 {
   char command;
-  int gripperId;
+  int gripper_id;
 };
 
-struct CommandGrippersIds parseData(String data)
+struct CommandGrippersIds parse_data(String data)
 {
-  struct CommandGrippersIds cmdGrip;
+  struct CommandGrippersIds cmd_grip;
   if (data[0] == OPEN_COMMAND || data[0] == CLOSE_COMMAND)
   {
-    cmdGrip.command = data[0];
+    cmd_grip.command = data[0];
   }
-  cmdGrip.gripperId = data[1] - '0';
+  cmd_grip.gripper_id = data[1] - '0';
   
-  return cmdGrip;
+  return cmd_grip;
 }
 
-void setStrokeMm(int gripperId, float strokeDesired)
+void set_stroke_mm(int gripper_id, float stroke_desired)
 {
   // 0 mm -> 1000 usec
   // 30 mm -> 2000 usec
   int k = 1000 / MAX_STROKE_MM;
   int n = 1000;
-  int usec = k * strokeDesired + n;
-  Servo gripper = grippers[gripperId];
+  int usec = k * stroke_desired + n;
+  Servo gripper = grippers[gripper_id];
   gripper.writeMicroseconds(usec);
 }
 
 // Create string message from grippers states:
 // 0 - closed, 1 - open, 2 - in between.
 // Example: "11011" - all grippers except third are opened.
-String getGrippersStatesMessage(int currentStates[])
+String get_grippers_states_message(int current_states[])
 {
   char message[NUMBER_OF_LEGS];
   for (int i = 0; i < NUMBER_OF_LEGS; i++)
   {
-    if (currentStates[i] < GRIPPERS_CLOSE_THRESHOLD[i])
+    if (current_states[i] < GRIPPERS_CLOSE_THRESHOLD[i])
     {
       message[i] = GRIPPER_CLOSED_RESPONSE;
     }
-    else if (currentStates[i] > GRIPPERS_OPEN_THRESHOLD[i])
+    else if (current_states[i] > GRIPPERS_OPEN_THRESHOLD[i])
     {
       message[i] = GRIPPER_OPENED_RESPONSE;
     }
-    else if (currentStates[i] < GRIPPERS_OPEN_THRESHOLD[i] && currentStates[i] > GRIPPERS_CLOSE_THRESHOLD[i])
+    else if (current_states[i] < GRIPPERS_OPEN_THRESHOLD[i] && current_states[i] > GRIPPERS_CLOSE_THRESHOLD[i])
     {
       message[i] = GRIPPER_MOVING_RESPONSE;
     }
   }
   return message;
 }
-String getSwitchesStatesMessage(int currentStates[])
+String get_switches_states_message(int current_states[])
 {
   String message;
   for (int i = 0; i < NUMBER_OF_LEGS; i++)
   {
-    message += String(currentStates[i]);
+    message += String(current_states[i]);
   }
   return message;
 }
@@ -113,29 +113,29 @@ void loop()
     }
     else 
     {
-      struct CommandGrippersIds cmdGrip = parseData(data);
+      struct CommandGrippersIds cmd_grip = parse_data(data);
 
-      if (cmdGrip.command == OPEN_COMMAND)
+      if (cmd_grip.command == OPEN_COMMAND)
       {
-        setStrokeMm(cmdGrip.gripperId, OPEN_STROKE_MM);
+        set_stroke_mm(cmd_grip.gripper_id, OPEN_STROKE_MM);
       }
-      else if (cmdGrip.command == CLOSE_COMMAND)
+      else if (cmd_grip.command == CLOSE_COMMAND)
       {
-        setStrokeMm(cmdGrip.gripperId, CLOSED_STROKE_MM);
+        set_stroke_mm(cmd_grip.gripper_id, CLOSED_STROKE_MM);
       }
     }
   }
 
-  int grippersStates[NUMBER_OF_LEGS];
-  int switchesStates[NUMBER_OF_LEGS];
+  int grippers_states[NUMBER_OF_LEGS];
+  int switches_states[NUMBER_OF_LEGS];
   for (int i = 0; i < NUMBER_OF_LEGS; i++)
   {
-    grippersStates[i] = analogRead(GRIPPERS_FEEDBACK_PINS[i]);
-    switchesStates[i] = digitalRead(SWITCH_PINS[i]);
+    grippers_states[i] = analogRead(GRIPPERS_FEEDBACK_PINS[i]);
+    switches_states[i] = digitalRead(SWITCH_PINS[i]);
   }
 
-  String grippersMessage = getGrippersStatesMessage(grippersStates);
-  String switchesMessage = getSwitchesStatesMessage(switchesStates);
-  Serial.println(grippersMessage + switchesMessage + '\n');
+  String grippers_message = get_grippers_states_message(grippers_states);
+  String switches_message = get_switches_states_message(switches_states);
+  Serial.println(grippers_message + switches_message + '\n');
   delay(100);
 }

@@ -43,7 +43,7 @@ struct PcCommands
 };
 
 /*Substract starting rpy values from eulers.*/
-void substractInitRpyValues(Eulers *eulers)
+void substract_init_rpy_values(Eulers *eulers)
 {
   eulers->pitch -= init_rpy.pitch;
   eulers->roll -= init_rpy.roll;
@@ -51,7 +51,7 @@ void substractInitRpyValues(Eulers *eulers)
 }
 
 /*Convert quaternion into eulers.*/
-Eulers getEulerAnglesFromQuaternion(imu::Quaternion quaternion, bool doSubstract = true)
+Eulers get_euler_angles_from_quaternion(imu::Quaternion quaternion, bool do_substract = true)
 {
     Eulers eulers;
     float q_1 = quaternion.x();
@@ -63,15 +63,15 @@ Eulers getEulerAnglesFromQuaternion(imu::Quaternion quaternion, bool doSubstract
     eulers.pitch = asin(2 * (q0 * q_2 - q_1 * q_3));
     eulers.yaw = atan2(2 * (q0 * q_3 + q_1 * q_2), -1 + 2 * (q0 * q0 + q_1 * q_1));
 
-    if (doSubstract)
+    if (do_substract)
     {
-      substractInitRpyValues(&eulers);
+      substract_init_rpy_values(&eulers);
     }
   
     return eulers;
 }
 
-String addPlusSigns(String a, String b, String c)
+String add_plus_signs(String a, String b, String c)
 {
   if (a[0] != '-')
   {
@@ -92,31 +92,31 @@ String addPlusSigns(String a, String b, String c)
   }
 
 /*Create message from eulers, to send on PC.*/
-String getEulersMessage(Eulers eulers)
+String get_euler_message(Eulers eulers)
 {
   String roll = String(eulers.yaw);
   String pitch = String(eulers.roll * (-1));
   String yaw = String(eulers.pitch);
 
-  String rpy = addPlusSigns(roll, pitch, yaw);
+  String rpy = add_plus_signs(roll, pitch, yaw);
 
   return rpy;
 }
 
-String getGravityVectorMessage(sensors_event_t event)
+String get_gravity_vector_message(sensors_event_t event)
 {
   String x = String(event.acceleration.x);
   String y = String(event.acceleration.y);
   // Minus because acc reading declaration.
   String z = String(-event.acceleration.z);
 
-  String gravity = addPlusSigns(x, y, z);
+  String gravity = add_plus_signs(x, y, z);
 
   return gravity;
 }
 
 /*Parse message from PC into commands.*/
-struct PcCommands parseData(String data)
+struct PcCommands parse_data(String data)
 {
   struct PcCommands commands;
   if (data[0] == PUMP_ON_COMMAND || data[0] == PUMP_OFF_COMMAND)
@@ -137,7 +137,7 @@ struct PcCommands parseData(String data)
 }
 
 /*Controll water pumps.*/
-void pumpControl(char command, int pump_id)
+void pump_control(char command, int pump_id)
 {
   int value;
   if (command == PUMP_ON_COMMAND)
@@ -183,7 +183,7 @@ void setup()
 
 void loop() 
 {
-  Eulers eulers = getEulerAnglesFromQuaternion(bno.getQuat());
+  Eulers eulers = get_euler_angles_from_quaternion(bno.getQuat());
   sensors_event_t event;
   bno.getEvent(&event, bno.VECTOR_GRAVITY);
 
@@ -198,16 +198,16 @@ void loop()
     }
     else
     {
-      struct PcCommands commands = parseData(data);
+      struct PcCommands commands = parse_data(data);
       if (commands.command == PUMP_ON_COMMAND || commands.command == PUMP_OFF_COMMAND)
       {
-        pumpControl(commands.command, commands.pump_id); 
+        pump_control(commands.command, commands.pump_id); 
       }
       else if (commands.command == INIT_BNO)
       {
-         init_rpy = getEulerAnglesFromQuaternion(bno.getQuat(), false);
+         init_rpy = get_euler_angles_from_quaternion(bno.getQuat(), false);
       }
     }
   }
-  Serial.print(getEulersMessage(eulers) + getGravityVectorMessage(event) + '\n');
+  Serial.print(get_euler_message(eulers) + get_gravity_vector_message(event) + '\n');
 }

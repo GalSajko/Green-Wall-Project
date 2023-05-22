@@ -19,6 +19,8 @@ from calculations import transformations as tf
 from planning import pathplanner
 
 class App:
+    """Application layer.
+    """
     def __init__(self):
         self.q_a = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         self.x_a = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
@@ -35,7 +37,7 @@ class App:
         self.csv_file_manager = csvfilemanager.CsvFileManager()
         self.server_comm = servercomm.ServerComm(self.json_file_manager.FILENAME)
 
-        self.states_object_locker = threading.Lock()
+        self.locker = threading.Lock()
         self.safety_kill_event = threading.Event()
         self.safety_thread = None
         self.motor_control_thread = None
@@ -55,10 +57,11 @@ class App:
 
         self.moving_leg_id = None
 
+        self.is_gripper_error = False
+
         self.__init_layers()
 
     def safety_layer(self):
-        # TODO: add message/warning/error handling logic.
         """Continuously checking for hardware errors on the motors. If error occurs, inititate resting procedure and then continue with working. 
         """
         def safety_checking(kill_event):
@@ -66,19 +69,25 @@ class App:
             while True:
                 if kill_event.is_set():
                     break
-                with self.states_object_locker:
-                    motors_errors = self.motors_errors
+                with self.locker:
+                    is_motors_errors = self.motors_errors
+                    is_gripper_error = self.is_gripper_error
 
                 is_microswitch_error = self.__is_microswitch_error()
-                is_motors_error = motors_errors.any() and self.current_state == config.WORKING_STATE
-                is_error = is_microswitch_error or is_motors_error
+                if is_microswitch_error:
+                    self.server_comm.send_message(config.MICROSWITCH_ERROR)
+                is_motors_error = is_motors_errors.any() and (self.current_state == config.WORKING_STATE)
+                if is_motors_error:
+                    self.server_comm.send_message(config.ERROR_IN_MOTOR_WARNING)
+               
+                is_error = is_microswitch_error or is_motors_error or is_gripper_error
 
                 if is_error:
                     self.__error_case_procedure()
 
                 time.sleep(0.1)
         self.safety_thread, self.safety_thread_kill_event = self.thread_manager.run(safety_checking, config.SAFETY_THREAD_NAME, False, True, do_print = True)
-    
+  
     def motor_control_layer(self):
         """Motors control layer with loop for reading, recalculating and sending data to the motors.
         """
@@ -108,7 +117,7 @@ class App:
                 tau_mean, tau_buffer, tau_counter = mathtools.running_average(tau_buffer, tau_counter, tau)
                 force_mean, force_buffer, force_counter = mathtools.running_average(force_buffer, force_counter, f)
 
-                with self.states_object_locker:
+                with self.locker:
                     self.q_a = q_a
                     self.motors_errors = hw_errors
                     self.temperatures = temperatures
@@ -155,9 +164,11 @@ class App:
         """
         self.current_state = config.WORKING_STATE
         self.is_working_init = True
+
+        with self.locker:
+            self.is_gripper_error = False
         
-        #TODO: Include in error/warning/message logic.
-        print("WORKING...")
+        self.server_comm.send_message(config.WORKING_PHASE_STARTED_MESSAGE)
         
         while True:
             spider_pose, _, start_legs_positions = self.json_file_manager.read_spider_state()
@@ -169,12 +180,10 @@ class App:
                 start_legs_positions,
             )
 
-            #TODO: Include in error/warning/message logic.
-            print(f"NEW GOAL POINT {poses[-1][:3]}.")
             for step, pose in enumerate(poses):
                 current_pins_positions = pins_instructions[step, :, 1:]
                 current_legs_moving_order = pins_instructions[step, :, 0].astype(int)
-                with self.states_object_locker:
+                with self.locker:
                     x_a = self.x_a
 
                 if step == 0:
@@ -195,12 +204,10 @@ class App:
                 self.joints_velocity_controller.move_legs_sync(current_legs_moving_order, x_a, previous_pins_positions, config.GLOBAL_ORIGIN, 2.5, config.MINJERK_TRAJECTORY, pose)
                 self.json_file_manager.update_whole_dict(pose, previous_pins_positions, current_legs_moving_order)
                 if self.safety_kill_event.wait(timeout = 3.0):
-                    #TODO: Include in error/warning/message logic.
-                    print("UNSUCCESSFULL BODY MOVEMENT.")
                     return
 
                 #TODO: Check new implementation.
-                if not self.__move_legs_on_next_pins(current_pins_positions, previous_pins_positions, current_legs_moving_order):
+                if not self.__move_legs_on_next_pins(current_pins_positions, previous_pins_positions, current_legs_moving_order, pose):
                     return
 
             watering_success = self.__watering(watering_leg_id, plant_or_refill_position, poses[-1], do_refill_water_tank)
@@ -214,13 +221,16 @@ class App:
         Args:
             kill_event (event): Event for killing a procedure.
         """
-        #TODO: Include in error/warning/message logic.
-        print("RESTING...")
+        self.server_comm.send_message(config.RESTING_PHASE_STARTED_MESSAGE)
         self.current_state = config.RESTING_STATE
 
         #TODO: Check new implementation.
-        if not self.__reboot_motors_in_error(kill_event):
-            return
+        with self.locker:
+            is_motors_error = self.motors_errors.any()
+        if is_motors_error:
+            self.server_comm.send_message(config.REBOOTING_MOTORS_MESSAGE)
+            if not self.__reboot_motors_in_error(kill_event):
+                return
 
         #TODO: Check new implementation.
         attached_legs = self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs()
@@ -230,9 +240,10 @@ class App:
                 return
 
         #TODO: Check new implementation.
-        with self.states_object_locker:
+        with self.locker:
             temperatures = self.temperatures
         if (temperatures > self.motor_driver.MAX_WORKING_TEMPERATURE).any():
+            self.server_comm.send_message(config.TEMPERATURES_IN_MOTORS_TOO_HIGH_WARNING)
             if not self.__wait_for_temperature_drop(kill_event):
                 return
         
@@ -242,7 +253,7 @@ class App:
             self.__handle_possible_spider_singularity()
 
         # Update last positions and enable torques in motors.
-        with self.states_object_locker:
+        with self.locker:
             x_a = self.x_a
         self.joints_velocity_controller.update_last_legs_positions(x_a)
         if kill_event.wait(timeout = 1.0):
@@ -252,8 +263,7 @@ class App:
     def transition_to_rest_state(self):
         """Procedure for transition between working and resting state, by using force mode. 
         """
-        #TODO: Include in error/warning/message logic.
-        print("TRANSITION INTO RESTING STATE...")
+        self.server_comm.send_message(config.TRANSITIONING_TO_RESTING_PHASE_MESSAGE)
         self.current_state = config.TRANSITION_STATE
         self.joints_velocity_controller.clear_instruction_queues()
         f_d = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
@@ -279,7 +289,7 @@ class App:
         start_time = time.perf_counter()
         elapsed_time = 0
         while elapsed_time < duration:
-            with self.states_object_locker:
+            with self.locker:
                 tau_a = self.tau_a
                 q_a = self.q_a
             distributed_forces = dyn.calculate_distributed_forces(tau_a, q_a, legs_ids, offload_leg_id)
@@ -297,7 +307,7 @@ class App:
     
     def __pin_to_pin_leg_movement(self, leg, current_pin_position, goal_pin_position, pose):
         # Read legs positions before movement.
-        with self.states_object_locker:
+        with self.locker:
             x_a_before = self.x_a
         leg_movement_data = x_a_before.flatten()
 
@@ -324,15 +334,13 @@ class App:
         # Correction in case of missed pin.
         if leg not in self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs():
             correction_success, number_of_corrections = self.__correction(leg, global_z_direction_in_local, leg_goal_position_in_local)
-            #TODO: Include in error/warning/message logic.
-            print("CORRECTION SUCCESS: ", correction_success)
             if not correction_success:
                 return False
             number_of_tries += number_of_corrections
 
         leg_movement_data = np.append(leg_movement_data, number_of_tries)
 
-        with self.states_object_locker:
+        with self.locker:
             x_a_after = self.x_a
         leg_movement_data = np.append(leg_movement_data, x_a_after.flatten())
 
@@ -341,16 +349,13 @@ class App:
         return True
     
     def __correction(self, leg_id, global_z_direction_in_local, leg_goal_position_in_local):
-        #TODO: Include in error/warning/message logic.
-        print(f"LEG {leg_id} IS NOT ATTACHED.")
+        self.server_comm.send_message(config.LEG_MISSED_PIN_WARNING)
         auto_correction_success, number_of_corrections = self.__automatic_correction(leg_id, global_z_direction_in_local, leg_goal_position_in_local)
-        #TODO: Include in error/warning/message logic.
-        print("AUTO CORRECTION SUCCESS: ", auto_correction_success)
         if auto_correction_success:
+            self.server_comm.send_message(config.AUTO_CORRECTION_SUCCESSFUL_MESSAGE)
             return (auto_correction_success, number_of_corrections)
+        self.server_comm.send_message(config.AUTO_CORRECITON_ERROR)
         manual_corection_success = self.__manual_correction(leg_id)
-        #TODO: Include in error/warning/message logic.
-        print("MANUAL CORRECTION SUCCESS: ", manual_corection_success)
         return (manual_corection_success, 10)
 
     def __automatic_correction(self, leg_id, global_z_direction_in_local, leg_goal_position_in_local):
@@ -376,7 +381,7 @@ class App:
             if self.safety_kill_event.wait(timeout = 1.5):
                 return (False, number_of_tries)
  
-            with self.states_object_locker:
+            with self.locker:
                 x_a_leg = self.x_a[leg_id]
             self.joints_velocity_controller.move_leg_async(leg_id, x_a_leg, detach_position, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY)
             if self.safety_kill_event.wait(timeout = 1.5):
@@ -387,7 +392,7 @@ class App:
             if self.safety_kill_event.wait(timeout = 2.0):
                 self.joints_velocity_controller.stop_velocity_mode()
                 return (False, number_of_tries)
-            self.joints_velocity_controller.stop_velocity_mode()    
+            self.joints_velocity_controller.stop_velocity_mode()
 
             self.joints_velocity_controller.grippers_arduino.move_gripper(leg_id, self.joints_velocity_controller.grippers_arduino.CLOSE_COMMAND)
             if self.safety_kill_event.wait(timeout = 2.0):
@@ -402,43 +407,41 @@ class App:
         _, used_pins_ids, legs_global_positions = self.json_file_manager.read_spider_state()
         goal_pin_id = used_pins_ids[leg_id]
 
-        #TODO: Include in error/warning/message logic.
-        print(f"MANUALLY CORRECT LEG {leg_id} ON PIN {goal_pin_id}.")
+        #TODO: Find a way to avoid this magic string.
+        self.server_comm.send_message(f"Manually correct leg {leg_id} on pin {goal_pin_id}.")
         self.joints_velocity_controller.grippers_arduino.move_gripper(leg_id, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
-        with self.states_object_locker:
+        with self.locker:
             x_a_leg = self.x_a[leg_id]
             q_a = self.q_a
 
         attached_legs = self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs()
 
-        #TODO: Include in error/warning/message logic.
-        print("ATTACHED LEGS: ", attached_legs)
         goal_pin_in_local = kin.get_goal_pin_in_local(leg_id, attached_legs, legs_global_positions, q_a, self.pumps_bno_arduino.get_rpy())
 
         distance = np.linalg.norm(goal_pin_in_local - x_a_leg)
-        disable_legs = not (spider.LEG_LENGTH_MIN_LIMIT < np.linalg.norm(goal_pin_in_local) < spider.LEG_LENGTH_MAX_LIMIT)
-        if disable_legs:
-            #TODO: Include in error/warning/message logic.
-            print(f"DISABLE LEGS: {attached_legs}.")
+        #TODO: Disabling legs here probably won't be needed after breaks implementation.
+        do_disable_legs = not (spider.LEG_LENGTH_MIN_LIMIT < np.linalg.norm(goal_pin_in_local) < spider.LEG_LENGTH_MAX_LIMIT)
+        if do_disable_legs:
             self.motor_driver.enable_disable_legs(attached_legs, config.DISABLE_LEGS_COMMAND)
 
         self.joints_velocity_controller.start_force_mode([leg_id], [np.zeros(3, dtype = np.float32)])
+        self.server_comm.send_message(config.LEG_IN_MANUAL_CORRECTION_MODE_MESSAGE)
         while True:
-            with self.states_object_locker:
+            with self.locker:
                 x_a_leg = self.x_a[leg_id]
-                if disable_legs:
+                if do_disable_legs:
                     q_a = self.q_a
             
-            if disable_legs:
+            if do_disable_legs:
                 goal_pin_in_local = kin.get_goal_pin_in_local(leg_id, attached_legs, legs_global_positions, q_a, self.pumps_bno_arduino.get_rpy())
 
             distance = np.linalg.norm(goal_pin_in_local - x_a_leg)
-            switch_state = int(self.joints_velocity_controller.grippers_arduino.get_switches_states()[leg_id])
+            switch_state = int(self.joints_velocity_controller.grippers_arduino.get_tools_states(self.joints_velocity_controller.grippers_arduino.SWITCH)[leg_id])
 
             if (switch_state == 0) and (distance < 0.1):
                 self.joints_velocity_controller.grippers_arduino.move_gripper(leg_id, self.joints_velocity_controller.grippers_arduino.CLOSE_COMMAND)
                 time.sleep(2)
-                break   
+                break
 
             if use_safety:
                 if self.safety_kill_event.wait(timeout = 0.1):
@@ -448,17 +451,16 @@ class App:
                 time.sleep(0.1)
         self.joints_velocity_controller.stop_force_mode()
 
-        return True  
+        return True
 
     def __watering(self, watering_leg_id, plant_position, spider_pose, do_refill): 
         self.__distribute_forces(np.delete(spider.LEGS_IDS, watering_leg_id), config.FORCE_DISTRIBUTION_DURATION)
-        with self.states_object_locker:
-            x_a_leg_before_watering = self.x_a[watering_leg_id]
 
         # Move leg on watering position.
         _, _, legs_global_positions = self.json_file_manager.read_spider_state()
-        with self.states_object_locker:
+        with self.locker:
             q_a = self.q_a
+            x_a_leg_before_watering = self.x_a[watering_leg_id]
         spider_pose = kin.get_spider_pose(spider.LEGS_IDS, legs_global_positions, q_a)
 
         self.joints_velocity_controller.grippers_arduino.move_gripper(watering_leg_id, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
@@ -476,17 +478,12 @@ class App:
             self.joints_velocity_controller.grippers_arduino.move_gripper(watering_leg_id, self.joints_velocity_controller.grippers_arduino.CLOSE_COMMAND)
 
         # Turn on water pump.
-        if watering_leg_id == 1:
-            pump_id = 1
-        elif watering_leg_id == 4:
-            pump_id = 0
-        else:
-            pump_id = 2
-
+        pump_id = self.__select_water_pump_id(watering_leg_id)
         pumping_time = config.REFILL_TIME if do_refill else config.WATERING_TIME
 
-        #TODO: Include in error/warning/message logic.
-        print(f"PUMP {pump_id} ON.")
+        notify_message = config.REFILLING_STARTED_MESSAGE if pump_id == spider.REFILLING_LEG_ID else config.WATERING_STARTED_MESSAGE
+        self.server_comm.send_message(notify_message)
+
         start_time = time.perf_counter()
         while True:
             elapsed_time = time.perf_counter() - start_time
@@ -494,22 +491,20 @@ class App:
             if elapsed_time > pumping_time:
                 if not do_refill:
                     self.pumps_bno_arduino.water_pump_controll(self.pumps_bno_arduino.PUMP_OFF_COMMAND, pump_id)
-                    #TODO: Include in error/warning/message logic.
-                    print(f"PUMP {pump_id} OFF.")
+                    self.server_comm.send_message(config.WATERING_FINISHED_MESSAGE)
                 else:
                     self.joints_velocity_controller.grippers_arduino.move_gripper(watering_leg_id, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
                 break
             if not do_refill:
                 if self.safety_kill_event.wait(timeout = 0.05):
                     self.pumps_bno_arduino.water_pump_controll(self.pumps_bno_arduino.PUMP_OFF_COMMAND, pump_id)
-                    #TODO: Include in error/warning/message logic.
-                    print(f"PUMP {pump_id} OFF.")
+                    self.server_comm.send_message(config.WATERING_FINISHED_MESSAGE)
                     return False
             else:
                 time.sleep(0.05)
         
         # Move leg back on starting position.
-        with self.states_object_locker:
+        with self.locker:
             x_a_leg_after_watering = self.x_a[watering_leg_id]
 
         self.joints_velocity_controller.move_leg_async(watering_leg_id, x_a_leg_after_watering, x_a_leg_before_watering, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
@@ -519,10 +514,8 @@ class App:
             
         if do_refill:
             self.pumps_bno_arduino.water_pump_controll(self.pumps_bno_arduino.PUMP_OFF_COMMAND, pump_id)
-            #TODO: Include in error/warning/message logic.
-            print(f"PUMP {pump_id} OFF.")
             self.watering_counter = 0
-            self.server_comm.post_to_server(config.POST_STOP_REFILLING_ADDR, data = "stop refilling")
+            self.server_comm.send_message(config.REFILLING_FINISHED_MESSAGE)
         else:
             self.watering_counter += 1
             
@@ -531,9 +524,9 @@ class App:
             if not do_refill:
                 return False
         
-        # Correct if leg does not reach starting pin successfully.
+        # Correct if leg did not reach starting pin successfully.
         if watering_leg_id not in self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs():
-            rpy = self.pumps_bno_arduino.get_rpy()
+            rpy = self.__read_spider_rpy(np.delete(spider.LEGS_IDS, watering_leg_id))
             spider_orientation_in_global = tf.xyzrpy_to_matrix(rpy, True)
             leg_base_orientation_in_global = np.linalg.inv(np.dot(spider_orientation_in_global, spider.T_BASES[watering_leg_id][:3, :3]))
             global_z_direction_in_local = np.dot(leg_base_orientation_in_global, np.array([0.0, 0.0, 1.0], dtype = np.float32))
@@ -546,9 +539,6 @@ class App:
         if do_refill_water_tank:
             watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, do_refill = True)
             plant_or_refill_position = goal_pose[:3] + spider.REFILLING_LEG_OFFSET
-            #TODO: Include in error/warning/message logic.
-            print("GOING TO REFILL POSITION.")
-            self.server_comm.post_to_server(config.POST_GO_REFILLING_ADDR, data = "refilling")
         else:
             if not self.was_in_resting_state:
                 plant_or_refill_position = self.server_comm.request_goal_position()
@@ -556,8 +546,6 @@ class App:
             else:
                 plant_or_refill_position = self.last_plant_or_refill_position
                 self.was_in_resting_state = False
-            #TODO: Include in error/warning/message logic.
-            print(f"PLANT POSITION {plant_or_refill_position}.")
             watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, plant_or_refill_position)
         
         return watering_leg_id, goal_pose, plant_or_refill_position
@@ -568,18 +556,14 @@ class App:
         # Wait for working thread to stop.
         if config.WORKING_THREAD_NAME in self.spider_state_thread.name:
             self.spider_state_thread.join()
-            #TODO: Include in error/warning/message logic.
-            print("WORKING STOPED.")
+            self.server_comm.send_message(config.WORKING_PHASE_FINISHED_MESSAGE)
 
         # Start transition state and wait for it to finish.
         self.spider_states_manager(config.TRANSITION_STATE, True)
-        #TODO: Include in error/warning/message logic.
-        print("TRANSITION FINISHED")
 
         # Start resting state and wait for it to finish.
         self.spider_states_manager(config.RESTING_STATE, True)
-        #TODO: Include in error/warning/message logic.
-        print("RESTING FINISHED.")
+        self.server_comm.send_message(config.RESTING_PHASE_FINISHED_MESSAGE)
         
         self.was_in_resting_state = True
 
@@ -587,10 +571,10 @@ class App:
         time.sleep(1)
 
         # Continue with working.
-        self.spider_states_manager(config.WORKING_STATE, False) 
+        self.spider_states_manager(config.WORKING_STATE, False)
     
     def __is_microswitch_error(self):
-        switches_states = self.joints_velocity_controller.grippers_arduino.get_switches_states()
+        switches_states = self.joints_velocity_controller.grippers_arduino.get_tools_states(self.joints_velocity_controller.grippers_arduino.SWITCH)
         return switches_states[self.moving_leg_id] == self.joints_velocity_controller.grippers_arduino.IS_CLOSE_RESPONSE
     
     def __get_movement_instructions(self, spider_pose, do_refill_water_tank, start_legs_positions):
@@ -626,13 +610,14 @@ class App:
         
         return poses, pins_instructions, watering_leg_id, plant_or_refill_position
 
-    def __move_legs_on_next_pins(self, current_pins_positions, previous_pins_positions, legs_moving_order):
+    def __move_legs_on_next_pins(self, current_pins_positions, previous_pins_positions, legs_moving_order, pose):
         """Execute legs' pin to pin movements. 
 
         Args:
             current_pins_positions (numpy.ndarray): 5x3 array of currently used pins' positions.
             previous_pins_positions (numpy.ndarray): 5x3 array of previously used pins' positions.
             legs_moving_order (list): Moving order of legs.
+            pose (list): Spider's pose.
 
         Returns:
             bool: True if movements were successfull, False otherwise.
@@ -643,7 +628,7 @@ class App:
                 movement_success = self.__pin_to_pin_leg_movement(leg, previous_pins_positions[idx], current_pins_positions[idx], pose)
                 if not movement_success:
                     #TODO: Include in error/warning/message logic.
-                    print("UNSUCCESSFULL PIN TO PIN MOVEMENT.")
+                    print("UNSUCCESSFUL PIN TO PIN MOVEMENT.")
                     return False
         
         return True
@@ -657,14 +642,12 @@ class App:
         Returns:
             bool: True if rebooting was successfull, False otherwise.
         """
-        with self.states_object_locker:
+        with self.locker:
             hw_errors = self.motors_errors
         motors_in_error = self.motor_driver.motors_ids[np.where(hw_errors != 0)]
-        #TODO: Include in error/warning/message logic.
-        print("REBOOTING MOTORS WITH IDS: ", motors_in_error, "...")
         self.motor_driver.reboot_motors(motors_in_error)
         while hw_errors.any():
-            with self.states_object_locker:
+            with self.locker:
                 hw_errors = self.motors_errors
             if kill_event.wait(timeout = 0.1):
                 return False
@@ -681,6 +664,7 @@ class App:
         Returns:
             bool: Whether or not handling was successfull.
         """
+        #TODO: This case will be probably solved with breaks.
         if unattached_legs.size > 1:
             #TODO: Include in error/warning/message logic.
             print("UNATTACHED LEGS IDS: ", unattached_legs)
@@ -690,8 +674,7 @@ class App:
                 return False
 
         if unattached_legs.size == 1:
-            #TODO: Include in error/warning/message logic.
-            print(f"UNATTACHED LEG ID: {unattached_legs[0]}. ENTERING MANUAL CORRECTION MODE.")
+            self.server_comm.send_message(config.LEG_IN_MANUAL_CORRECTION_MODE_MESSAGE)
             correction_success = self.__manual_correction(unattached_legs[0], use_safety = False)
             if correction_success:
                 #TODO: Include in error/warning/message logic.
@@ -707,10 +690,8 @@ class App:
         Returns:
             bool: Whether or not waiting was successfull.
         """
-        #TODO: Include in error/warning/message logic.
-        print("WAITING ON TEMPERATURES TO DROP BELOW WORKING TEMPERATURE...")
         while True:
-            with self.states_object_locker:
+            with self.locker:
                 temperatures = self.temperatures
             if kill_event.wait(timeout = 1.0) or (temperatures < self.motor_driver.MAX_WORKING_TEMPERATURE).all():
                 break
@@ -734,17 +715,17 @@ class App:
         Args:
             leg (int): Leg id.
             pose (list): Spider's pose.
-            gpin_position (list): Position of currently used pin.
+            pin_position (list): Position of currently used pin.
 
         Returns:
             bool: Whether or not pushing was successfull.
         """
-        with self.states_object_locker:
+        with self.locker:
             q_a_leg = self.q_a[leg]
         last_joint_position_in_local = kin.leg_base_to_third_joint_forward_kinematics(q_a_leg)[:,3][:3]
         last_joint_to_goal_pin_in_spider_unit = tf.get_last_joint_to_goal_pin_vector_in_spider(leg, last_joint_position_in_local, pin_position, pose)
         
-        self.joints_velocity_controller.start_force_mode([leg], [last_joint_to_goal_pin_in_spider_unit * 2.5])
+        self.joints_velocity_controller.start_force_mode([leg], [last_joint_to_goal_pin_in_spider_unit * config.F_D_PUSHING])
         if self.safety_kill_event.wait(timeout = 1.0):
             self.joints_velocity_controller.stop_force_mode()
             return False
@@ -766,6 +747,7 @@ class App:
 
         # Prevent leg movement if not all legs are attached to the wall.
         if len(self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs()) != spider.NUMBER_OF_LEGS:
+            self.server_comm.send_message(config.ALL_LEGS_NOT_ATTACHED_ERROR)
             return False
         
         # Open the gripper.
@@ -773,12 +755,16 @@ class App:
         if self.safety_kill_event.wait(timeout = 3.5):
             self.joints_velocity_controller.stop_force_mode()
             return False
-        # Check if the leg is detached.
-        if leg in self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs():
-            #TODO: Include in error/warning/message logic.
-            print(f"GRIPPER {leg} DID NOT OPEN.")
+
+        #TODO: Check new implementation.
+        gripper_state = self.joints_velocity_controller.grippers_arduino.get_tools_states(self.joints_velocity_controller.grippers_arduino.GRIPPER)[leg]
+        if gripper_state == self.joints_velocity_controller.grippers_arduino.IS_CLOSE_RESPONSE:
+            with self.locker:
+                self.is_gripper_error = True
+            self.server_comm.send_message(config.GRIPPER_ERROR)
             self.joints_velocity_controller.stop_force_mode()
             return False
+
         
         # leg_movement_data = np.append(leg_movement_data, rpy_bno)
         # leg_movement_data = np.append(leg_movement_data, rpy)
@@ -826,13 +812,13 @@ class App:
             raise ValueError("If legs positions are not read from state dictionary, they have to be passed as parameter.")
         if use_state_dict:
             _, _, legs_global_positions = self.json_file_manager.read_spider_state()
-        with self.states_object_locker:
+        with self.locker:
             q_a = self.q_a
         spider_pose = kin.get_spider_pose(legs_ids_to_use, legs_global_positions[legs_ids_to_use], q_a)
         rpy = spider_pose[3:]
 
         return rpy
-    
+        
     def __move_leg_pin_to_pin(self, leg, pin_to_pin_vector_in_local, goal_pin_position):
         """Move leg from current pin to the next one.
 
@@ -845,7 +831,7 @@ class App:
             (bool, numpy.ndarray): Movement success and leg's goal position in local origin. 
         """
         # Move leg and update spider state.
-        with self.states_object_locker:
+        with self.locker:
             x_a_leg = self.x_a[leg]
         leg_goal_position_in_local = self.joints_velocity_controller.move_leg_async(
             leg,
@@ -861,22 +847,37 @@ class App:
             return (False, leg_goal_position_in_local)
         # Start microswitch safety-checking.
         #TODO: Check microswitch checking.
-        with self.states_object_locker:
+        with self.locker:
             self.moving_leg_id = leg
 
         # leg_movement_data = np.append(leg_movement_data, leg_goal_position_in_local.flatten())
 
         self.json_file_manager.update_pins(leg, goal_pin_position)
         if self.safety_kill_event.wait(timeout = 3.0):
-            with self.states_object_locker:
+            with self.locker:
                 self.moving_leg_id = None
             return (False, leg_goal_position_in_local)
         
         # Stop microswitch safety-checking.
-        with self.states_object_locker:
+        with self.locker:
             self.moving_leg_id = None
 
         return (True, leg_goal_position_in_local)
+    
+    def __select_water_pump_id(self, watering_leg_id):
+        """Select id of water pump.
+
+        Args:
+            watering_leg_id (int): Id of leg that will be used for watering.
+
+        Returns:
+            int: Id of water pump.
+        """
+        if watering_leg_id == 1:
+            return 1
+        if watering_leg_id == 4:
+            return 0
+        return 2
     #endregion
 
 #TODO: Create new entry point in separate file.
