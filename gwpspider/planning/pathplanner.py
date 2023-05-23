@@ -3,19 +3,14 @@
 import numpy as np
 import math
 import itertools
-from gwpwall import wall
+from gwpconfig import wall
 from typing import Callable
 
 import spider
 from calculations import mathtools as mt
 from calculations import transformations as tf
-from calculations import kinematics as kin
-from calculations import dynamics as dyn
 
-
-@property
-def MAX_LINEAR_STEP():
-    return 0.06
+MAX_LINEAR_STEP = 0.06
 
 #region public methods
 def calculate_spider_body_path(start_pose: list, goal_pose: list) -> np.ndarray:
@@ -43,7 +38,7 @@ def calculate_spider_body_path(start_pose: list, goal_pose: list) -> np.ndarray:
 
     return np.array(path)
 
-def calculate_selected_pins_over_max_y_distance(path) -> np.ndarray:
+def calculate_selected_pins_over_max_y_distance(path: list) -> np.ndarray:
     """Calculate legs positions in global origin, for each step of the spider's path. Legs should be as stretched as posible in gravity direction.
 
     Args:
@@ -52,7 +47,7 @@ def calculate_selected_pins_over_max_y_distance(path) -> np.ndarray:
     Returns:
         numpy.ndarray: nx5x3 array of positions of selected pins on each step of the path.
     """
-    pins = wall.createGrid(True)
+    pins = wall.create_grid(True)
     selected_pins = np.zeros((len(path), 5, 3))
     search_radius = 1.0
     

@@ -2,6 +2,7 @@ import numpy as np
 import threading
 import time
 import os
+from gwpconfig import commconstants as cc
 
 import config
 import controllers
@@ -75,10 +76,10 @@ class App:
 
                 is_microswitch_error = self.__is_microswitch_error()
                 if is_microswitch_error:
-                    self.server_comm.send_message(config.MICROSWITCH_ERROR)
+                    self.server_comm.send_message(cc.MICROSWITCH_ERROR)
                 is_motors_error = is_motors_errors.any() and (self.current_state == config.WORKING_STATE)
                 if is_motors_error:
-                    self.server_comm.send_message(config.ERROR_IN_MOTOR_WARNING)
+                    self.server_comm.send_message(cc.ERROR_IN_MOTOR_WARNING)
                
                 is_error = is_microswitch_error or is_motors_error or is_gripper_error
 
@@ -168,7 +169,7 @@ class App:
         with self.locker:
             self.is_gripper_error = False
         
-        self.server_comm.send_message(config.WORKING_PHASE_STARTED_MESSAGE)
+        self.server_comm.send_message(cc.WORKING_PHASE_STARTED_MESSAGE)
         
         while True:
             spider_pose, _, start_legs_positions = self.json_file_manager.read_spider_state()
@@ -222,14 +223,14 @@ class App:
         Args:
             kill_event (threading.Event): Event for killing a procedure.
         """
-        self.server_comm.send_message(config.RESTING_PHASE_STARTED_MESSAGE)
+        self.server_comm.send_message(cc.RESTING_PHASE_STARTED_MESSAGE)
         self.current_state = config.RESTING_STATE
 
         #TODO: Check new implementation.
         with self.locker:
             is_motors_error = self.motors_errors.any()
         if is_motors_error:
-            self.server_comm.send_message(config.REBOOTING_MOTORS_MESSAGE)
+            self.server_comm.send_message(cc.REBOOTING_MOTORS_MESSAGE)
             if not self.__reboot_motors_in_error(kill_event):
                 return
 
@@ -244,7 +245,7 @@ class App:
         with self.locker:
             temperatures = self.temperatures
         if (temperatures > self.motor_driver.MAX_WORKING_TEMPERATURE).any():
-            self.server_comm.send_message(config.TEMPERATURES_IN_MOTORS_TOO_HIGH_WARNING)
+            self.server_comm.send_message(cc.TEMPERATURES_IN_MOTORS_TOO_HIGH_WARNING)
             if not self.__wait_for_temperature_drop(kill_event):
                 return
         
@@ -265,7 +266,7 @@ class App:
         """Procedure for transition between working and resting state, by using force mode. 
         """
         #TODO: When breaks are implemented, this method will handle breaks activation.
-        self.server_comm.send_message(config.TRANSITIONING_TO_RESTING_PHASE_MESSAGE)
+        self.server_comm.send_message(cc.TRANSITIONING_TO_RESTING_PHASE_MESSAGE)
         self.current_state = config.TRANSITION_STATE
         self.joints_velocity_controller.clear_instruction_queues()
         f_d = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
@@ -275,6 +276,8 @@ class App:
 
     # region private methods
     def __init_layers(self):
+        """Initialize application layers.
+        """
         self.safety_layer()
         time.sleep(2)
         self.motor_control_layer()
@@ -381,12 +384,12 @@ class App:
         Returns:
             tuple[bool, int]: Correction success and number of tries.
         """
-        self.server_comm.send_message(config.LEG_MISSED_PIN_WARNING)
+        self.server_comm.send_message(cc.LEG_MISSED_PIN_WARNING)
         auto_correction_success, number_of_corrections = self.__automatic_correction(leg_id, global_z_direction_in_local, leg_goal_position_in_local)
         if auto_correction_success:
-            self.server_comm.send_message(config.AUTO_CORRECTION_SUCCESSFUL_MESSAGE)
+            self.server_comm.send_message(cc.AUTO_CORRECTION_SUCCESSFUL_MESSAGE)
             return (auto_correction_success, number_of_corrections)
-        self.server_comm.send_message(config.AUTO_CORRECITON_ERROR)
+        self.server_comm.send_message(cc.AUTO_CORRECITON_ERROR)
         manual_corection_success = self.__manual_correction(leg_id)
         return (manual_corection_success, 10)
 
@@ -458,7 +461,7 @@ class App:
         _, used_pins_ids, legs_global_positions = self.json_file_manager.read_spider_state()
         goal_pin_id = used_pins_ids[leg_id]
 
-        self.server_comm.send_message(config.create_instruction_message(config.MANUALLY_MOVE_LEG_ON_PIN_INSTRUCTION, leg_id, goal_pin_id, ))
+        self.server_comm.send_message(cc.create_instruction_message(cc.MANUALLY_MOVE_LEG_ON_PIN_INSTRUCTION, leg_id, goal_pin_id, ))
         self.joints_velocity_controller.grippers_arduino.move_gripper(leg_id, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
         with self.locker:
             x_a_leg = self.x_a[leg_id]
@@ -475,7 +478,7 @@ class App:
             self.motor_driver.enable_disable_legs(attached_legs, config.DISABLE_LEGS_COMMAND)
 
         self.joints_velocity_controller.start_force_mode([leg_id], [np.zeros(3, dtype = np.float32)])
-        self.server_comm.send_message(config.LEG_IN_MANUAL_CORRECTION_MODE_MESSAGE)
+        self.server_comm.send_message(cc.LEG_IN_MANUAL_CORRECTION_MODE_MESSAGE)
         while True:
             with self.locker:
                 x_a_leg = self.x_a[leg_id]
@@ -543,7 +546,7 @@ class App:
         pump_id = self.__select_water_pump_id(watering_leg_id)
         pumping_time = config.REFILL_TIME if do_refill else config.WATERING_TIME
 
-        notify_message = config.REFILLING_STARTED_MESSAGE if pump_id == spider.REFILLING_LEG_ID else config.WATERING_STARTED_MESSAGE
+        notify_message = cc.REFILLING_STARTED_MESSAGE if pump_id == spider.REFILLING_LEG_ID else cc.WATERING_STARTED_MESSAGE
         self.server_comm.send_message(notify_message)
 
         start_time = time.perf_counter()
@@ -553,14 +556,14 @@ class App:
             if elapsed_time > pumping_time:
                 if not do_refill:
                     self.pumps_bno_arduino.water_pump_controll(self.pumps_bno_arduino.PUMP_OFF_COMMAND, pump_id)
-                    self.server_comm.send_message(config.WATERING_FINISHED_MESSAGE)
+                    self.server_comm.send_message(cc.WATERING_FINISHED_MESSAGE)
                 else:
                     self.joints_velocity_controller.grippers_arduino.move_gripper(watering_leg_id, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
                 break
             if not do_refill:
                 if self.safety_kill_event.wait(timeout = 0.05):
                     self.pumps_bno_arduino.water_pump_controll(self.pumps_bno_arduino.PUMP_OFF_COMMAND, pump_id)
-                    self.server_comm.send_message(config.WATERING_FINISHED_MESSAGE)
+                    self.server_comm.send_message(cc.WATERING_FINISHED_MESSAGE)
                     return False
             else:
                 time.sleep(0.05)
@@ -577,7 +580,7 @@ class App:
         if do_refill:
             self.pumps_bno_arduino.water_pump_controll(self.pumps_bno_arduino.PUMP_OFF_COMMAND, pump_id)
             self.watering_counter = 0
-            self.server_comm.send_message(config.REFILLING_FINISHED_MESSAGE)
+            self.server_comm.send_message(cc.REFILLING_FINISHED_MESSAGE)
         else:
             self.watering_counter += 1
             
@@ -629,14 +632,14 @@ class App:
         # Wait for working thread to stop.
         if config.WORKING_THREAD_NAME in self.spider_state_thread.name:
             self.spider_state_thread.join()
-            self.server_comm.send_message(config.WORKING_PHASE_FINISHED_MESSAGE)
+            self.server_comm.send_message(cc.WORKING_PHASE_FINISHED_MESSAGE)
 
         # Start transition state and wait for it to finish.
         self.spider_states_manager(config.TRANSITION_STATE, True)
 
         # Start resting state and wait for it to finish.
         self.spider_states_manager(config.RESTING_STATE, True)
-        self.server_comm.send_message(config.RESTING_PHASE_FINISHED_MESSAGE)
+        self.server_comm.send_message(cc.RESTING_PHASE_FINISHED_MESSAGE)
         
         self.was_in_resting_state = True
 
@@ -752,7 +755,7 @@ class App:
                 return False
 
         if unattached_legs.size == 1:
-            self.server_comm.send_message(config.LEG_IN_MANUAL_CORRECTION_MODE_MESSAGE)
+            self.server_comm.send_message(cc.LEG_IN_MANUAL_CORRECTION_MODE_MESSAGE)
             correction_success = self.__manual_correction(unattached_legs[0], use_safety = False)
             if correction_success:
                 #TODO: Include in error/warning/message logic.
@@ -779,7 +782,7 @@ class App:
     def __handle_possible_spider_singularity(self):
         """Handle situation where robot singularity is possible. Requires human's input.
         """
-        self.server_comm.send_message(config.STARTUP_SINGULARITY_ERROR)
+        self.server_comm.send_message(cc.STARTUP_SINGULARITY_ERROR)
 
         #TODO: See if that will still be necessary when breaks are implemented.
         self.motor_driver.enable_disable_legs(config.DISABLE_LEGS_COMMAND)
@@ -826,7 +829,7 @@ class App:
 
         # Prevent leg movement if not all legs are attached to the wall.
         if len(self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs()) != spider.NUMBER_OF_LEGS:
-            self.server_comm.send_message(config.ALL_LEGS_NOT_ATTACHED_ERROR)
+            self.server_comm.send_message(cc.ALL_LEGS_NOT_ATTACHED_ERROR)
             return False
         
         # Open the gripper.
@@ -840,7 +843,7 @@ class App:
         if gripper_state == self.joints_velocity_controller.grippers_arduino.IS_CLOSE_RESPONSE:
             with self.locker:
                 self.is_gripper_error = True
-            self.server_comm.send_message(config.GRIPPER_ERROR)
+            self.server_comm.send_message(cc.GRIPPER_ERROR)
             self.joints_velocity_controller.stop_force_mode()
             return False
 

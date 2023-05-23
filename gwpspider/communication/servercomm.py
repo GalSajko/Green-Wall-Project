@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import threading
 import time
+from gwpconfig import commconstants as cc
 sys.path.append('..')
 
 from utils import threadmanager
@@ -43,7 +44,7 @@ class ServerComm:
             np.ndarray: 1x3 array of goal position.
         """
         try:
-            request = requests.get(config.REQUEST_SENSOR_POSITION_ADDR, timeout = 1.0)
+            request = requests.get(cc.REQUEST_SENSOR_POSITION_ADDR, timeout = 1.0)
             if len(request._content.decode()) != 0:
                 with self.locker:
                     data = json.loads(request._content)
@@ -70,7 +71,7 @@ class ServerComm:
                 try:
                     with open(self.spider_dict_path, "r", encoding = 'utf-8') as f:
                         pins = json.loads(f.read())
-                    _ = requests.post(config.POST_SPIDER_POSITION_ADDR, json = pins, headers = self.HEADERS, timeout = 1.0)
+                    _ = requests.post(cc.POST_SPIDER_POSITION_ADDR, json = pins, headers = self.HEADERS, timeout = 1.0)
                 except requests.exceptions.RequestException as e:
                     print(f"Exception {e} at sending spider state data.")
 
@@ -90,7 +91,7 @@ class ServerComm:
             while not kill_event.is_set():
                 if self.post_message_event.is_set():
                     try:
-                        _ = requests.post(config.POST_STATE_MESSAGE_ADDR, data = self.message, headers = self.HEADERS, timeout = 1.0)
+                        _ = requests.post(cc.POST_STATE_MESSAGE_ADDR, data = self.message, headers = self.HEADERS, timeout = 1.0)
                     except requests.exceptions.RequestException as e:
                         print(f"Exception {e} at posting to server.")
                     self.post_message_event.clear()
