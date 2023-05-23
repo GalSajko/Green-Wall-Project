@@ -1,8 +1,17 @@
 import threading
 import time
+from typing import Callable
 
 class CustomThread:
-    def run(self, function, thread_name, is_daemon, start = True, use_kill_event = True, do_print = True, function_args = ()):
+    def run(
+        self,
+        function: Callable,
+        thread_name: str,
+        is_daemon: bool,
+        start: bool = True,
+        use_kill_event: bool = True,
+        do_print: bool = True,
+        function_args: tuple = ()) -> tuple[threading.Thread, threading.Event] | threading.Thread:
         """Create and run given function in separate thread. 
 
         Args:
@@ -28,10 +37,10 @@ class CustomThread:
                     time.sleep(0)
             if do_print:
                 print(f"Thread {thread_name} is running.")
-        except RuntimeError as re:
-            print(f"Cannot run thread {thread_name}, because {re}.")
+        except RuntimeError as e:
+            print(f"Cannot run thread {thread_name}, because {e}.")
         
         if use_kill_event:
             return thread, kill_thread_event
-        return thread 
+        return thread
 

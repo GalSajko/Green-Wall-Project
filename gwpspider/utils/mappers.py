@@ -3,7 +3,7 @@
 import math
 import numpy as np
 
-def map_position_encoder_values_to_model_angles_radians(encoders_values):
+def map_position_encoder_values_to_model_angles_radians(encoders_values: list) -> np.ndarray:
     """Map encoders' values of each motor in leg to model angles in radians.
 
     Args:
@@ -18,7 +18,7 @@ def map_position_encoder_values_to_model_angles_radians(encoders_values):
 
     return k * mapped_values + n
 
-def map_current_encoder_values_to_motors_currents_ampers(encoder_values):
+def map_current_encoder_values_to_motors_currents_ampers(encoder_values: list) -> np.ndarray:
     """Map encoded current values of each motor in leg to currents in motors in Ampers.
 
     Args:
@@ -32,7 +32,7 @@ def map_current_encoder_values_to_motors_currents_ampers(encoder_values):
 
     return mapped_values * 0.00269
 
-def map_model_velocities_to_velocity_encoder_values(model_velocities):
+def map_model_velocities_to_velocity_encoder_values(model_velocities: list) -> np.ndarray:
     """Map velocities of each joint in leg-model to velocity encoders values.
 
     Args:

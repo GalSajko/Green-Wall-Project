@@ -13,7 +13,7 @@ import config
 class MotorDriver:
     """ Class for controlling Dynamixel motors.
     """
-    def __init__(self, motors_ids, enable_motors = True):
+    def __init__(self, motors_ids: list, enable_motors: bool = True):
         """Initialize USB port and enable motors.
 
         Args:
@@ -118,7 +118,7 @@ class MotorDriver:
     #endregion
 
     #region public methods 
-    def sync_read_motors_data(self):
+    def sync_read_motors_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Read positions, currents, hardware errors and temperature registers from all connected motors.
 
         Raises:
@@ -155,11 +155,11 @@ class MotorDriver:
         except KeyError as ke:
             raise ke
 
-    def sync_write_motors_velocities_in_legs(self, dq_c):
+    def sync_write_motors_velocities_in_legs(self, dq_c: np.ndarray) -> bool:
         """Write velocities to motors in all legs with sync writer.
 
         Args:
-            dq_c (list): 5x3 array of desired joints velocities.
+            dq_c (np.ndarray): 5x3 array of desired joints velocities.
 
         Returns:
             bool: True if writing was successfull, False otherwise.
@@ -187,8 +187,11 @@ class MotorDriver:
             return False
         return True
 
-    def set_bus_watchdog(self, value):
+    def set_bus_watchdog(self, value: float):
         """Set watchdog on all motors to desired value.
+
+        Args:
+            value (float): Desired value.
         """
         motors_array = self.motors_ids.flatten()
         for motor_id in motors_array:
@@ -198,12 +201,12 @@ class MotorDriver:
             if comm:
                 print(f"Watchdog on motor {motor_id} has been successfully set to {value}")
 
-    def enable_disable_legs(self, command, legs_ids = 5):
+    def enable_disable_legs(self, command: str, legs_ids: list | int = 5):
         """Enable or disable motors in legs.
 
         Args:
             command (str): Command to execute.
-            legs_ids (int, optional): Ids of legs which are to be enabled or disabled. Defaults to 5.
+            legs_ids (list | int, optional): Ids of legs which are to be enabled or disabled. If value is 5 all legs are selected. Defaults to 5.
         """
         action = command == config.ENABLE_LEGS_COMMAND
         message = 'enabled' if action else 'disabled'
@@ -221,11 +224,11 @@ class MotorDriver:
             if comm:
                 print(f"Motor {motor_id} has been successfully {message}.")
 
-    def reboot_motors(self, motors_ids):
+    def reboot_motors(self, motors_ids: list):
         """Reboot motors with given IDs. Used only, when motors are in hardware error state.
 
         Args:
-            motors_ids (int): Ids of a motors.
+            motors_ids (list): Ids of a motors.
         """
         motors_ids = motors_ids.flatten()
         for motor_id in motors_ids:
@@ -250,8 +253,11 @@ class MotorDriver:
         else:
             print("Failed to change the baudrate.")
 
-    def __init_group_read_write(self):
+    def __init_group_read_write(self) -> bool:
         """Add parameters for all motors into storage for group-sync reading and writing.
+
+        Returns:
+            bool: True if adding parameters was successful, False otherwise.
         """
         self.group_sync_read_current.clearParam()
         self.group_sync_read_position.clearParam()
@@ -279,7 +285,7 @@ class MotorDriver:
 
         return True
     
-    def __add_group_sync_read_params(self):
+    def __add_group_sync_read_params(self) -> bool:
         """Add parameters (motors ids) to group sync reader parameters storages - for position and current reading.
 
         Returns:
@@ -295,7 +301,7 @@ class MotorDriver:
                 return False
         return True
 
-    def __comm_result_and_error_reader(self, result, error):
+    def __comm_result_and_error_reader(self, result: str, error: str) -> bool:
         """Read communication result and error.
 
         Args:

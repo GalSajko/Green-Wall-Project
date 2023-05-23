@@ -4,11 +4,11 @@ import numpy as np
 import math
 
 #region helper private methods
-def _get_legs_bases_in_spider():
+def _get_legs_bases_in_spider() -> np.ndarray:
     """Calculate positions of legs-anchors in spider's origin.
 
     Returns:
-        numpy.ndarray: 5x2 array of x, y positions for each anchor.
+        np.ndarray: 5x2 array of x, y positions for each anchor.
     """
     # Angles between anchors and spiders x axis.
     leg_angles = _get_leg_angles_x_axis()
@@ -21,11 +21,11 @@ def _get_legs_bases_in_spider():
 
     return np.array(leg_bases_in_spider_reversed)
 
-def _get_ideal_leg_vectors():
+def _get_ideal_leg_vectors() -> np.ndarray:
     """Calculate directions of ideal leg vectors in spider's origin. Ideal leg vector has a radial direction, looking from center of a spider's body.
 
     Returns:
-        numpy.ndarray: 5x2 array of x, y directions of ideal vectors.
+        np.ndarray: 5x2 array of x, y directions of ideal vectors.
     """
     leg_angles = _get_leg_angles_x_axis()
 
@@ -37,20 +37,20 @@ def _get_ideal_leg_vectors():
 
     return np.array(ideal_leg_vectors_reversed)
 
-def _get_leg_angles_x_axis():
+def _get_leg_angles_x_axis() -> np.ndarray:
     """Calculate angles between vectors between anchor and spider's origin and spider's x axis.
 
     Returns:
-        numpy.ndarray: 1x5 array of angles in radians.
+        np.ndarray: 1x5 array of angles in radians.
     """
     leg_angles = [np.radians(90) - leg * ANGLE_BETWEEN_LEGS for leg in range(NUMBER_OF_LEGS)]
     return np.array(leg_angles)
 
-def _get_spider_to_legs_bases_transformations():
+def _get_spider_to_legs_bases_transformations() -> np.ndarray:
     """Calculate transformation matrices for transformation from spider's base to anchor.
 
     Returns:
-        numpy.ndarray: 5x4x4 array of 4x4 transformation matrices for each leg-anchor.
+        np.ndarray: 5x4x4 array of 4x4 transformation matrices for each leg-anchor.
     """
     # Constant rotation offset, because anchors x axis is pointed in radial direction.
     constant_rotation = math.pi / 2

@@ -1,13 +1,20 @@
-import serial
+"""Module for communication with Arduino devices.
+"""
 import threading
 import time
+import serial
 import numpy as np
 
 #TODO: Test new implementation with inheritance.
 class ArduinoComm:
     """Parent class for communication with all Arduinos in system.
     """
-    def __init__(self, device):
+    def __init__(self, device: str):
+        """Class construction. Starts reading threads and execute handshake with device.
+
+        Args:
+            device (str): Device name.
+        """
         self.received_message = str()
 
         self.device = device
@@ -51,7 +58,7 @@ class ArduinoComm:
 
             self.received_message = msg.decode("utf-8", errors = "ignore").rstrip()
 
-    def _send_data(self, msg):
+    def _send_data(self, msg: str):
         """Send data to Arduino.
 
         Args:
@@ -116,7 +123,7 @@ class GrippersArduino(ArduinoComm):
         return 's'
     #endregion
     
-    def move_gripper(self, leg_id, command):
+    def move_gripper(self, leg_id: int, command: str):
         """Send command to move a gripper on selected leg.
 
         Args:
@@ -127,7 +134,7 @@ class GrippersArduino(ArduinoComm):
             msg = command + str(leg_id) + "\n"
             self._send_data(msg)
     
-    def get_tools_states(self, tool):
+    def get_tools_states(self, tool: str) -> str:
         """Get states of desired tool (grippers or switches).
 
         Args:
@@ -137,7 +144,7 @@ class GrippersArduino(ArduinoComm):
             ValueError: If selected tool is not valid (not gripper or switch).
 
         Returns:
-            string: String of five characters, each represeting tool's state - either '1' or '0'.
+            str: String of five characters, each represeting tool's state - either '1' or '0'.
         """
         if tool not in (self.GRIPPER, self.SWITCH):
             raise ValueError("Wrong tool selected.")
@@ -149,9 +156,10 @@ class GrippersArduino(ArduinoComm):
 
         if tool == self.GRIPPER:
             return rec_msg[:5]
+        
         return rec_msg[5:]
     
-    def get_ids_of_attached_legs(self):
+    def get_ids_of_attached_legs(self) -> list:
         """Get ids of attached legs. Leg is attached if switch and gripper are both in closed state.
 
         Returns:
@@ -163,12 +171,12 @@ class GrippersArduino(ArduinoComm):
                 rec_msg = self.received_message
         grippers_states = rec_msg[:5]
         switches_state = rec_msg[5:]
-        attachedlegs_ids = []
+        attached_legs_ids = []
         for leg_id, gripper_state in enumerate(grippers_states):
             if gripper_state == self.IS_CLOSE_RESPONSE and switches_state[leg_id] == self.IS_CLOSE_RESPONSE:
-                attachedlegs_ids.append(int(leg_id))
+                attached_legs_ids.append(int(leg_id))
 
-        return attachedlegs_ids
+        return attached_legs_ids
 
 class WaterPumpsBnoArduino(ArduinoComm):
     """Class for controlling water pumps via serial communication with Arduino.
@@ -201,7 +209,7 @@ class WaterPumpsBnoArduino(ArduinoComm):
         return 30
     #endregion
 
-    def water_pump_controll(self, command, pump_id):
+    def water_pump_controll(self, command: str, pump_id: int):
         """Controll water pump - turn it on or off.
 
         Args:
@@ -217,11 +225,11 @@ class WaterPumpsBnoArduino(ArduinoComm):
         """
         self._send_data(self.INIT_BNO)
     
-    def get_rpy(self):
+    def get_rpy(self) -> np.ndarray:
         """Read rpy angles.
 
         Returns:
-            numpy.ndarray: 1x3 array of roll, pitch and yaw values in radians.
+            np.ndarray: 1x3 array of roll, pitch and yaw values in radians.
         """
         rec_msg = ''
         start_time = time.perf_counter()
@@ -236,7 +244,7 @@ class WaterPumpsBnoArduino(ArduinoComm):
                 use_reading = False
                 break
             
-        if use_reading:   
+        if use_reading:  
             roll = float(rec_msg[0 : 5])
             pitch = float(rec_msg[5 : 10])
             yaw = float(rec_msg[10 : 15])
@@ -245,11 +253,11 @@ class WaterPumpsBnoArduino(ArduinoComm):
 
         return np.array([roll, pitch, yaw], dtype = np.float32)
     
-    def get_gravity_vector(self):
+    def get_gravity_vector(self) -> np.ndarray:
         """Read gravity vector
 
         Returns:
-            numpy.ndarray: 1x3 array of gravity vector.
+            np.ndarray: 1x3 array of gravity vector.
         """
         rec_msg = ''
         while len(rec_msg) != self.RECEIVED_MESSAGE_LENGTH:

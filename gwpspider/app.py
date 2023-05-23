@@ -64,7 +64,7 @@ class App:
     def safety_layer(self):
         """Continuously checking for hardware errors on the motors. If error occurs, inititate resting procedure and then continue with working. 
         """
-        def safety_checking(kill_event):
+        def safety_checking(kill_event: threading.Event):
             self.safety_kill_event.clear()
             while True:
                 if kill_event.is_set():
@@ -91,7 +91,7 @@ class App:
     def motor_control_layer(self):
         """Motors control layer with loop for reading, recalculating and sending data to the motors.
         """
-        def control_loop(kill_event):
+        def control_loop(kill_event: threading.Event):
             force_buffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
             tau_buffer = np.zeros((10, spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
             tau_counter = 0
@@ -142,11 +142,11 @@ class App:
 
         self.motor_control_thread, self.motor_control_thread_kill_event = self.thread_manager.run(control_loop, config.CONTROL_THREAD_NAME, False, True, do_print = True)
 
-    def spider_states_manager(self, state, do_wait):
+    def spider_states_manager(self, state: str, do_wait: bool):
         """Managing spider's state.
 
         Args:
-            state (string): Name of desired state.
+            state (str): Name of desired state.
             do_wait (bool): If True, wait for state to finish.
         """
         if state == config.WORKING_STATE:
@@ -197,7 +197,8 @@ class App:
                         self.init_bno = False
                         if self.safety_kill_event.wait(timeout = 1.0):
                             return
-                    self.__distribute_forces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION)
+                    if not self.__distribute_forces(spider.LEGS_IDS, config.FORCE_DISTRIBUTION_DURATION):
+                        return
                     continue
 
                 previous_pins_positions = np.array(pins_instructions[step - 1, :, 1:])
@@ -214,12 +215,12 @@ class App:
             if not watering_success:
                 return
         
-    def rest(self, kill_event):
+    def rest(self, kill_event: threading.Event):
         """Resting procedure, includes option for manually correcting non-attached leg. Resting lasts until temperatures of all motors
         drop below working temperature.
 
         Args:
-            kill_event (event): Event for killing a procedure.
+            kill_event (threading.Event): Event for killing a procedure.
         """
         self.server_comm.send_message(config.RESTING_PHASE_STARTED_MESSAGE)
         self.current_state = config.RESTING_STATE
@@ -263,6 +264,7 @@ class App:
     def transition_to_rest_state(self):
         """Procedure for transition between working and resting state, by using force mode. 
         """
+        #TODO: When breaks are implemented, this method will handle breaks activation.
         self.server_comm.send_message(config.TRANSITIONING_TO_RESTING_PHASE_MESSAGE)
         self.current_state = config.TRANSITION_STATE
         self.joints_velocity_controller.clear_instruction_queues()
@@ -277,13 +279,18 @@ class App:
         time.sleep(2)
         self.motor_control_layer()
     
-    def __distribute_forces(self, legs_ids, duration):
+    def __distribute_forces(self, legs_ids: list, duration: float) -> bool:
         """Run force distribution process in a loop for a given duration.
+
+        Args:
+            legs_ids (list): List of legs ids.
+            duration (float): Distributing duration.
+
+        Returns:
+            bool: True if distribution was successful, False otherwise.
         """
         offload_leg_id = np.setdiff1d(spider.LEGS_IDS, legs_ids)
         if len(offload_leg_id) > 1:
-            #TODO: Include in error/warning/message logic.
-            print("Cannot offload more than one leg at the same time.")
             return False
 
         start_time = time.perf_counter()
@@ -300,19 +307,34 @@ class App:
 
             elapsed_time = time.perf_counter() - start_time
             if self.safety_kill_event.wait(timeout = self.joints_velocity_controller.PERIOD):
-                break
+                self.joints_velocity_controller.stop_force_mode()
+                return False
         
         self.joints_velocity_controller.stop_force_mode()
-        time.sleep(2.0)
+        if self.safety_kill_event.wait(timeout = 2.0):
+            return False
+        return True
     
-    def __pin_to_pin_leg_movement(self, leg, current_pin_position, goal_pin_position, pose):
+    def __pin_to_pin_leg_movement(self, leg: int, current_pin_position: np.ndarray, goal_pin_position: np.ndarray, pose: np.ndarray) -> bool:
+        """Move leg from one pin to another.
+
+        Args:
+            leg (int): Leg id.
+            current_pin_position (np.ndarray): Position of currently used pin.
+            goal_pin_position (np.ndarray): Position of goal pin.
+            pose (np.ndarray): Spider's pose.
+
+        Returns:
+            bool: True if movement was successful, False otherwise.
+        """
         # Read legs positions before movement.
         with self.locker:
             x_a_before = self.x_a
         leg_movement_data = x_a_before.flatten()
 
         # Distribute forces among other legs.
-        self.__distribute_forces(np.delete(spider.LEGS_IDS, leg), config.FORCE_DISTRIBUTION_DURATION)
+        if not self.__distribute_forces(np.delete(spider.LEGS_IDS, leg), config.FORCE_DISTRIBUTION_DURATION):
+            return False
 
         if not self.__release_leg(leg, pose, goal_pin_position):
             return False
@@ -344,11 +366,21 @@ class App:
             x_a_after = self.x_a
         leg_movement_data = np.append(leg_movement_data, x_a_after.flatten())
 
-        self.csv_file_manager.writeRow(np.round(leg_movement_data, 4))
+        self.csv_file_manager.write_row(np.round(leg_movement_data, 4))
 
         return True
     
-    def __correction(self, leg_id, global_z_direction_in_local, leg_goal_position_in_local):
+    def __correction(self, leg_id: int, global_z_direction_in_local: np.ndarray, leg_goal_position_in_local: np.ndarray) -> tuple[bool, int]:
+        """Correction procedure wrapper, first starts automatic correction, if that fails starts manual correction procedure.
+
+        Args:
+            leg_id (int): Leg id.
+            global_z_direction_in_local (np.ndarray): Global z axis direction.
+            leg_goal_position_in_local (np.ndarray): Leg's goal position.
+
+        Returns:
+            tuple[bool, int]: Correction success and number of tries.
+        """
         self.server_comm.send_message(config.LEG_MISSED_PIN_WARNING)
         auto_correction_success, number_of_corrections = self.__automatic_correction(leg_id, global_z_direction_in_local, leg_goal_position_in_local)
         if auto_correction_success:
@@ -358,7 +390,17 @@ class App:
         manual_corection_success = self.__manual_correction(leg_id)
         return (manual_corection_success, 10)
 
-    def __automatic_correction(self, leg_id, global_z_direction_in_local, leg_goal_position_in_local):
+    def __automatic_correction(self, leg_id: int, global_z_direction_in_local: np.ndarray, leg_goal_position_in_local: np.ndarray) -> tuple[bool, int]:
+        """Automatic correction procedure. Robot tries to grab a pin in 9 tries.
+
+        Args:
+            leg_id (int): Leg id.
+            global_z_direction_in_local (np.ndarray): Global z axis direction.
+            leg_goal_position_in_local (np.ndarray): Leg's goal position.
+
+        Returns:
+            tuple[bool, int]: Correction success and number of tries.
+        """
         detach_z_offset = 0.08
         offset_value = 0.15
         offsets = [
@@ -403,12 +445,20 @@ class App:
 
         return (False, number_of_tries)
 
-    def __manual_correction(self, leg_id, use_safety = True):
+    def __manual_correction(self, leg_id: int, use_safety: bool = True) -> bool:
+        """Manual correction procedure. Human operator is required to manually moved leg on correct pin. 
+
+        Args:
+            leg_id (int): Leg id.
+            use_safety (bool, optional): Whether or not to consider safety checking. Defaults to True.
+
+        Returns:
+            bool: True if correction was successful, False otherwise.
+        """
         _, used_pins_ids, legs_global_positions = self.json_file_manager.read_spider_state()
         goal_pin_id = used_pins_ids[leg_id]
 
-        #TODO: Find a way to avoid this magic string.
-        self.server_comm.send_message(f"Manually correct leg {leg_id} on pin {goal_pin_id}.")
+        self.server_comm.send_message(config.create_instruction_message(config.MANUALLY_MOVE_LEG_ON_PIN_INSTRUCTION, leg_id, goal_pin_id, ))
         self.joints_velocity_controller.grippers_arduino.move_gripper(leg_id, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
         with self.locker:
             x_a_leg = self.x_a[leg_id]
@@ -453,8 +503,20 @@ class App:
 
         return True
 
-    def __watering(self, watering_leg_id, plant_position, spider_pose, do_refill): 
-        self.__distribute_forces(np.delete(spider.LEGS_IDS, watering_leg_id), config.FORCE_DISTRIBUTION_DURATION)
+    def __watering(self, watering_leg_id: int, plant_or_refill_position: np.ndarray, spider_pose: np.ndarray, do_refill: bool) -> bool:
+        """Watering the plant or refillint water tank.
+
+        Args:
+            watering_leg_id (int): Id of leg in which water pump will be activated.
+            plant_or_refill_position (np.ndarray): Plant position or refill position.
+            spider_pose (np.ndarray): Spider's pose.
+            do_refill (bool): Whether or not to refill water tank.
+
+        Returns:
+            bool: True if watering or refilling was successful, False otherwise.
+        """
+        if not self.__distribute_forces(np.delete(spider.LEGS_IDS, watering_leg_id), config.FORCE_DISTRIBUTION_DURATION):
+            return False
 
         # Move leg on watering position.
         _, _, legs_global_positions = self.json_file_manager.read_spider_state()
@@ -468,7 +530,7 @@ class App:
             if not do_refill:
                 return False
 
-        self.joints_velocity_controller.move_leg_async(watering_leg_id, x_a_leg_before_watering, plant_position, config.GLOBAL_ORIGIN, 3, config.BEZIER_TRAJECTORY, spider_pose)
+        self.joints_velocity_controller.move_leg_async(watering_leg_id, x_a_leg_before_watering, plant_or_refill_position, config.GLOBAL_ORIGIN, 3, config.BEZIER_TRAJECTORY, spider_pose)
         if self.safety_kill_event.wait(timeout = 3.5):
             if not do_refill:
                 return False
@@ -535,7 +597,16 @@ class App:
 
         return True
     
-    def __get_watering_instructions(self, spider_pose, do_refill_water_tank):
+    def __get_watering_instructions(self, spider_pose: np.ndarray, do_refill_water_tank: bool) -> tuple[int, np.ndarray, np.ndarray]:
+        """Get instructions for watering or refilling.
+
+        Args:
+            spider_pose (np.ndarray): Spider's pose.
+            do_refill_water_tank (bool): Whether or not refill water tank.
+
+        Returns:
+            tuple[int, np.ndarray, np.ndarray]: Leg id, spider's goal pose, plant or refill position.
+        """
         if do_refill_water_tank:
             watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, do_refill = True)
             plant_or_refill_position = goal_pose[:3] + spider.REFILLING_LEG_OFFSET
@@ -551,6 +622,8 @@ class App:
         return watering_leg_id, goal_pose, plant_or_refill_position
 
     def __error_case_procedure(self):
+        """Procedure in case of error.
+        """
         self.safety_kill_event.set()
 
         # Wait for working thread to stop.
@@ -573,20 +646,25 @@ class App:
         # Continue with working.
         self.spider_states_manager(config.WORKING_STATE, False)
     
-    def __is_microswitch_error(self):
+    def __is_microswitch_error(self) -> bool:
+        """Check if any of microswitches is in error.
+
+        Returns:
+            bool: True if one or more microswitches are in error, False otherwise.
+        """
         switches_states = self.joints_velocity_controller.grippers_arduino.get_tools_states(self.joints_velocity_controller.grippers_arduino.SWITCH)
         return switches_states[self.moving_leg_id] == self.joints_velocity_controller.grippers_arduino.IS_CLOSE_RESPONSE
     
-    def __get_movement_instructions(self, spider_pose, do_refill_water_tank, start_legs_positions):
-        """Get all necessary instructions for moving between two points on the wall.
+    def __get_movement_instructions(self, spider_pose: np.ndarray, do_refill_water_tank: bool, start_legs_positions: np.ndarray) -> tuple[list, list, int, np.ndarray]:
+        """Get all neccessary instructions for moving between two points on the wall.
 
         Args:
-            spider_pose (numpy.ndarray): Spider's current pose.
+            spider_pose (np.ndarray): Spider's current pose.
             do_refill_water_tank (bool): Whether or not to refill water tank.
-            start_legs_positions (numpy.ndarray): Array of legs' current positions.
+            start_legs_positions (np.ndarray): Array of legs' current positions.
 
         Returns:
-            Tuple: Lists of poses, used pins, id of leg for watering, plant or refill position
+            tuple[list, list, int, np.ndarray]: List of poses, list of pins, id of leg for watering, plant or refill position.
         """
         while True:
             try:
@@ -610,12 +688,12 @@ class App:
         
         return poses, pins_instructions, watering_leg_id, plant_or_refill_position
 
-    def __move_legs_on_next_pins(self, current_pins_positions, previous_pins_positions, legs_moving_order, pose):
-        """Execute legs' pin to pin movements. 
+    def __move_legs_on_next_pins(self, current_pins_positions:np.ndarray, previous_pins_positions: np.ndarray, legs_moving_order: list, pose: list) -> bool:
+        """Execute legs' pin to pin movements.
 
         Args:
-            current_pins_positions (numpy.ndarray): 5x3 array of currently used pins' positions.
-            previous_pins_positions (numpy.ndarray): 5x3 array of previously used pins' positions.
+            current_pins_positions (np.ndarray): Array of currently used pins' positions.
+            previous_pins_positions (np.ndarray): Array of previously used pins' positions.
             legs_moving_order (list): Moving order of legs.
             pose (list): Spider's pose.
 
@@ -633,7 +711,7 @@ class App:
         
         return True
     
-    def __reboot_motors_in_error(self, kill_event):
+    def __reboot_motors_in_error(self, kill_event: threading.Event) -> bool:
         """Reboot all motors that are in error state.
 
         Args:
@@ -654,11 +732,11 @@ class App:
         
         return True
     
-    def __handle_unattached_legs(self, unattached_legs, kill_event):
+    def __handle_unattached_legs(self, unattached_legs: np.ndarray, kill_event: threading.Event) -> bool:
         """Handle situation where one or more legs are not attached to the wall (but they should be).
 
         Args:
-            unattached_legs(numpy.ndarray): Array of unattached legs' ids.
+            unattached_legs (np.ndarray): Array of unattached legs' ids.
             kill_event (threading.Event): Event for killing the resting thread.
 
         Returns:
@@ -681,7 +759,7 @@ class App:
                 print("ALL LEGS ATTACHED.")
         return correction_success
     
-    def __wait_for_temperature_drop(self, kill_event):
+    def __wait_for_temperature_drop(self, kill_event: threading.Event) -> bool:
         """Wait until temperatures in all motors drop below allowed value.
 
         Args:
@@ -701,21 +779,22 @@ class App:
     def __handle_possible_spider_singularity(self):
         """Handle situation where robot singularity is possible. Requires human's input.
         """
-        #TODO: Include in error/warning/message logic.
-        print("CAUTION! POSSIBLE SINGULARITY LOCK - CHECK BEFORE CONTINUING!!!")
+        self.server_comm.send_message(config.STARTUP_SINGULARITY_ERROR)
+
+        #TODO: See if that will still be necessary when breaks are implemented.
         self.motor_driver.enable_disable_legs(config.DISABLE_LEGS_COMMAND)
         confirm_input = input("PRESS ENTER TO CONTINUE OR K + ENTER TO KILL A PROGRAM.")
         if confirm_input == config.PROGRAM_KILL_KEY:
             print("KILLING A PROGRAM...")
             os._exit(0)
 
-    def __start_pushing_to_prevent_slipping(self, leg, pose, pin_position):
+    def __start_pushing_to_prevent_slipping(self, leg: int, pose: list, pin_position: np.ndarray) -> bool:
         """Use force mode to push with selected leg into the wall. This maneuver is used to prevent slipping when detaching.
 
         Args:
             leg (int): Leg id.
             pose (list): Spider's pose.
-            pin_position (list): Position of currently used pin.
+            pin_position (np.ndarray): Position of currently used pin.
 
         Returns:
             bool: Whether or not pushing was successfull.
@@ -731,13 +810,13 @@ class App:
             return False
         return True
     
-    def __release_leg(self, leg, pose, goal_pin_position):
+    def __release_leg(self, leg: int, pose: list, goal_pin_position: np.ndarray) -> bool:
         """Release the leg from pin, before moving it to the next one.
 
         Args:
             leg (int): Leg id.
             pose (list): Spider's pose.
-            goal_pin_position (list): Position of currently used pin.
+            goal_pin_position (np.ndarray): Position of currently used pin.
 
         Returns:
             bool: True if releasing was successfull, False otherwise.
@@ -776,7 +855,7 @@ class App:
         
         return True
     
-    def __attach_to_pin(self, leg):
+    def __attach_to_pin(self, leg: int) -> bool:
         """Attach leg to a pin.
 
         Args:
@@ -794,13 +873,13 @@ class App:
 
         return True
     
-    def __read_spider_rpy(self, legs_ids_to_use = spider.LEGS_IDS, use_state_dict = True, legs_global_positions = None):
+    def __read_spider_rpy(self, legs_ids_to_use: np.ndarray = spider.LEGS_IDS, use_state_dict: bool = True, legs_global_positions: np.ndarray = None) -> list:
         """Read spider's rpy values.
 
         Args:
-            legs_ids_to_use (list, optional): List of legs' ids to use in pose calculation. Defaults to spider.LEGS_IDS.
+            legs_ids_to_use (list, np.ndarray): List of legs' ids to use in pose calculation. Defaults to spider.LEGS_IDS.
             use_state_dict (bool, optional): Whether or not to read legs' positions from state dictionary. Defaults to True.
-            legs_global_positions (List, optional): Array of legs' global positions. It has to be given, if use_state_dict is False. Defaults to None.
+            legs_global_positions (List, np.ndarray): Array of legs' global positions. It has to be given, if use_state_dict is False. Defaults to None.
 
         Raises:
             ValueError: If use_state_dict is False and legs_global_positions is None.
@@ -819,16 +898,16 @@ class App:
 
         return rpy
         
-    def __move_leg_pin_to_pin(self, leg, pin_to_pin_vector_in_local, goal_pin_position):
+    def __move_leg_pin_to_pin(self, leg: int, pin_to_pin_vector_in_local: np.ndarray, goal_pin_position: np.ndarray) -> tuple[bool, np.ndarray]:
         """Move leg from current pin to the next one.
 
         Args:
             leg (int): Leg id.
-            pin_to_pin_vector_in_local (numpy.ndarray): Vector from current to the next pin, given in leg's local origin.
-            goal_pin_position (numpy.ndarray): Position of goal pin.
+            pin_to_pin_vector_in_local (np.ndarray): Vector from current to the next pin, given in leg's local origin.
+            goal_pin_position (np.ndarray): Position of goal pin.
 
         Returns:
-            (bool, numpy.ndarray): Movement success and leg's goal position in local origin. 
+            (bool, np.ndarray): Movement success and leg's goal position in local origin. 
         """
         # Move leg and update spider state.
         with self.locker:
@@ -864,7 +943,7 @@ class App:
 
         return (True, leg_goal_position_in_local)
     
-    def __select_water_pump_id(self, watering_leg_id):
+    def __select_water_pump_id(self, watering_leg_id: int) -> int:
         """Select id of water pump.
 
         Args:

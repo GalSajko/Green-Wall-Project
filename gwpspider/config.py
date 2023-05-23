@@ -42,12 +42,12 @@ GRIPPER_BNO_ARDUINO_READING_PERIOD = 0.01
 ENABLE_LEGS_COMMAND = 'enable'
 DISABLE_LEGS_COMMAND = 'disable'
 
+
+#TODO: Move those constants below to Wall repo (they will be included in shared package).
+
 REQUEST_SENSOR_POSITION_ADDR = 'http://192.168.1.20:5000/zalij'
 POST_SPIDER_POSITION_ADDR = 'http://192.168.1.20:5000/spiderPos'
-POST_GO_REFILLING_ADDR = 'http://192.168.1.20:5000/refill'
-POST_STOP_REFILLING_ADDR = 'http://192.168.1.20:5000/stop'
 POST_STATE_MESSAGE_ADDR = 'http://192.168.1.20:5000/message'
-
 
 MICROSWITCH_ERROR = 'E01'
 VOLTAGE_DROP_ERROR = 'E02'
@@ -75,19 +75,25 @@ WATERING_FINISHED_MESSAGE = 'M10'
 LEG_IN_MANUAL_CORRECTION_MODE_MESSAGE = 'M11'
 REBOOTING_MOTORS_MESSAGE = 'M12'
 
+MANUALLY_MOVE_LEG_ON_PIN_INSTRUCTION = 'I01'
+
 #TODO: Add messages for enable-disable action.
 STATUS_CODES_DICT = {
     MICROSWITCH_ERROR : 'Microswitch stucked.',
+    #TODO: Not used yet.
     VOLTAGE_DROP_ERROR : 'Voltage droped below *.',
     STARTUP_SINGULARITY_ERROR : 'Possible singularity on startup.',
+    #TODO: Not used yet.
     BREAKS_ACTIVATED_ERROR : 'Breaks are still activated.',
     ALL_LEGS_NOT_ATTACHED_ERROR : 'One or more legs are not attached. Cannot move selected leg.',
     AUTO_CORRECITON_ERROR : 'Auto-correction was not succesful. Entering manual-correction mode.',
     GRIPPER_ERROR : 'Gripper did not open correctly.',
 
     ERROR_IN_MOTOR_WARNING : 'Hardware error in motor.',
+    #TODO: Not used yet.
     LEG_CLOSE_TO_SINGULARITY_WARNING : 'Leg is close to singularity.',
     LEG_MISSED_PIN_WARNING : 'Leg missed the pin. Entering auto-correction mode.',
+    #TODO: Should that also be used during working?
     TEMPERATURES_IN_MOTORS_TOO_HIGH_WARNING : 'Temperature in one or more motors is above allowed value.',
 
     WORKING_PHASE_STARTED_MESSAGE : 'Working phase has started.',
@@ -103,4 +109,15 @@ STATUS_CODES_DICT = {
     LEG_IN_MANUAL_CORRECTION_MODE_MESSAGE : 'Leg is in manual-correction mode.',
     REBOOTING_MOTORS_MESSAGE : 'Rebooting motors in error.',
 }
+
+def create_instruction_message(*instruction_args) -> str:
+    """Create instruction message, based on given parameters. First parameter should always be the instruction code. Following parameters
+    are specific for each instruction:
+    - MANUALLY_MOVE_LEG_ON_PIN_INSTRUCTION: 2nd parameter is leg id, 3rd is pin id.
+
+    Returns:
+        string: Instruction message.
+    """
+    return ','.join(map(str, list(instruction_args)))
+
  

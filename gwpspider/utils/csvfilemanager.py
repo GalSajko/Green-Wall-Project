@@ -21,10 +21,15 @@ class CsvFileManager():
             'xA_after_4_x', 'xA_after_4_y', 'xA_after_4_z',
         ]
     
-    def writeRow(self, rowData):
+    def write_row(self, row_data: list):
+        """Write row into csv file.
+
+        Args:
+            row_data (list): Row of data.
+        """
         with open(self.FILENAME, 'a') as file:
             writer = csv.writer(file)
-            if len(rowData) == len(self.HEADERS):
-                writer.writerow(rowData)
+            if len(row_data) == len(self.HEADERS):
+                writer.writerow(row_data)
             else:
                 return

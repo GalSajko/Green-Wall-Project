@@ -53,17 +53,17 @@ class VelocityController:
 
 
     #region public methods
-    def joints_velocity_controller(self, q_a, x_a, f_a, do_init):
+    def joints_velocity_controller(self, q_a: np.ndarray, x_a: np.ndarray, f_a: np.ndarray, do_init: bool) -> np.ndarray:
         """Control of joints velocities with implemented position, force and velocity modes.
 
         Args:
-            q_a (list): 5x3 array of current angles in joints.
-            x_a (list): 5x3 array of current legs positions, given in local origins.
-            f_a (list): 5x3 array of current forces on leg tips, given in spider origin.
+            q_a (np.ndarray): 5x3 array of current angles in joints.
+            x_a (np.ndarray): 5x3 array of current legs positions, given in local origins.
+            f_a (np.ndarray): 5x3 array of current forces on leg tips, given in spider origin.
             do_init (bool): If True set values of last legs positions to current legs positions. Should be True only at the start.
 
         Returns:
-            numpy.ndarray: 5x3 array of commanded joints velocities.
+            np.ndarray: 5x3 array of commanded joints velocities.
         """
         # If controller was just initialized, save current positions and keep legs on these positions until new command is given.
         with self.locker:
@@ -109,24 +109,25 @@ class VelocityController:
 
         return dq_c
     
-    def move_leg_async(self, leg_id, leg_current_position, leg_goal_position_or_offset, origin, duration, trajectory_type, spider_pose = None, is_offset = False):
+    def move_leg_async(self, leg_id: int, leg_current_position: np.ndarray, leg_goal_position_or_offset: np.ndarray, origin: str, duration: float, trajectory_type: str, spider_pose: list = None, is_offset: bool = False) -> np.ndarray:
         """Write reference positions and velocities into leg-queue.
 
         Args:
             leg_id (int): Leg id.
-            leg_goal_position_or_offset (list): 1x3 array of  desired x, y, and z goal positons or offsets.
-            origin (str): Origin that goal position is given in. Wheter 'l' for leg-local or 'g' for global.
+            leg_current_position (np.ndarray): Leg's current position.
+            leg_goal_position_or_offset (np.ndarray): Leg's goal position or offset.
+            origin (str): Origin that goal position is given in.
             duration (float): Desired movement duration.
-            trajectory_type (str): Type of movement trajectory (bezier or minJerk).
+            trajectory_type (str): Type of movement trajectory (bezier or min jerk).
             spider_pose (list, optional): Spider pose in global origin, used if leg_goal_position_or_offset is given in global origin. Defaults to None.
-            offset(bool, optional): If true, move leg relatively on current position, leg_goal_position_or_offset should be given as desired offset. Defaults to False.
+            is_offset (bool, optional): If true, move leg relatively on current position, leg_goal_position_or_offset should be given as desired offset. Defaults to False.
 
         Raises:
             ValueError: If origin is unknown.
             TypeError: If origin is global and spider_pose is None.
 
         Returns:
-            bool: False if ValueError is catched during trajectory calculation, True otherwise.
+            np.ndarray: Leg's goal position in local origin.
         """
         if origin not in (config.LEG_ORIGIN, config.GLOBAL_ORIGIN):
             raise ValueError("Unknown origin.")
@@ -144,14 +145,14 @@ class VelocityController:
 
         return leg_goal_position_in_local
             
-    def move_legs_sync(self, legs_ids, legs_current_positions, legs_goal_positions_or_offsets, origin, duration, trajectory_type, spider_pose = None, is_offset = False):
+    def move_legs_sync(self, legs_ids: list, legs_current_positions: np.ndarray, legs_goal_positions_or_offsets: np.ndarray, origin: str, duration: float, trajectory_type:str, spider_pose: list = None, is_offset: bool = False):
         """Write reference positions and velocities in any number (less than 5) of leg-queues. Legs start to move at the same time. 
         Meant for moving a platform.
 
         Args:
             legs_ids (list): Legs ids.
-            legs_current_positions (list): nx3x1 array of legs' current positions, where n is number of legs.
-            legs_goal_positions_or_offsets (list): nx3x1 array of goal positions, where n is number of legs.
+            legs_current_positions (np.ndarray): nx3x1 array of legs' current positions, where n is number of legs.
+            legs_goal_positions_or_offsets (np.ndarray): nx3x1 array of goal positions, where n is number of legs.
             origin (str): Origin that goal positions are given in, 'g' for global or 'l' for local.
             duration (float): Desired duration of movements.
             trajectory_type (str): Type of movement trajectory (bezier or minJerk).
@@ -162,9 +163,6 @@ class VelocityController:
             ValueError: If origin is unknown.
             TypeError: If origin is global and spider pose is not given.
             ValueError: If number of used legs and given goal positions are not the same.
-
-        Returns:
-            bool: False if ValueError is catched during trajectory calculations, True otherwise.
         """
         if origin not in (config.LEG_ORIGIN, config.GLOBAL_ORIGIN):
             raise ValueError(f"Unknown origin {origin}.")
@@ -195,29 +193,27 @@ class VelocityController:
 
         for leg in legs_ids:
             self.legs_queues[leg].put(self.sentinel)
-        
-        return True
 
     def clear_instruction_queues(self):
         """Clear instruction queues for all legs.
         """
         self.legs_queues = [queue.Queue() for _ in range(spider.NUMBER_OF_LEGS)]
     
-    def update_last_legs_positions(self, x_a):
+    def update_last_legs_positions(self, x_a: np.ndarray):
         """Update last legs positions.
 
         Args:
-            x_a (list): 5x3 array of legs' positions in leg-local origins.
+            x_a (np.ndarray): 5x3 array of legs' positions in leg-local origins.
         """
         with self.locker:
             self.last_legs_positions = x_a
 
-    def start_force_mode(self, legs_ids, f_d):
+    def start_force_mode(self, legs_ids: list, f_d: np.ndarray):
         """Start force mode inside main velocity controller loop.
 
         Args:
             legs_ids (list): Ids of leg, which is to be force-controlled.
-            desiredForce (list): 5x3 vector of x, y, z values of force, given in spider's origin, where n is number of used legs.
+            desiredForce (np.ndarray): 5x3 vector of x, y, z values of force, given in spider's origin, where n is number of used legs.
         """
         if len(legs_ids) != len(f_d):
             raise ValueError("Number of legs used in force controll does not match number of given desired forces vectors.")
@@ -232,12 +228,12 @@ class VelocityController:
         with self.locker:
             self.is_force_mode = False
     
-    def start_velocity_mode(self, leg_id, velocity_direction):
+    def start_velocity_mode(self, leg_id: int, velocity_direction: np.ndarray):
         """Start velocity mode.
 
         Args:
             leg_id (int): Id of leg.
-            velocity_direction (list): 1x3 array of desired velocity direction, given in leg's origin.
+            velocity_direction (np.ndarray): 1x3 array of desired velocity direction, given in leg's origin.
         """
         with self.locker:
             self.is_velocity_mode = True
@@ -252,11 +248,11 @@ class VelocityController:
     #endregion
 
     #region private methods
-    def __get_pos_vel_acc_from_queues(self):
+    def __get_pos_vel_acc_from_queues(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Read current desired position, velocity and acceleration from queues for each leg. If leg-queue is empty, keep leg on latest position.
 
         Returns:
-            tuple: Three 5x3 arrays of current desired positions, velocities and accelerations of legs.
+            tuple[np.ndarray, np.ndarray, np.ndarray]: Desired positions, velocities and accelerations.
         """
         x_d = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         dx_d = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
@@ -285,17 +281,17 @@ class VelocityController:
 
         return x_d, dx_d, ddx_d
 
-    def __ee_position_velocity_pd_controlloer(self, x_a, x_d, dx_d, ddx_d):
+    def __ee_position_velocity_pd_controlloer(self, x_a: np.ndarray, x_d: np.ndarray, dx_d: np.ndarray, ddx_d: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """PD controller. Feed-forward velocity is used only in force mode, otherwise its values are zeros.
 
         Args:
-            x_d (numpy.ndarray): 5x3 array of desired legs' positions.
-            x_a (numpy.ndarray): 5x3 array of actual legs' positions.
-            dx_d (numpy.ndarray): 5x3 array of feed-forward velocities.
-            ddx_d (numpy.ndarray): 5x3 array of feed-forward accelerations.
+            x_a (np.ndarray): 5x3 array of desired legs' positions.
+            x_d (np.ndarray): 5x3 array of actual legs' positions.
+            dx_d (np.ndarray): 5x3 array of feed-forward velocities.
+            ddx_d (np.ndarray): 5x3 array of feed-forward accelerations.
 
         Returns:
-            tuple: Two 5x3 arrays of commanded legs velocities and current position errors.
+            tuple[np.ndarray, np.ndarray]: Commanded velocities, current position errors.
         """
         legs_position_errors = np.array(x_d - x_a)
         dx_e = (legs_position_errors - self.last_legs_position_errors) / self.PERIOD
@@ -303,15 +299,15 @@ class VelocityController:
 
         return dx_c, legs_position_errors
 
-    def __force_position_p_controller(self, f_d, f_a):
+    def __force_position_p_controller(self, f_d: np.ndarray, f_a: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Force-position P controller. Calculate position offsets and desired legs velocities in spider's origin from desired forces.
 
         Args:
-            f_d (list): 5x3 array of desired forces in spider's origin.
-            f_a (list): 5x3 array of measured current forces in spider's origin.
+            f_d (np.ndarray): 5x3 array of desired forces in spider's origin.
+            f_a (np.ndarray): 5x3 array of measured current forces in spider's origin.
 
         Returns:
-            tuple: Two 5x3 array of of position offsets of leg-tips and leg-tips velocities, given in spider's origin.
+            tuple[np.ndarray, np.ndarray]: Position offsets and velocities.
         """
         force_errors = f_d - f_a
         legs_positions_in_spider = force_errors * config.K_P_FORCE

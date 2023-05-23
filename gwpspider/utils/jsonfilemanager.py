@@ -14,7 +14,7 @@ class JsonFileManager():
             'pins' : []
         } 
 
-    def update_whole_dict(self, pose, current_pins, legs_moving_order):
+    def update_whole_dict(self, pose: list, current_pins: list, legs_moving_order: list):
         """Update pose and pins in dictionary and write it in JSON file.
 
         Args:
@@ -36,7 +36,7 @@ class JsonFileManager():
 
         self.__write_json()
     
-    def update_pins(self, leg_id, pin):
+    def update_pins(self, leg_id: int, pin: list):
         """Update only one pin position in dictionary and write it in JSON file.
 
         Args:

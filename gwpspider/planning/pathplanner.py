@@ -4,6 +4,7 @@ import numpy as np
 import math
 import itertools
 from gwpwall import wall
+from typing import Callable
 
 import spider
 from calculations import mathtools as mt
@@ -17,7 +18,7 @@ def MAX_LINEAR_STEP():
     return 0.06
 
 #region public methods
-def calculate_spider_body_path(start_pose, goal_pose):
+def calculate_spider_body_path(start_pose: list, goal_pose: list) -> np.ndarray:
     """Calculate steps of spider's path. Path's segments are as follow:
     - lift spider on the walking height (if necessary),
     - walk towards the goal point,
@@ -42,7 +43,7 @@ def calculate_spider_body_path(start_pose, goal_pose):
 
     return np.array(path)
 
-def calculate_selected_pins_over_max_y_distance(path):
+def calculate_selected_pins_over_max_y_distance(path) -> np.ndarray:
     """Calculate legs positions in global origin, for each step of the spider's path. Legs should be as stretched as posible in gravity direction.
 
     Args:
@@ -109,7 +110,7 @@ def calculate_selected_pins_over_max_y_distance(path):
 
     return selected_pins
 
-def create_walking_instructions(start_pose, goal_pose, pins_selection_method = calculate_selected_pins_over_max_y_distance):
+def create_walking_instructions(start_pose: list, goal_pose: list, pins_selection_method: Callable = calculate_selected_pins_over_max_y_distance) -> tuple[np.ndarray, np.ndarray]:
     """Generate walking instructions to move spider from start to goal pose on the wall.
 
     Args:
@@ -118,7 +119,7 @@ def create_walking_instructions(start_pose, goal_pose, pins_selection_method = c
         pins_selection_method (function, optional): Method used to calculate selected pins along the way. Defaults to calculate_selected_pins_over_max_y_distance.
 
     Returns:
-        tuple: Lists of poses and pins instructions. Pin instruction consists of leg id and pin's position.
+        tuple: Arrays of poses and pins instructions. Pin instruction consists of leg id and pin's position.
     """
     start_pose = np.array(start_pose)
     goal_pose = np.array(goal_pose)
@@ -150,7 +151,7 @@ def create_walking_instructions(start_pose, goal_pose, pins_selection_method = c
 
     return np.array(poses), np.array(pins_instructions)
 
-def modified_walking_instructions(start_legs_positions, goal_pose):
+def modified_walking_instructions(start_legs_positions: list, goal_pose: list) -> tuple[np.ndarray, np.ndarray]:
     """Change first pose and first set of pins instructions with given values.
 
     Args:
@@ -210,7 +211,7 @@ def modified_walking_instructions(start_legs_positions, goal_pose):
 #endregion
 
 #region private methods
-def _get_legs_roles(legs_bases_positions, pose):
+def _get_legs_roles(legs_bases_positions: list, pose: list) -> tuple[int, int, int, int, int]:
     """Define legs roles, based on their positions - upper/lower, right/left or middle.
 
     Args:

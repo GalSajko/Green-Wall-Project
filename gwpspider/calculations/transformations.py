@@ -7,7 +7,7 @@ from gwpwall import wall
 import config
 import spider
 
-def xyzrpy_to_matrix(xyzrpy, rotation_only = False):
+def xyzrpy_to_matrix(xyzrpy: list, rotation_only: bool = False) -> np.ndarray:
     """Calculate global transformation matrix for global origin - spider relation.
 
     Args:
@@ -16,7 +16,7 @@ def xyzrpy_to_matrix(xyzrpy, rotation_only = False):
         rotation_only (bool): If True, calculate 3x3 rotation matrix from given rpy angles, otherwise calculate 4x4 full transformation matrix. Defaults to False.
 
     Returns:
-        numpy.ndarray: 4x4 transformation matrix from global origin to spider or 3x3 rotation matrix from given rpy angles.
+        np.ndarray: 4x4 transformation matrix from global origin to spider or 3x3 rotation matrix from given rpy angles.
     """
     if rotation_only:
         if len(xyzrpy) == 3:
@@ -47,21 +47,21 @@ def xyzrpy_to_matrix(xyzrpy, rotation_only = False):
     rotation_matrix = np.dot(roll, np.dot(pitch, yaw))
 
     if not rotation_only:
-        transformMatrix = np.c_[rotation_matrix, position]
-        transformMatrix = np.r_[transformMatrix, [np.array([0, 0, 0, 1], dtype = np.float32)]]
+        transform_matrix = np.c_[rotation_matrix, position]
+        transform_matrix = np.r_[transform_matrix, [np.array([0, 0, 0, 1], dtype = np.float32)]]
         
-        return transformMatrix
+        return transform_matrix
     
     return rotation_matrix
 
-def get_pin_to_pin_vector_in_local(leg_id, rpy, current_pin_position, goal_pin_position):
+def get_pin_to_pin_vector_in_local(leg_id: int, rpy: list, current_pin_position: np.ndarray, goal_pin_position: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Calculate pin-to-pin vector in leg's local origin.
 
     Args:
         leg_id (int): Leg id.
         rpy (list): 1x3 array of roll, pitch and yaw values of spider's orientation.
-        current_pin_position (list): 1x3 array of current pin's position in global origin
-        goal_pin_position (list): 1x3 array of goal pin's position in global origin.
+        current_pin_position (np.ndarray): 1x3 array of current pin's position in global origin
+        goal_pin_position (np.ndarray): 1x3 array of goal pin's position in global origin.
 
     Returns:
         tuple: 1x3 pin-to-pin vector in leg's local origin and 3x3 orientation matrix of leg's anchor in global origin.
@@ -73,16 +73,16 @@ def get_pin_to_pin_vector_in_local(leg_id, rpy, current_pin_position, goal_pin_p
 
     return pin_to_pin_in_local, leg_base_orientation_in_global
 
-def get_leg_position_in_local(leg_id, leg_position_in_global, spider_pose):
+def get_leg_position_in_local(leg_id: int, leg_position_in_global: np.ndarray, spider_pose: np.ndarray) -> np.ndarray:
     """Calculate local leg's position from given global position.
 
     Args:
         leg_id (int): Leg id.
-        leg_position_in_global (list): Global position of leg.
-        spider_pose (list): Global spider's pose. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
+        leg_position_in_global (np.ndarray): Global position of leg.
+        spider_pose (np.ndarray): Global spider's pose. Could be given as 1x4 array, representing xyzy values or 1x6 array, representing xyzrpy values.
 
     Returns:
-        numpy.ndarray: 1x3 array of with x, y and z leg's positions in leg-local origin.
+        np.ndarray: 1x3 array of with x, y and z leg's positions in leg-local origin.
     """
     T_GS = xyzrpy_to_matrix(spider_pose)
     T_GA = np.dot(T_GS, spider.T_BASES[leg_id])
@@ -90,26 +90,42 @@ def get_leg_position_in_local(leg_id, leg_position_in_global, spider_pose):
 
     return np.dot(np.linalg.inv(T_GA), leg_position_in_global)[:3]
 
-def get_global_direction_in_local(leg_id, spider_pose, global_direction):
+def get_global_direction_in_local(leg_id: int, spider_pose: np.ndarray, global_direction: np.ndarray) -> np.ndarray:
+    """Transform vector given in global origin into local.
+
+    Args:
+        leg_id (int): Leg id.
+        spider_pose (np.ndarray): Spider's pose.
+        global_direction (np.ndarray): Vector in global origin.
+
+    Returns:
+        np.ndarray: Vector in local origin.
+    """
     T_GS = xyzrpy_to_matrix(spider_pose)
     T_GA = np.dot(T_GS, spider.T_BASES[leg_id])[:3,:3]
     local_direction = np.dot(np.linalg.inv(T_GA), global_direction)
 
     return local_direction
 
-def convert_in_local_goal_positions(leg_id, leg_current_position_in_local, leg_goal_position_or_offset, origin, is_offset, spider_pose):
+def convert_in_local_goal_positions(
+    leg_id: int,
+    leg_current_position_in_local: np.ndarray,
+    leg_goal_position_or_offset: np.ndarray,
+    origin: str,
+    is_offset: bool,
+    spider_pose: np.ndarray) -> np.ndarray:
     """Transform given leg's goal position into local origin.
 
     Args:
         leg_id (int): Leg id.
-        leg_current_position_in_local (list): 1x3 array of current leg's position, given in local origin
-        leg_goal_position_or_offset (list): 1x3 array of leg's goal position given as absolute position or offset. 
+        leg_current_position_in_local (np.ndarray): 1x3 array of current leg's position, given in local origin
+        leg_goal_position_or_offset (np.ndarray): 1x3 array of leg's goal position given as absolute position or offset. 
         origin (str): Origin that goal position or offset is given in.
         is_offset (bool): If True, goal position is given as an offset, otherwise as an absolute position.
-        spider_pose (list): Spider's pose given in global origin.
+        spider_pose (np.ndarray): Spider's pose given in global origin.
 
     Returns:
-        numpy.ndarray: 1x3 array of leg's goal position, given in local origin.
+        np.ndarray: 1x3 array of leg's goal position, given in local origin.
     """
     if origin == config.LEG_ORIGIN:
         leg_goal_position_in_local = np.copy(leg_goal_position_or_offset)
@@ -120,12 +136,12 @@ def convert_in_local_goal_positions(leg_id, leg_current_position_in_local, leg_g
         return get_leg_position_in_local(leg_id, leg_goal_position_or_offset, spider_pose)
     return np.array(leg_current_position_in_local + get_global_direction_in_local(leg_id, spider_pose, leg_goal_position_or_offset), dtype = np.float32)
 
-def get_watering_leg_and_pose(spider_pose, plant_position = None, do_refill = False):
+def get_watering_leg_and_pose(spider_pose: np.ndarray, plant_position: np.ndarray = None, do_refill: bool = False) -> tuple[int, np.ndarray]:
     """Calculate spider's pose for watering the plant or refilling water tank and leg used for the task.
 
     Args:
-        spider_pose (list): Spider's current pose in global origin.
-        plant_position (list, optional): 1x3 array of plant's position in global origin. Should be given, if task is to water a plant. Defaults to None.
+        spider_pose (np.ndarray): Spider's current pose in global origin.
+        plant_position (np.ndarray, optional): 1x3 array of plant's position in global origin. Should be given, if task is to water a plant. Defaults to None.
         do_refill(bool, otpional): If True, calculate refill position, otherwise calculate watering position, defaults to False.
 
     Returns:
@@ -177,17 +193,21 @@ def get_watering_leg_and_pose(spider_pose, plant_position = None, do_refill = Fa
 
     return watering_leg, watering_pose
 
-def get_last_joint_to_goal_pin_vector_in_spider(leg_id, last_joint_position_in_local, goal_pin_position_in_global, spider_pose):
+def get_last_joint_to_goal_pin_vector_in_spider(
+    leg_id: int,
+    last_joint_position_in_local: np.ndarray,
+    goal_pin_position_in_global: np.ndarray,
+    spider_pose: np.ndarray) -> np.ndarray:
     """Calculate vector from last joint to goal pin in spider's origin.
 
     Args:
         leg_id (int): Leg id.
-        last_joint_position_in_local (list): 1x3 vector of x, y and z position of last joint in local origin.
-        goal_pin_position_in_global (list): 1x3 vector of x, y and z position of goal pin in global origin.
-        spider_pose (list): Spider's pose.
+        last_joint_position_in_local (np.ndarray): 1x3 vector of x, y and z position of last joint in local origin.
+        goal_pin_position_in_global (np.ndarray): 1x3 vector of x, y and z position of goal pin in global origin.
+        spider_pose (np.ndarray): Spider's pose.
 
     Returns:
-        numpy.ndarray: 1x3 unit vector from last joint to goal pin, given in spider's origin.
+        np.ndarray: 1x3 unit vector from last joint to goal pin, given in spider's origin.
     """
     leg_goal_position_in_local = get_leg_position_in_local(leg_id, goal_pin_position_in_global, spider_pose)
     last_joint_to_goal_pin_in_local = np.array(leg_goal_position_in_local - last_joint_position_in_local)
@@ -195,7 +215,7 @@ def get_last_joint_to_goal_pin_vector_in_spider(leg_id, last_joint_position_in_l
 
     return last_joint_to_goal_pin_in_spider / np.linalg.norm(last_joint_to_goal_pin_in_spider) 
 
-def R_B1(q_b, q_1):
+def R_B1(q_b: float, q_1: float) -> np.ndarray:
     """Rotation matrix from spider's to 1st segment's origin.
 
     Args:
@@ -203,7 +223,7 @@ def R_B1(q_b, q_1):
         q_1 (float): Angle in first joint, in radians.
 
     Returns:
-        numpy.ndarray: 3x3 rotation matrix.
+        np.ndarray: 3x3 rotation matrix.
     """
     return np.array([
         [math.cos(q_1 + q_b), -math.sin(q_1 + q_b), 0.0],
@@ -211,14 +231,14 @@ def R_B1(q_b, q_1):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-def R_12(q_2):
+def R_12(q_2: float) -> np.ndarray:
     """Rotation matrix from 1st to 2nd leg-segment.
 
     Args:
         q_2 (float): Angle in second joint, in radians.
 
     Returns:
-        numpy.ndarray: 3x3 rotation matrix.
+        np.ndarray: 3x3 rotation matrix.
     """
     return np.array([
         [math.cos(q_2), -math.sin(q_2), 0.0],
@@ -226,14 +246,14 @@ def R_12(q_2):
         [math.sin(q_2), math.cos(q_2), 0.0]
     ], dtype = np.float32)
 
-def R_23(q_3):
+def R_23(q_3: float):
     """Rotation matrix from 2nd to 3rd leg-segment.
 
     Args:
         q_3 (float): Angle in third joint, in radians.
 
     Returns:
-        numpy.ndarray: 3x3 rotation matrix.
+        np.ndarray: 3x3 rotation matrix.
     """
     return np.array([
         [math.cos(q_3), -math.sin(q_3), 0.0],
@@ -241,7 +261,7 @@ def R_23(q_3):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
-def R_B2(q_b, q_1, q_2):
+def R_B2(q_b: float, q_1: float, q_2: float) -> np.ndarray:
     """Rotation matrix from spider's to 2nd segment's origin.
 
     Args:
@@ -250,7 +270,7 @@ def R_B2(q_b, q_1, q_2):
         q_2 (float): Angle in second joint, in radians.
 
     Returns:
-        numpy.ndarray: 3x3 rotation matrix.
+        np.ndarray: 3x3 rotation matrix.
     """
     return np.array([
         [math.cos(q_2) * math.cos(q_1 + q_b), -math.cos(q_1 + q_b) * math.sin(q_2), math.sin(q_1 + q_b)],
@@ -258,7 +278,18 @@ def R_B2(q_b, q_1, q_2):
         [math.sin(q_2), math.cos(q_2), 0.0]
     ], dtype = np.float32)
 
-def R_B3(q_b, q_1, q_2, q_3):
+def R_B3(q_b: float, q_1: float, q_2: float, q_3: float) -> np.ndarray:
+    """Rotation matrix from spider's to 3rd segment's origin.
+
+    Args:
+        q_b (float): Angle from spider's origin to leg-base origin, in radians.
+        q_1 (float): Angle in first joint, in radians.
+        q_2 (float): Angle in second joint, in radians.
+        q_3 (float): Angle in third joint, in radians.
+
+    Returns:
+        np.ndarray: 3x3 rotation matrix.
+    """
     return np.array([
         [math.cos(q_2 + q_3) * math.cos(q_1 + q_b), -math.cos(q_1 + q_b) * math.sin(q_2 + q_3), math.sin(q_1 + q_b)],
         [math.cos(q_2 + q_3) * math.sin(q_1 + q_b), -math.sin(q_2 + q_3) * math.sin(q_1 + q_b), -math.cos(q_1 + q_b)],

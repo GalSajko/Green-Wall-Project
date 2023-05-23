@@ -6,12 +6,12 @@ import numba
 
 import config
 
-def calculate_signed_angle_between_two_vectors(first_vector, second_vector):
+def calculate_signed_angle_between_two_vectors(first_vector: np.ndarray, second_vector: np.ndarray) -> float:
     """Calculate signed angle between two vectors.
 
     Args:
-        first_vector (list): First vector.
-        second_vector (list): Second vector.
+        first_vector (np.ndarray): First vector.
+        second_vector (np.ndarray): Second vector.
 
     Returns:
         float: Signed angle in radians.
@@ -29,7 +29,7 @@ def calculate_signed_angle_between_two_vectors(first_vector, second_vector):
 
     return angle
 
-def running_average(buffer, counter, new_value):
+def running_average(buffer: list, counter: int, new_value: list) -> tuple[float, list, int]:
     """Calculate running average of values in buffer.
 
     Args:
@@ -54,14 +54,15 @@ def running_average(buffer, counter, new_value):
     return average, buffer, counter
 
 @numba.njit
-def damped_pseudoinverse(J, damping = config.FORCE_DAMPING):
+def damped_pseudoinverse(J: np.ndarray, damping: float = config.FORCE_DAMPING) -> np.ndarray:
     """Calculate damped Moore-Penrose pseudo inverse.
 
     Args:
         J (list): 3x3 matrix whose pseudo inverse will be calculated.
+        damping (float): Damping factor. Defaults to config.FORCE_DAMPING.
 
     Returns:
-        numpy.ndarray: 3x3 damped pseudo inverse of J.
+        np.ndarray: 3x3 damped pseudo inverse of J.
     """
     J_trans = np.transpose(J).astype(np.float32)
     J_J_trans = np.dot(J, J_trans).astype(np.float32)
@@ -71,7 +72,16 @@ def damped_pseudoinverse(J, damping = config.FORCE_DAMPING):
     return np.dot(J_trans, damped_factor)
 
 @numba.njit
-def weighted_pseudoinverse(J, A):
+def weighted_pseudoinverse(J: np.ndarray, A: np.ndarray) -> np.ndarray:
+    """Calculated weighted pseudoinverse of a given matrix.
+
+    Args:
+        J (np.ndarray): Matrix.
+        A (np.ndarray): Matrix of weights.
+
+    Returns:
+        np.ndarray: Weighted pseudoinverse.
+    """
     J_trans = np.transpose(J).astype(np.float32)
     A_inv = np.linalg.inv(A).astype(np.float32)
     J_w = np.dot(np.dot(A_inv, J_trans), np.linalg.inv(np.dot(J.astype(np.float32), np.dot(A_inv, J_trans))))

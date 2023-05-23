@@ -12,7 +12,12 @@ import config
 class ServerComm:
     """Class for communication with server via http requests.
     """
-    def __init__(self, spider_dict_path) :
+    def __init__(self, spider_dict_path: str):
+        """Class constructor. Starts threads for posting messages.
+
+        Args:
+            spider_dict_path (str): Path to file for reading spider's current state.
+        """
         self.HEADERS = {"Access-Control-Allow-Origin": "*"}
         self.MESSAGE = 'm'
         self.WARNING = 'w'
@@ -31,11 +36,11 @@ class ServerComm:
         self.__start_posting_spider_position()
         self.__start_posting_messages()
 
-    def request_goal_position(self):
+    def request_goal_position(self) -> np.ndarray:
         """Request goal position of a spider's movement.
 
         Returns:
-            numpy.ndarray: 1x3 array of goal position.
+            np.ndarray: 1x3 array of goal position.
         """
         try:
             request = requests.get(config.REQUEST_SENSOR_POSITION_ADDR, timeout = 1.0)
@@ -47,7 +52,7 @@ class ServerComm:
             print(f"Exception {e} at requesting sensor position data.")
         return goal_position
       
-    def send_message(self, message):
+    def send_message(self, message: str):
         """Send message to server.
 
         Args:

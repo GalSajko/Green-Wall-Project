@@ -3,39 +3,34 @@ import numpy as np
 import config
 
 #region public methods
-def get_trajectory(leg_current_position, leg_goal_position, duration, trajectory_type):
-    """Wrapper for calcuating trajectories of desired type.
+def get_trajectory(leg_current_position: np.ndarray, leg_goal_position: np.ndarray, duration: float, trajectory_type: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Calculate trajectories of desired type.
 
     Args:
-        start: Start pose or position.
-        goal: Goal pose or position.
-        duration: Desired duration of movement.
-        trajectory_type: Desired trajectory type (bezier or minJerk).
-
-    Raises:
-        ValueError: If trajectory type is unknown.
+        leg_current_position (np.ndarray): Start pose or position.
+        leg_goal_position (np.ndarray): Goal pose or position.
+        duration (float): Desired duration of movement.
+        trajectory_type (str): Desired trajectory type (bezier or min jerk).
 
     Returns:
-        Tuple: Position, velocity and acceleration trajectory, if calculation was succesfull.
+        tuple[np.ndarray, np.ndarray, np.ndarray]: Position, velocity and acceleration trajectory, if calculation was succesfull.
     """
     if trajectory_type == config.BEZIER_TRAJECTORY:
         return _bezierTrajectory(leg_current_position, leg_goal_position, duration)
     if trajectory_type == config.MINJERK_TRAJECTORY:
         return _min_jerk_trajectory(leg_current_position, leg_goal_position, duration)
-
-    raise ValueError("Unknown trajectory type!")
 #endregion
 
 #region private methods
-def _min_jerk_trajectory(start_pose, goal_pose, duration):
+def _min_jerk_trajectory(start_pose: np.ndarray, goal_pose: np.ndarray, duration: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate minimum jerk trajectory of positions and velocities between two points.
 
     Args:
-        start_pose (list): 1xn array of starting pose, where n can be: 
+        start_pose (np.ndarray): 1xn array of starting pose, where n can be: 
             - 3 for representing x, y, and z starting position,
             - 4 for representing x, y, z and rotZ, where rotZ is rotation around global z axis,
             - 6 for representing x, y, z, r, p and y pose given in global origin.
-        goal_pose (list): 1xn array of goal pose, where n can be: 
+        goal_pose (np.ndarray): 1xn array of goal pose, where n can be: 
             - 3 for representing x, y, and z goal position,
             - 4 for representing x, y, z and rotZ, where rotZ is rotation around global z axis,
             - 6 for representing x, y, z, r, p and y pose given in global origin.
@@ -83,12 +78,12 @@ def _min_jerk_trajectory(start_pose, goal_pose, duration):
 
     return trajectory, velocities, accelerations
 
-def _bezierTrajectory(start_position, goal_position, duration):
+def _bezierTrajectory(start_position: np.ndarray, goal_position: np.ndarray, duration: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate cubic bezier trajectory between start and goal point with fixed intermediat control points.
 
     Args:
-        start_position (list): 1x3 array of x, y, z values, representing starting position of trajectory, given in global origin.
-        goal_position (list): 1x3 array of x, y, z values, representing goal position of trajectory, given in global origin.
+        start_position (np.ndarray): 1x3 array of x, y, z values, representing starting position of trajectory, given in global origin.
+        goal_position (np.ndarray): 1x3 array of x, y, z values, representing goal position of trajectory, given in global origin.
         duration (float): Duration of trajectory.
 
     Raises:
