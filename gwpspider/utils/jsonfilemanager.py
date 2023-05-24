@@ -6,7 +6,7 @@ import config
 
 class JsonFileManager():
     def __init__(self):
-        self.FILENAME = 'spider_state_dict'
+        self.FILENAME = 'data/spider_state_dict'
 
         self.pins = wall.createGrid(True)
         self.state_dict = {

@@ -141,3 +141,5 @@ dmypy.json
 *.code-workspace
 
 .VSCodeCounter\*
+
+/data/*
