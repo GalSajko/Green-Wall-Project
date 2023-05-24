@@ -31,7 +31,7 @@ class CsvFileManager():
         """Write row into csv file.
         """
         row_data = self.__prepare_data(x_a_before, rpy, moving_leg_id, x_c, number_of_tries, x_a_after)
-        with open(self.FILENAME, 'a', encoding = 'utf-8') as file:
+        with open(self.FILENAME, 'a', encoding = 'utf-8', newline = '') as file:
             writer = csv.writer(file)
             if len(row_data) == len(self.HEADERS):
                 writer.writerow(row_data)
@@ -63,6 +63,8 @@ class CsvFileManager():
                     row += list(np.round(data.flatten(), 4))
                 except TypeError:
                     row += [int(data)]
+                except AttributeError:
+                    row += [int(data)]
 
         return row
 
@@ -92,6 +94,6 @@ class CsvFileManager():
     def __write_header(self):
         """Write header in csv file.
         """
-        with open(self.FILENAME, 'x', encoding = 'utf-8') as file:
+        with open(self.FILENAME, 'x', encoding = 'utf-8', newline = '') as file:
             writer = csv.writer(file)
             writer.writerow(self.HEADERS)

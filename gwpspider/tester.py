@@ -22,6 +22,8 @@ if __name__ == '__main__':
     data = json_manager.read_spider_state()
     print(data)
 
+    csv_manager.write_row(np.ones((5, 3)), np.ones(3), 1, np.ones(3), 10, np.ones((5, 3)))
+
     # _ = tp.get_trajectory(start, goal, 5, config.MINJERK_TRAJECTORY)
 
 
