@@ -36,22 +36,24 @@ class ServerComm:
 
         self.__start_posting_spider_position()
         self.__start_posting_messages()
-
-    def request_goal_position(self) -> np.ndarray:
-        """Request goal position of a spider's movement.
+    
+    def request_watering_action_instructions(self) -> tuple[np.ndarray, int, float]:
+        """Request instruction for following spider's move.
 
         Returns:
-            np.ndarray: 1x3 array of goal position.
+            tuple[np.ndarray, int, float]: Goal position, whether or not to refill water tank, volume of water that needs to be pumped using water pumps.
         """
         try:
-            request = requests.get(cc.REQUEST_SENSOR_POSITION_ADDR, timeout = 1.0)
-            if len(request._content.decode()) != 0:
-                with self.locker:
-                    data = json.loads(request._content)
-                goal_position = np.array([data[0], data[1], 0.0])
-        except requests.exceptions.RequestException as e:
-            print(f"Exception {e} at requesting sensor position data.")
-        return goal_position
+            request = requests.get(cc.REQUEST_WATERING_INSTRUCTION_ADDR, timeout = 1.0)
+            if request.status_code == requests.codes.ok:
+                data = json.loads(request.content)
+                goal_position = np.array([data[0][0], data[0][1], 0.0])
+                action = data[1]
+                volume = data[2]
+        except requests.exceptions.RequestException:
+            pass
+
+        return goal_position, bool(action), volume
       
     def send_message(self, message: str):
         """Send message to server.

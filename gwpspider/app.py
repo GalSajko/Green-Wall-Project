@@ -177,11 +177,9 @@ class App:
         
         while True:
             spider_pose, _, start_legs_positions = self.json_file_manager.read_spider_state()
-            do_refill_water_tank = self.watering_counter >= config.NUMBER_OF_WATERING_BEFORE_REFILL
             #TODO: Check new implementation.
-            poses, pins_instructions, watering_leg_id, plant_or_refill_position = self.__get_movement_instructions(
+            poses, pins_instructions, watering_leg_id, plant_or_refill_position, volume = self.__get_movement_instructions(
                 spider_pose,
-                do_refill_water_tank,
                 start_legs_positions,
             )
 
@@ -216,7 +214,7 @@ class App:
                 if not self.__move_legs_on_next_pins(current_pins_positions, previous_pins_positions, current_legs_moving_order, pose):
                     return
 
-            watering_success = self.__watering(watering_leg_id, plant_or_refill_position, poses[-1], do_refill_water_tank)
+            watering_success = self.__watering(watering_leg_id, plant_or_refill_position, poses[-1], do_refill = watering_leg_id == spider.REFILLING_LEG_ID, volume)
             if not watering_success:
                 return
         
@@ -372,6 +370,8 @@ class App:
                 x_a_after = self.x_a
             self.csv_file_manager.write_row(x_a_before, rpy, leg, leg_goal_position_in_local, number_of_tries, x_a_after)
 
+        self.server_comm.send_message(cc.LEG_MOVE_MESSAGE)
+
         return True
     
     def __correction(self, leg_id: int, global_z_direction_in_local: np.ndarray, leg_goal_position_in_local: np.ndarray) -> tuple[bool, int]:
@@ -507,7 +507,7 @@ class App:
 
         return True
 
-    def __watering(self, watering_leg_id: int, plant_or_refill_position: np.ndarray, spider_pose: np.ndarray, do_refill: bool) -> bool:
+    def __watering(self, watering_leg_id: int, plant_or_refill_position: np.ndarray, spider_pose: np.ndarray, do_refill: bool, volume: float) -> bool:
         """Watering the plant or refillint water tank.
 
         Args:
@@ -515,10 +515,12 @@ class App:
             plant_or_refill_position (np.ndarray): Plant position or refill position.
             spider_pose (np.ndarray): Spider's pose.
             do_refill (bool): Whether or not to refill water tank.
+            volume (bool): Volume of water whether for refilling or watering, in millilitres.
 
         Returns:
             bool: True if watering or refilling was successful, False otherwise.
         """
+        #TODO: Convert desired volume of water into time that specific water pump needs to pump that volume.
         if not self.__distribute_forces(np.delete(spider.LEGS_IDS, watering_leg_id), config.FORCE_DISTRIBUTION_DURATION):
             return False
 
@@ -601,29 +603,38 @@ class App:
 
         return True
     
-    def __get_watering_instructions(self, spider_pose: np.ndarray, do_refill_water_tank: bool) -> tuple[int, np.ndarray, np.ndarray]:
+    def __get_watering_instructions(self, spider_pose: np.ndarray) -> tuple[int, np.ndarray, np.ndarray, float]:
         """Get instructions for watering or refilling.
 
         Args:
             spider_pose (np.ndarray): Spider's pose.
-            do_refill_water_tank (bool): Whether or not refill water tank.
 
         Returns:
-            tuple[int, np.ndarray, np.ndarray]: Leg id, spider's goal pose, plant or refill position.
+            tuple[int, np.ndarray, np.ndarray, float]: Leg id, spider's goal pose, plant or refill position, desired amount of water to be pumped in mL.
         """
-        if do_refill_water_tank:
-            watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, do_refill = True)
-            plant_or_refill_position = goal_pose[:3] + spider.REFILLING_LEG_OFFSET
-        else:
-            if not self.was_in_resting_state:
-                plant_or_refill_position = self.server_comm.request_goal_position()
-                self.last_plant_or_refill_position = plant_or_refill_position
-            else:
-                plant_or_refill_position = self.last_plant_or_refill_position
-                self.was_in_resting_state = False
+        # If robot does not start from resting state, request new instructions.
+        if not self.was_in_resting_state:
+            plant_or_refill_position, do_refill_water_tank, volume = self.server_comm.request_watering_action_instructions()
+            self.last_plant_or_refill_position = plant_or_refill_position
             watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, plant_or_refill_position)
-        
-        return watering_leg_id, goal_pose, plant_or_refill_position
+
+            # Calculate refill position and select leg.
+            if do_refill_water_tank:
+                watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, do_refill = True)
+                #TODO: Include refilling leg position in server-side code.
+                plant_or_refill_position = goal_pose[:3]+ spider.REFILLING_LEG_OFFSET
+
+                return watering_leg_id, goal_pose, plant_or_refill_position, volume
+
+            return watering_leg_id, goal_pose, plant_or_refill_position, volume
+
+        # If robot starts from resting state, continue movement towards last commanded plant / refill position.
+        #TODO: Handle the case if program is shut down during movement.
+        plant_or_refill_position = self.last_plant_or_refill_position
+        self.was_in_resting_state = False
+        watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, plant_or_refill_position)
+
+        return watering_leg_id, goal_pose, plant_or_refill_position, volume
 
     def __error_case_procedure(self):
         """Procedure in case of error.
@@ -659,20 +670,19 @@ class App:
         switches_states = self.joints_velocity_controller.grippers_arduino.get_tools_states(self.joints_velocity_controller.grippers_arduino.SWITCH)
         return switches_states[self.moving_leg_id] == self.joints_velocity_controller.grippers_arduino.IS_CLOSE_RESPONSE
     
-    def __get_movement_instructions(self, spider_pose: np.ndarray, do_refill_water_tank: bool, start_legs_positions: np.ndarray) -> tuple[list, list, int, np.ndarray]:
+    def __get_movement_instructions(self, spider_pose: np.ndarray, start_legs_positions: np.ndarray) -> tuple[list, list, int, np.ndarray, float]:
         """Get all neccessary instructions for moving between two points on the wall.
 
         Args:
             spider_pose (np.ndarray): Spider's current pose.
-            do_refill_water_tank (bool): Whether or not to refill water tank.
             start_legs_positions (np.ndarray): Array of legs' current positions.
 
         Returns:
-            tuple[list, list, int, np.ndarray]: List of poses, list of pins, id of leg for watering, plant or refill position.
+            tuple[list, list, int, np.ndarray, float]: List of poses, list of pins, id of leg for watering, plant or refill position, desired volume of water to be pumped in mL.
         """
         while True:
             try:
-                watering_leg_id, goal_pose, plant_or_refill_position = self.__get_watering_instructions(spider_pose, do_refill_water_tank)
+                watering_leg_id, goal_pose, plant_or_refill_position, volume = self.__get_watering_instructions(spider_pose)
                     
                 if self.is_working_init:
                     planning_result = pathplanner.modified_walking_instructions(start_legs_positions, goal_pose)
@@ -690,7 +700,7 @@ class App:
                 print("Error in path planning. Trying again... ")
             time.sleep(0.05)
         
-        return poses, pins_instructions, watering_leg_id, plant_or_refill_position
+        return poses, pins_instructions, watering_leg_id, plant_or_refill_position, volume
 
     def __move_legs_on_next_pins(self, current_pins_positions:np.ndarray, previous_pins_positions: np.ndarray, legs_moving_order: list, pose: list) -> bool:
         """Execute legs' pin to pin movements.
@@ -709,8 +719,6 @@ class App:
             if previous_to_current_pins_offsets[idx].any():
                 movement_success = self.__pin_to_pin_leg_movement(leg, previous_pins_positions[idx], current_pins_positions[idx], pose)
                 if not movement_success:
-                    #TODO: Include in error/warning/message logic.
-                    print("UNSUCCESSFUL PIN TO PIN MOVEMENT.")
                     return False
         
         return True
