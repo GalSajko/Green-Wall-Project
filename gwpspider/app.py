@@ -22,7 +22,7 @@ from planning import pathplanner
 class App:
     """Application layer.
     """
-    def __init__(self):
+    def __init__(self, do_record_data = False):
         self.q_a = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         self.x_a = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.tau_a = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
@@ -35,7 +35,6 @@ class App:
         self.pumps_bno_arduino = arduinocomm.WaterPumpsBnoArduino()
         self.thread_manager = threadmanager.CustomThread()
         self.json_file_manager = jsonfilemanager.JsonFileManager()
-        self.csv_file_manager = csvfilemanager.CsvFileManager()
         self.server_comm = servercomm.ServerComm(self.json_file_manager.FILENAME)
 
         self.locker = threading.Lock()
@@ -59,6 +58,11 @@ class App:
         self.moving_leg_id = None
 
         self.is_gripper_error = False
+
+        self.do_record_data = do_record_data
+        if do_record_data:
+            self.csv_file_manager = csvfilemanager.CsvFileManager()
+            
 
         self.__init_layers()
 
@@ -331,9 +335,9 @@ class App:
             bool: True if movement was successful, False otherwise.
         """
         # Read legs positions before movement.
-        with self.locker:
-            x_a_before = self.x_a
-        leg_movement_data = x_a_before.flatten()
+        if self.do_record_data:
+            with self.locker:
+                x_a_before = self.x_a
 
         # Distribute forces among other legs.
         if not self.__distribute_forces(np.delete(spider.LEGS_IDS, leg), config.FORCE_DISTRIBUTION_DURATION):
@@ -363,13 +367,10 @@ class App:
                 return False
             number_of_tries += number_of_corrections
 
-        leg_movement_data = np.append(leg_movement_data, number_of_tries)
-
-        with self.locker:
-            x_a_after = self.x_a
-        leg_movement_data = np.append(leg_movement_data, x_a_after.flatten())
-
-        self.csv_file_manager.write_row(np.round(leg_movement_data, 4))
+        if self.do_record_data:
+            with self.locker:
+                x_a_after = self.x_a
+            self.csv_file_manager.write_row(x_a_before, rpy, leg, leg_goal_position_in_local, number_of_tries, x_a_after)
 
         return True
     
@@ -847,11 +848,6 @@ class App:
             self.joints_velocity_controller.stop_force_mode()
             return False
 
-        
-        # leg_movement_data = np.append(leg_movement_data, rpy_bno)
-        # leg_movement_data = np.append(leg_movement_data, rpy)
-        # leg_movement_data = np.append(leg_movement_data, leg)
-
         self.joints_velocity_controller.stop_force_mode()
         if self.safety_kill_event.wait(timeout = 1.0):
             return False
@@ -931,8 +927,6 @@ class App:
         #TODO: Check microswitch checking.
         with self.locker:
             self.moving_leg_id = leg
-
-        # leg_movement_data = np.append(leg_movement_data, leg_goal_position_in_local.flatten())
 
         self.json_file_manager.update_pins(leg, goal_pin_position)
         if self.safety_kill_event.wait(timeout = 3.0):

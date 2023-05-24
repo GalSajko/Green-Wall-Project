@@ -1,6 +1,7 @@
 from planning import trajectoryplanner as tp
 from planning import pathplanner as pp
 from gwpconfig import commconstants
+from utils import csvfilemanager as cm
 
 import numpy as np
 import config
@@ -12,6 +13,9 @@ if __name__ == '__main__':
 
     path = pp.calculate_spider_body_path(start_pose, goal_pose)
     print(path)
+
+    csv_manager = cm.CsvFileManager()
+    
     # _ = tp.get_trajectory(start, goal, 5, config.MINJERK_TRAJECTORY)
 
 
