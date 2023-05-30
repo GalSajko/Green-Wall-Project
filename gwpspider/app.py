@@ -65,7 +65,6 @@ class App:
         if do_record_data:
             self.csv_file_manager = csvfilemanager.CsvFileManager()
             
-
         self.__init_layers()
 
     def safety_layer(self):
@@ -1000,4 +999,5 @@ class App:
 if __name__ == '__main__':
     app = App()
     time.sleep(1)
-    app.spider_states_manager(config.WORKING_STATE, False)
+    # app.spider_states_manager(config.WORKING_STATE, False)
+    app.test_prediction_model()
