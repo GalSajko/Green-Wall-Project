@@ -214,7 +214,7 @@ class App:
                 if not self.__move_legs_on_next_pins(current_pins_positions, previous_pins_positions, current_legs_moving_order, pose):
                     return
 
-            watering_success = self.__watering(watering_leg_id, plant_or_refill_position, poses[-1], do_refill = watering_leg_id == spider.REFILLING_LEG_ID, volume)
+            watering_success = self.__watering(watering_leg_id, plant_or_refill_position, poses[-1], watering_leg_id == spider.REFILLING_LEG_ID, volume)
             if not watering_success:
                 return
         
@@ -536,7 +536,14 @@ class App:
             if not do_refill:
                 return False
 
-        self.joints_velocity_controller.move_leg_async(watering_leg_id, x_a_leg_before_watering, plant_or_refill_position, config.GLOBAL_ORIGIN, 3, config.BEZIER_TRAJECTORY, spider_pose)
+        self.joints_velocity_controller.move_leg_async(
+            watering_leg_id,
+            x_a_leg_before_watering,
+            plant_or_refill_position,
+            config.GLOBAL_ORIGIN,
+            3,
+            config.BEZIER_TRAJECTORY,
+            spider_pose)
         if self.safety_kill_event.wait(timeout = 3.5):
             if not do_refill:
                 return False
