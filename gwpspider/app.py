@@ -60,7 +60,6 @@ class App:
 
         self.is_gripper_error = False
 
-        self.use_prediction_model = use_prediction_model
         self.do_record_data = do_record_data
         if do_record_data:
             self.csv_file_manager = csvfilemanager.CsvFileManager()
