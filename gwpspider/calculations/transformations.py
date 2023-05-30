@@ -2,7 +2,7 @@
 """
 import numpy as np
 import math
-from gwpwall import wall
+from gwpconfig import wall
 
 import config
 import spider
@@ -135,6 +135,41 @@ def convert_in_local_goal_positions(
     if not is_offset:
         return get_leg_position_in_local(leg_id, leg_goal_position_or_offset, spider_pose)
     return np.array(leg_current_position_in_local + get_global_direction_in_local(leg_id, spider_pose, leg_goal_position_or_offset), dtype = np.float32)
+
+def transform_vector(vector: np.ndarray, given_in_origin: str, transform_to_origin: str, leg_id: int) -> np.ndarray:
+    """Transform (x, y, z) vector between spider's and leg's origins.
+
+    Args:
+        vector (np.ndarray): Vector.
+        given_in_origin (str): Origin that vector is given in.
+        transform_to_origin (str): Origin that vector should be transformed into.
+        leg_id (int): Leg id.
+
+    Raises:
+        ValueError: If parameter given_in_origin is not valid.
+        ValueError: If parameter transform_to_origin is not valid.
+
+    Returns:
+        np.ndarray: Transformed vector.
+    """
+    if given_in_origin not in (config.LEG_ORIGIN, config.SPIDER_ORIGIN):
+        raise ValueError(f"{given_in_origin} is not recognized as known origin.")
+    if transform_to_origin not in (config.LEG_ORIGIN, config.SPIDER_ORIGIN):
+        raise ValueError(f"{transform_to_origin} is not recognized as known origin.")
+    
+    original_vector = np.copy(vector)
+    if len(vector) == 3:
+        original_vector = np.append(vector, 1)
+
+    if given_in_origin == config.LEG_ORIGIN and transform_to_origin == config.SPIDER_ORIGIN:
+        return np.dot(spider.T_BASES[leg_id], original_vector)[:3]
+
+    if given_in_origin == config.SPIDER_ORIGIN and transform_to_origin == config.LEG_ORIGIN:
+        return np.dot(np.linalg.inv(spider.T_BASES[leg_id]), original_vector)[:3]
+    
+    if given_in_origin == transform_to_origin:
+        return vector
+
 
 def get_watering_leg_and_pose(spider_pose: np.ndarray, plant_position: np.ndarray = None, do_refill: bool = False) -> tuple[int, np.ndarray]:
     """Calculate spider's pose for watering the plant or refilling water tank and leg used for the task.

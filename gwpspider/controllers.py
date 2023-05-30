@@ -2,6 +2,7 @@ import numpy as np
 import time
 import threading
 import queue
+from gwpoffpm import offset_predictor
 
 import config
 import spider
@@ -36,6 +37,8 @@ class VelocityController:
         self.is_velocity_mode = False
         self.velocity_mode_legs_ids = None
         self.velocity_mode_direction = np.zeros(3, dtype = np.float32)
+
+        self.prediction_model = offset_predictor.OffsetPredictor('data/model_v0.pth')
 
         time.sleep(1)
     
@@ -109,12 +112,23 @@ class VelocityController:
 
         return dq_c
     
-    def move_leg_async(self, leg_id: int, leg_current_position: np.ndarray, leg_goal_position_or_offset: np.ndarray, origin: str, duration: float, trajectory_type: str, spider_pose: list = None, is_offset: bool = False) -> np.ndarray:
+    def move_leg_async(
+        self,
+        leg_id: int,
+        legs_current_positions: np.ndarray,
+        leg_goal_position_or_offset: np.ndarray,
+        origin: str,
+        duration: float,
+        trajectory_type: str,
+        use_prediction_model: bool = False,
+        rpy: list = None,
+        spider_pose: list = None,
+        is_offset: bool = False) -> np.ndarray:
         """Write reference positions and velocities into leg-queue.
 
         Args:
             leg_id (int): Leg id.
-            leg_current_position (np.ndarray): Leg's current position.
+            legs_current_positions (np.ndarray): Legs' current positions.
             leg_goal_position_or_offset (np.ndarray): Leg's goal position or offset.
             origin (str): Origin that goal position is given in.
             duration (float): Desired movement duration.
@@ -136,8 +150,17 @@ class VelocityController:
 
         self.legs_queues[leg_id] = queue.Queue()
 
-        leg_goal_position_in_local = tf.convert_in_local_goal_positions(leg_id, leg_current_position, leg_goal_position_or_offset, origin, is_offset, spider_pose)
-        position_trajectory, velocity_trajectory, acceleration_trajectory = tp.get_trajectory(leg_current_position, leg_goal_position_in_local, duration, trajectory_type)
+        leg_goal_position_in_local = tf.convert_in_local_goal_positions(leg_id, legs_current_positions[leg_id], leg_goal_position_or_offset, origin, is_offset, spider_pose)
+
+        #TODO: Test prediction model.
+        if use_prediction_model:
+            onehot_legs = np.zeros(spider.NUMBER_OF_LEGS)
+            onehot_legs[leg_id] = 1
+            prediction_model_data = np.concatenate((legs_current_positions.flatten(), rpy, leg_goal_position_in_local, onehot_legs), axis = 0)
+            predicted_offset = self.prediction_model(prediction_model_data)
+            leg_goal_position_in_local = leg_goal_position_in_local + predicted_offset
+
+        position_trajectory, velocity_trajectory, acceleration_trajectory = tp.get_trajectory(legs_current_positions[leg_id], leg_goal_position_in_local, duration, trajectory_type)
 
         for idx, position in enumerate(position_trajectory):
             self.legs_queues[leg_id].put([position[:3], velocity_trajectory[idx][:3], acceleration_trajectory[idx][:3]])
@@ -145,7 +168,16 @@ class VelocityController:
 
         return leg_goal_position_in_local
             
-    def move_legs_sync(self, legs_ids: list, legs_current_positions: np.ndarray, legs_goal_positions_or_offsets: np.ndarray, origin: str, duration: float, trajectory_type:str, spider_pose: list = None, is_offset: bool = False):
+    def move_legs_sync(
+        self,
+        legs_ids: list,
+        legs_current_positions: np.ndarray,
+        legs_goal_positions_or_offsets: np.ndarray,
+        origin: str,
+        duration: float,
+        trajectory_type:str,
+        spider_pose: list = None,
+        is_offset: bool = False):
         """Write reference positions and velocities in any number (less than 5) of leg-queues. Legs start to move at the same time. 
         Meant for moving a platform.
 
@@ -157,7 +189,8 @@ class VelocityController:
             duration (float): Desired duration of movements.
             trajectory_type (str): Type of movement trajectory (bezier or minJerk).
             spider_pose (list, optional): Spider pose in global origin, used if legs_goal_positions_or_offsets are given in global. Defaults to None.
-            offset (bool, optional): If true, move legs relatively to current positions, legs_goal_positions_or_offsets should be given as desired offsets in global origin. Defaults to False.
+            offset (bool, optional): If true, move legs relatively to current positions, legs_goal_positions_or_offsets should be given as desired offsets in global origin. 
+            Defaults to False.
 
         Raises:
             ValueError: If origin is unknown.
@@ -180,8 +213,13 @@ class VelocityController:
         ddx_d = np.zeros((len(legs_ids), int(duration / self.PERIOD), 3) , dtype = np.float32)
 
         for idx, leg in enumerate(legs_ids):          
-            leg_goal_position_in_local = tf.convert_in_local_goal_positions(leg, legs_current_positions[leg], legs_goal_positions_or_offsets[idx], origin, is_offset, spider_pose) 
-            position_trajectory, velocity_trajectory, acceleration_trajectory = tp.get_trajectory(legs_current_positions[leg], leg_goal_position_in_local, duration, trajectory_type)
+            leg_goal_position_in_local = tf.convert_in_local_goal_positions(leg, legs_current_positions[leg], legs_goal_positions_or_offsets[idx], origin, is_offset, spider_pose)
+            position_trajectory, velocity_trajectory, acceleration_trajectory = tp.get_trajectory(
+                legs_current_positions[leg],
+                leg_goal_position_in_local,
+                duration,
+                trajectory_type
+                )
 
             x_d[idx] = position_trajectory[:, :3]
             dx_d[idx] = velocity_trajectory[:, :3]

@@ -1,7 +1,7 @@
 """ Module for simulating Green Wall environment and Spiders movement. """
 import matplotlib.pyplot as plt
 import numpy as np
-from gwpwall import wall
+from gwpconfig import wall
 
 import spider  
 from calculations import transformations as tf

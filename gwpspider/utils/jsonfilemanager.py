@@ -1,6 +1,6 @@
 import json
 import numpy as np
-from gwpwall import wall
+from gwpconfig import wall
 
 import config
 

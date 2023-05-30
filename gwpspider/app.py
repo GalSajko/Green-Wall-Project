@@ -3,6 +3,7 @@ import threading
 import time
 import os
 from gwpconfig import commconstants as cc
+from gwpconfig import wall
 
 import config
 import controllers
@@ -22,7 +23,7 @@ from planning import pathplanner
 class App:
     """Application layer.
     """
-    def __init__(self, do_record_data = False):
+    def __init__(self, do_record_data = False, use_prediction_model = True):
         self.q_a = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         self.x_a = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.tau_a = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
@@ -59,6 +60,7 @@ class App:
 
         self.is_gripper_error = False
 
+        self.use_prediction_model = use_prediction_model
         self.do_record_data = do_record_data
         if do_record_data:
             self.csv_file_manager = csvfilemanager.CsvFileManager()
@@ -276,6 +278,27 @@ class App:
         time.sleep(10)
         self.joints_velocity_controller.stop_force_mode()
 
+    #TODO: Only for testing. Delete after.
+    def test_prediction_model(self):
+        init_spider_pose = np.array([2.5, 1.0, 0.3])
+        pins = wall.create_grid(True)
+        used_pins = [pins[100], pins[100], pins[100], pins[100], pins[100]]
+        with self.locker:
+            x_a = self.x_a
+        self.joints_velocity_controller.move_legs_sync(spider.LEGS_IDS, x_a, used_pins, config.GLOBAL_ORIGIN, 5, config.MINJERK_TRAJECTORY, init_spider_pose)
+        time.sleep(5.5)
+        while True:
+            with self.locker:
+                x_a = self.x_a
+            random_spider_move = np.random.uniform(low = -0.1, high = 0.1, size = (2, ))
+            random_spider_move = np.append(random_spider_move, 0.0)
+            spider_pose = init_spider_pose + random_spider_move
+            self.joints_velocity_controller.move_legs_sync(spider.LEGS_IDS, x_a, used_pins, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, spider_pose)
+            time.sleep(2)
+
+            self.__pin_to_pin_leg_movement(0, used_pins[0], used_pins[0] + 1, spider_pose, True)
+            self.__pin_to_pin_leg_movement(0, used_pins[0] + 1, used_pins[0], spider_pose, True)
+
     # region private methods
     def __init_layers(self):
         """Initialize application layers.
@@ -320,7 +343,7 @@ class App:
             return False
         return True
     
-    def __pin_to_pin_leg_movement(self, leg: int, current_pin_position: np.ndarray, goal_pin_position: np.ndarray, pose: np.ndarray) -> bool:
+    def __pin_to_pin_leg_movement(self, leg: int, current_pin_position: np.ndarray, goal_pin_position: np.ndarray, pose: np.ndarray, use_prediction_model: bool = False) -> bool:
         """Move leg from one pin to another.
 
         Args:
@@ -349,7 +372,7 @@ class App:
         pin_to_pin_vector_in_local, leg_base_orientation_in_global = tf.get_pin_to_pin_vector_in_local(leg, rpy, current_pin_position, goal_pin_position)
         global_z_direction_in_local = np.dot(leg_base_orientation_in_global, np.array([0.0, 0.0, 1.0], dtype = np.float32))
         
-        movement_success, leg_goal_position_in_local = self.__move_leg_pin_to_pin(leg, pin_to_pin_vector_in_local, goal_pin_position)
+        movement_success, leg_goal_position_in_local = self.__move_leg_pin_to_pin(leg, pin_to_pin_vector_in_local, goal_pin_position, rpy, use_prediction_model)
         if not movement_success:
             return False
 
@@ -428,8 +451,8 @@ class App:
                 return (False, number_of_tries)
  
             with self.locker:
-                x_a_leg = self.x_a[leg_id]
-            self.joints_velocity_controller.move_leg_async(leg_id, x_a_leg, detach_position, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY)
+                x_a = self.x_a
+            self.joints_velocity_controller.move_leg_async(leg_id, x_a, detach_position, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY)
             if self.safety_kill_event.wait(timeout = 1.5):
                 return (False, number_of_tries)
             
@@ -528,7 +551,7 @@ class App:
         _, _, legs_global_positions = self.json_file_manager.read_spider_state()
         with self.locker:
             q_a = self.q_a
-            x_a_leg_before_watering = self.x_a[watering_leg_id]
+            x_a_before = self.x_a
         spider_pose = kin.get_spider_pose(spider.LEGS_IDS, legs_global_positions, q_a)
 
         self.joints_velocity_controller.grippers_arduino.move_gripper(watering_leg_id, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
@@ -538,7 +561,7 @@ class App:
 
         self.joints_velocity_controller.move_leg_async(
             watering_leg_id,
-            x_a_leg_before_watering,
+            x_a_before,
             plant_or_refill_position,
             config.GLOBAL_ORIGIN,
             3,
@@ -580,9 +603,9 @@ class App:
         
         # Move leg back on starting position.
         with self.locker:
-            x_a_leg_after_watering = self.x_a[watering_leg_id]
+            x_a_after = self.x_a
 
-        self.joints_velocity_controller.move_leg_async(watering_leg_id, x_a_leg_after_watering, x_a_leg_before_watering, config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
+        self.joints_velocity_controller.move_leg_async(watering_leg_id, x_a_after, x_a_before[watering_leg_id], config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
         if self.safety_kill_event.wait(timeout = 3.5):
             if not do_refill:
                 return False
@@ -912,7 +935,7 @@ class App:
 
         return rpy
         
-    def __move_leg_pin_to_pin(self, leg: int, pin_to_pin_vector_in_local: np.ndarray, goal_pin_position: np.ndarray) -> tuple[bool, np.ndarray]:
+    def __move_leg_pin_to_pin(self, leg: int, pin_to_pin_vector_in_local: np.ndarray, goal_pin_position: np.ndarray, rpy: list = None, use_prediction_model: bool = False) -> tuple[bool, np.ndarray]:
         """Move leg from current pin to the next one.
 
         Args:
@@ -925,14 +948,16 @@ class App:
         """
         # Move leg and update spider state.
         with self.locker:
-            x_a_leg = self.x_a[leg]
+            x_a = self.x_a
         leg_goal_position_in_local = self.joints_velocity_controller.move_leg_async(
             leg,
-            x_a_leg,
+            x_a,
             pin_to_pin_vector_in_local,
             config.LEG_ORIGIN,
             3,
             config.BEZIER_TRAJECTORY,
+            use_prediction_model = use_prediction_model,
+            rpy = rpy,
             is_offset = True,
         )
         # Wait 1 second for leg to start moving.

@@ -3,6 +3,8 @@ import numpy as np
 from os import path
 
 import spider
+import config
+from calculations import transformations as tf
 
 class CsvFileManager():
     def __init__(self):
@@ -84,10 +86,10 @@ class CsvFileManager():
         x_a_transformed_after = np.zeros((5, 3))
 
         for i in range(spider.NUMBER_OF_LEGS):
-            x_a_transformed_before[i, :] = np.dot(spider.T_BASES[i],  np.append(x_a_before[i, :], 1))[:3]
-            x_a_transformed_after[i, :] = np.dot(spider.T_BASES[i], np.append(x_a_after[i, :], 1))[:3]
+            x_a_transformed_before[i, :] = tf.transform_vector(x_a_before[i, :], config.LEG_ORIGIN, config.SPIDER_ORIGIN, moving_leg_id)
+            x_a_transformed_after[i, :] = tf.transform_vector(x_a_after[i, :], config.LEG_ORIGIN, config.SPIDER_ORIGIN, moving_leg_id)
 
-        x_c_transformed = np.dot(spider.T_BASES[moving_leg_id], np.append(x_c, 1))[:3]
+        x_c_transformed = tf.transform_vector(x_c[i, :], config.LEG_ORIGIN, config.SPIDER_ORIGIN, moving_leg_id)
 
         return x_a_transformed_before, x_a_transformed_after, x_c_transformed
 
