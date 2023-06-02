@@ -278,9 +278,9 @@ class App:
 
     #TODO: Only for testing. Delete after.
     def test_prediction_model(self):
-        init_spider_pose = np.array([2.5, 1.0, 0.3])
+        init_spider_pose = np.array([3.0, 1.8, 0.3])
         pins = wall.create_grid(True)
-        used_pins = [pins[100], pins[100], pins[100], pins[100], pins[100]]
+        used_pins = [pins[204], pins[177], pins[187], pins[213], pins[216]]
         with self.locker:
             x_a = self.x_a
         self.joints_velocity_controller.move_legs_sync(spider.LEGS_IDS, x_a, used_pins, config.GLOBAL_ORIGIN, 5, config.MINJERK_TRAJECTORY, init_spider_pose)

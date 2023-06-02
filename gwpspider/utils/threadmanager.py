@@ -1,6 +1,6 @@
 import threading
 import time
-from typing import Callable
+from typing import Callable, Union
 
 class CustomThread:
     def run(
@@ -11,7 +11,7 @@ class CustomThread:
         start: bool = True,
         use_kill_event: bool = True,
         do_print: bool = True,
-        function_args: tuple = ()) -> tuple[threading.Thread, threading.Event] | threading.Thread:
+        function_args: tuple = ()) -> Union[tuple[threading.Thread, threading.Event], threading.Thread]:
         """Create and run given function in separate thread. 
 
         Args:

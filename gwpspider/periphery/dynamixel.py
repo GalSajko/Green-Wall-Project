@@ -5,6 +5,7 @@ import threading
 import os
 import numpy as np
 from dynamixel_sdk import *
+from typing import Union
 
 from utils import mappers
 import spider
@@ -201,7 +202,7 @@ class MotorDriver:
             if comm:
                 print(f"Watchdog on motor {motor_id} has been successfully set to {value}")
 
-    def enable_disable_legs(self, command: str, legs_ids: list | int = 5):
+    def enable_disable_legs(self, command: str, legs_ids: Union[list, int] = 5):
         """Enable or disable motors in legs.
 
         Args:

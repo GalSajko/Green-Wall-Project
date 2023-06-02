@@ -56,7 +56,8 @@ class ArduinoComm:
                 with self.locker:
                     msg += self.comm.readline()
 
-            self.received_message = msg.decode("utf-8", errors = "ignore").rstrip()
+            with self.locker:
+                self.received_message = msg.decode("utf-8", errors = "ignore").rstrip()
 
     def _send_data(self, msg: str):
         """Send data to Arduino.
@@ -75,9 +76,13 @@ class ArduinoComm:
         """
         self._send_data(self.INIT_MESSAGE)
         time.sleep(0.01)
-        while self.received_message != self.INIT_RESPONSE:
+        with self.locker:
+            rec_msg = self.received_message
+        while rec_msg != self.INIT_RESPONSE:
             time.sleep(0.01)
             self._send_data(self.INIT_MESSAGE)
+            with self.locker:
+                rec_msg = self.received_message
         print("Handshake with grippers Arduino successfull.")
 
 class GrippersArduino(ArduinoComm):
