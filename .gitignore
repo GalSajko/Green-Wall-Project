@@ -135,7 +135,7 @@ dmypy.json
 /environment/test.py
 
 # Spider state json file
-./spider_state_dict
+# ./spider_state_dict
 *.swp
 
 *.code-workspace
