@@ -23,7 +23,7 @@ from planning import pathplanner
 class App:
     """Application layer.
     """
-    def __init__(self, do_record_data = False, use_prediction_model = True):
+    def __init__(self, do_record_data = False):
         self.q_a = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
         self.x_a = np.zeros((spider.NUMBER_OF_LEGS, 3), dtype = np.float32)
         self.tau_a = np.zeros((spider.NUMBER_OF_LEGS, spider.NUMBER_OF_MOTORS_IN_LEG), dtype = np.float32)
@@ -627,7 +627,7 @@ class App:
             leg_base_orientation_in_global = np.linalg.inv(np.dot(spider_orientation_in_global, spider.T_BASES[watering_leg_id][:3, :3]))
             global_z_direction_in_local = np.dot(leg_base_orientation_in_global, np.array([0.0, 0.0, 1.0], dtype = np.float32))
 
-            return self.__correction(watering_leg_id, global_z_direction_in_local, x_a_leg_before_watering)
+            return self.__correction(watering_leg_id, global_z_direction_in_local, x_a_before[watering_leg_id])
 
         return True
     
@@ -650,7 +650,7 @@ class App:
             if do_refill_water_tank:
                 watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, do_refill = True)
                 #TODO: Include refilling leg position in server-side code.
-                plant_or_refill_position = goal_pose[:3]+ spider.REFILLING_LEG_OFFSET
+                plant_or_refill_position = goal_pose[:3] + spider.REFILLING_LEG_OFFSET
 
                 return watering_leg_id, goal_pose, plant_or_refill_position, volume
 
