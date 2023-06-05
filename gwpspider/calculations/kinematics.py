@@ -192,8 +192,8 @@ def get_spider_pose(legs_ids: list, legs_positions_in_global: np.ndarray, joints
     """
     legs_positions_in_global = np.array(legs_positions_in_global)
     legs_ids = list(legs_ids)
-    legs_combinations = itt.combinations(legs_ids, 3)
-    poses = np.zeros(6, len(legs_combinations))
+    legs_combinations = list(itt.combinations(legs_ids, 3))
+    poses = np.zeros((len(legs_combinations), 6))
     for combination_index, legs_subset in enumerate(legs_combinations):
         legs_subset = np.array(legs_subset)
         subset_indexes = [legs_ids.index(leg) for leg in legs_subset]
@@ -371,7 +371,7 @@ def get_xd_xdd_from_offsets(
 
     for i, leg in enumerate(force_mode_legs_ids):
         # Rotate offset and velocity vector in spider's origin into leg-local origin.
-        spider_to_leg_rotation = np.transpose(spider_to_leg_transformations[leg][:3, :3])
+        spider_to_leg_rotation = np.ascontiguousarray(np.transpose(spider_to_leg_transformations[leg][:3, :3]))
         offsets_in_locals[i] = np.dot(spider_to_leg_rotation, offsets_in_spider[leg])
         velocities_in_locals[i] = np.dot(spider_to_leg_rotation, velocities_in_spider[leg])
 

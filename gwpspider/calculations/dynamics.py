@@ -10,26 +10,16 @@ from calculations import kinematics as kin
 from calculations import mathtools as mathTools
 from calculations import transformations as tf
 
-#region properties
-@property
-def A_TORQUE_POLYNOM():
-    return 0.0
-
-@property
-def B_TORQUE_POLYNOM():
-    return 2.9326
-
-@property
-def C_TORQUE_POLYNOM():
-    return -0.1779
-#endregion
+A_TORQUE_POLYNOM = 0.0
+B_TORQUE_POLYNOM = 2.9326
+C_TORQUE_POLYNOM = -0.1779
 
 # region public methods
 @numba.jit(nopython=True, cache=False)
 def get_torques_and_forces_on_legs_tips(
-    joints_values: np.ndarray, 
-    currents_in_motors: np.ndarray, 
-    spider_gravity_vector: np.ndarray, 
+    joints_values: np.ndarray,
+    currents_in_motors: np.ndarray,
+    spider_gravity_vector: np.ndarray,
     number_of_legs: int = spider.NUMBER_OF_LEGS) -> tuple[np.ndarray, np.ndarray]:
     """Calculate forces, applied to tips of all legs, from currents in motors.
 

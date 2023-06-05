@@ -78,7 +78,8 @@ class App:
                     is_motors_errors = self.motors_errors
                     is_gripper_error = self.is_gripper_error
 
-                is_microswitch_error = self.__is_microswitch_error()
+                # is_microswitch_error = self.__is_microswitch_error()
+                is_microswitch_error = False
                 if is_microswitch_error:
                     self.server_comm.send_message(cc.MICROSWITCH_ERROR)
                 is_motors_error = is_motors_errors.any() and (self.current_state == config.WORKING_STATE)
@@ -118,7 +119,8 @@ class App:
 
                 # Calculating input data for controller.
                 x_a = kin.all_legs_positions(q_a, config.LEG_ORIGIN)
-                tau, f = dyn.get_torques_and_forces_on_legs_tips(q_a, i_a, self.pumps_bno_arduino.get_gravity_vector())
+                gravity_vector = self.pumps_bno_arduino.get_gravity_vector()
+                tau, f = dyn.get_torques_and_forces_on_legs_tips(q_a, i_a, gravity_vector)       
                 tau_mean, tau_buffer, tau_counter = mathtools.running_average(tau_buffer, tau_counter, tau)
                 force_mean, force_buffer, force_counter = mathtools.running_average(force_buffer, force_counter, f)
 
@@ -139,9 +141,8 @@ class App:
 
                 # Enforce desired frequency.
                 elapsed_time = time.perf_counter() - start_time
-                # TODO: test this implementation of sleeping. It should ensure more precise loop period, but what happens if control loop already takes longer that period?
                 try:
-                    time.sleep(self.joints_velocity_controller.PERIOD - (elapsed_time % self.joints_velocity_controller.PERIOD))
+                    time.sleep(self.joints_velocity_controller.PERIOD - elapsed_time)
                 except ValueError:
                     time.sleep(0)
 
@@ -278,24 +279,26 @@ class App:
 
     #TODO: Only for testing. Delete after.
     def test_prediction_model(self):
-        init_spider_pose = np.array([3.0, 1.8, 0.3])
+        init_spider_pose = np.array([3.0, 1.7, 0.3, 0.0])
         pins = wall.create_grid(True)
-        used_pins = [pins[204], pins[177], pins[187], pins[213], pins[216]]
+        used_pins = [pins[203], pins[177], pins[187], pins[213], pins[229]]
         with self.locker:
             x_a = self.x_a
-        self.joints_velocity_controller.move_legs_sync(spider.LEGS_IDS, x_a, used_pins, config.GLOBAL_ORIGIN, 5, config.MINJERK_TRAJECTORY, init_spider_pose)
+        self.joints_velocity_controller.move_legs_sync(spider.LEGS_IDS, x_a, used_pins, config.GLOBAL_ORIGIN, 5, config.MINJERK_TRAJECTORY, spider_pose = init_spider_pose)
         time.sleep(5.5)
+        self.pumps_bno_arduino.reset_bno()
+
         while True:
             with self.locker:
                 x_a = self.x_a
             random_spider_move = np.random.uniform(low = -0.1, high = 0.1, size = (2, ))
-            random_spider_move = np.append(random_spider_move, 0.0)
+            random_spider_move = np.append(random_spider_move, [0.0, 0.0])
             spider_pose = init_spider_pose + random_spider_move
             self.joints_velocity_controller.move_legs_sync(spider.LEGS_IDS, x_a, used_pins, config.GLOBAL_ORIGIN, 1.5, config.MINJERK_TRAJECTORY, spider_pose)
             time.sleep(2)
 
-            self.__pin_to_pin_leg_movement(0, used_pins[0], used_pins[0] + 1, spider_pose, True)
-            self.__pin_to_pin_leg_movement(0, used_pins[0] + 1, used_pins[0], spider_pose, True)
+            success = self.__pin_to_pin_leg_movement(0, used_pins[0], pins[204], spider_pose, True)
+            success = self.__pin_to_pin_leg_movement(0, pins[204], used_pins[0], spider_pose, True)
 
     # region private methods
     def __init_layers(self):
@@ -696,7 +699,13 @@ class App:
             bool: True if one or more microswitches are in error, False otherwise.
         """
         switches_states = self.joints_velocity_controller.grippers_arduino.get_tools_states(self.joints_velocity_controller.grippers_arduino.SWITCH)
-        return switches_states[self.moving_leg_id] == self.joints_velocity_controller.grippers_arduino.IS_CLOSE_RESPONSE
+        print(switches_states)
+        # switches_states = '11111'
+        if self.moving_leg_id is not None:
+            return switches_states[int(self.moving_leg_id)] == self.joints_velocity_controller.grippers_arduino.IS_CLOSE_RESPONSE
+        
+        return False
+        
     
     def __get_movement_instructions(self, spider_pose: np.ndarray, start_legs_positions: np.ndarray) -> tuple[list, list, int, np.ndarray, float]:
         """Get all neccessary instructions for moving between two points on the wall.
@@ -862,17 +871,20 @@ class App:
             bool: True if releasing was successfull, False otherwise.
         """
         if not self.__start_pushing_to_prevent_slipping(leg, pose, goal_pin_position):
+            print("SLIP PUSH ERROR")
             return False
 
         # Prevent leg movement if not all legs are attached to the wall.
-        if len(self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs()) != spider.NUMBER_OF_LEGS:
-            self.server_comm.send_message(cc.ALL_LEGS_NOT_ATTACHED_ERROR)
-            return False
+        # if len(self.joints_velocity_controller.grippers_arduino.get_ids_of_attached_legs()) != spider.NUMBER_OF_LEGS:
+        #     self.server_comm.send_message(cc.ALL_LEGS_NOT_ATTACHED_ERROR)
+        #     print("LEGS NOT ATTACHED ERROR")
+        #     return False
         
         # Open the gripper.
         self.joints_velocity_controller.grippers_arduino.move_gripper(leg, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
         if self.safety_kill_event.wait(timeout = 3.5):
             self.joints_velocity_controller.stop_force_mode()
+            print("GRIPPER ERROR")
             return False
 
         #TODO: Check new implementation.
@@ -882,10 +894,12 @@ class App:
                 self.is_gripper_error = True
             self.server_comm.send_message(cc.GRIPPER_ERROR)
             self.joints_velocity_controller.stop_force_mode()
+            print("GRIPPER ERROR 2")
             return False
 
         self.joints_velocity_controller.stop_force_mode()
         if self.safety_kill_event.wait(timeout = 1.0):
+            print("ERROR")
             return False
         
         return True
@@ -997,6 +1011,14 @@ class App:
 #TODO: Create new entry point in separate file.
 if __name__ == '__main__':
     app = App()
-    time.sleep(1)
+    time.sleep(5)
     # app.spider_states_manager(config.WORKING_STATE, False)
     app.test_prediction_model()
+    # while True:
+    #     for i in range(5):
+    #         app.joints_velocity_controller.move_leg_async(i, app.x_a, np.array([0.45, 0.0, 0.1]), config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
+    #         time.sleep(3)
+        
+    #     for i in range(5):
+    #         app.joints_velocity_controller.move_leg_async(i, app.x_a, np.array([0.3, 0.0, 0.0]), config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
+    #         time.sleep(3)

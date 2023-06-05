@@ -3,6 +3,7 @@ import time
 import threading
 import queue
 from gwpoffpm import offset_predictor
+import os
 
 import config
 import spider
@@ -38,7 +39,7 @@ class VelocityController:
         self.velocity_mode_legs_ids = None
         self.velocity_mode_direction = np.zeros(3, dtype = np.float32)
 
-        self.prediction_model = offset_predictor.OffsetPredictor('data/model_v0.pth')
+        self.prediction_model = offset_predictor.OffsetPredictor(os.path.abspath('gwpspider/data/model_v0.pth'))
 
         time.sleep(1)
     

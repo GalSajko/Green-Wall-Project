@@ -1,14 +1,15 @@
 import json
 import numpy as np
 from gwpconfig import wall
+import os
 
 import config
 
 class JsonFileManager():
     def __init__(self):
-        self.FILENAME = 'data/spider_state_dict'
+        self.FILENAME = os.path.abspath('gwpspider/data/spider_state_dict')
 
-        self.pins = wall.createGrid(True)
+        self.pins = wall.create_grid(True)
         self.state_dict = {
             'pose' : [],
             'pins' : []

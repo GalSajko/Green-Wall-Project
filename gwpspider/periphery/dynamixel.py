@@ -41,7 +41,7 @@ class MotorDriver:
         self.__init_port()
         time.sleep(5)
         if enable_motors:
-            self.enable_legs()
+            self.enable_disable_legs(config.ENABLE_LEGS_COMMAND)
         
         # Disable (reset) watchdogs on motors.
         self.set_bus_watchdog(0)
@@ -114,8 +114,6 @@ class MotorDriver:
     @property
     def MAX_WORKING_TEMPERATURE(self):
         return 55
-    
-
     #endregion
 
     #region public methods 

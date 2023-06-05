@@ -53,7 +53,7 @@ def running_average(buffer: list, counter: int, new_value: list) -> tuple[float,
 
     return average, buffer, counter
 
-@numba.njit
+@numba.jit(nopython = True, cache = True)
 def damped_pseudoinverse(J: np.ndarray, damping: float = config.FORCE_DAMPING) -> np.ndarray:
     """Calculate damped Moore-Penrose pseudo inverse.
 
@@ -71,7 +71,7 @@ def damped_pseudoinverse(J: np.ndarray, damping: float = config.FORCE_DAMPING) -
 
     return np.dot(J_trans, damped_factor)
 
-@numba.njit
+@numba.jit(nopython = True, cache = True)
 def weighted_pseudoinverse(J: np.ndarray, A: np.ndarray) -> np.ndarray:
     """Calculated weighted pseudoinverse of a given matrix.
 

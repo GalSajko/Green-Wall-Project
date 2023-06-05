@@ -1,5 +1,5 @@
-# from calculations import initnumba
+from calculations import initnumba
 
 print("Initializing numba functions...")
-# initnumba.initNumbaFunctions()
+initnumba.initNumbaFunctions()
 print("Numba initialization completed.")

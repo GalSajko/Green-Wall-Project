@@ -34,7 +34,7 @@ class ArduinoComm:
     
     @property
     def INIT_RESPONSE(self):
-        return 'ok'
+        return 'OK'
     #endregion
     
     def _init_reading_thread(self):
@@ -83,7 +83,7 @@ class ArduinoComm:
             self._send_data(self.INIT_MESSAGE)
             with self.locker:
                 rec_msg = self.received_message
-        print("Handshake with grippers Arduino successfull.")
+        print(f"Handshake with Arduino {self.device} successfull.")
 
 class GrippersArduino(ArduinoComm):
     """Class for controlling grippers via serial communication with Arduino.
@@ -143,7 +143,7 @@ class GrippersArduino(ArduinoComm):
         """Get states of desired tool (grippers or switches).
 
         Args:
-            tool (str): Tool identification.
+            tool (str): Tool identificator.
 
         Raises:
             ValueError: If selected tool is not valid (not gripper or switch).
@@ -154,7 +154,8 @@ class GrippersArduino(ArduinoComm):
         if tool not in (self.GRIPPER, self.SWITCH):
             raise ValueError("Wrong tool selected.")
         
-        rec_msg = ''
+        with self.locker:
+            rec_msg = self.received_message
         while len(rec_msg) != self.RECEIVED_MESSAGE_LENGTH:
             with self.locker:
                 rec_msg = self.received_message
@@ -249,7 +250,7 @@ class WaterPumpsBnoArduino(ArduinoComm):
                 use_reading = False
                 break
             
-        if use_reading:  
+        if use_reading: 
             roll = float(rec_msg[0 : 5])
             pitch = float(rec_msg[5 : 10])
             yaw = float(rec_msg[10 : 15])

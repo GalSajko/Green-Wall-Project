@@ -1,6 +1,7 @@
 """Module for calculating transformations between different origins.
 """
 import numpy as np
+import numba
 import math
 from gwpconfig import wall
 
@@ -250,6 +251,7 @@ def get_last_joint_to_goal_pin_vector_in_spider(
 
     return last_joint_to_goal_pin_in_spider / np.linalg.norm(last_joint_to_goal_pin_in_spider) 
 
+@numba.jit(nopython = True, cache = True)
 def R_B1(q_b: float, q_1: float) -> np.ndarray:
     """Rotation matrix from spider's to 1st segment's origin.
 
@@ -266,6 +268,7 @@ def R_B1(q_b: float, q_1: float) -> np.ndarray:
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
+@numba.jit(nopython = True, cache = True)
 def R_12(q_2: float) -> np.ndarray:
     """Rotation matrix from 1st to 2nd leg-segment.
 
@@ -281,6 +284,7 @@ def R_12(q_2: float) -> np.ndarray:
         [math.sin(q_2), math.cos(q_2), 0.0]
     ], dtype = np.float32)
 
+@numba.jit(nopython = True, cache = True)
 def R_23(q_3: float):
     """Rotation matrix from 2nd to 3rd leg-segment.
 
@@ -296,6 +300,7 @@ def R_23(q_3: float):
         [0.0, 0.0, 1.0]
     ], dtype = np.float32)
 
+@numba.jit(nopython = True, cache = True)
 def R_B2(q_b: float, q_1: float, q_2: float) -> np.ndarray:
     """Rotation matrix from spider's to 2nd segment's origin.
 
@@ -313,6 +318,7 @@ def R_B2(q_b: float, q_1: float, q_2: float) -> np.ndarray:
         [math.sin(q_2), math.cos(q_2), 0.0]
     ], dtype = np.float32)
 
+@numba.jit(nopython = True, cache = True)
 def R_B3(q_b: float, q_1: float, q_2: float, q_3: float) -> np.ndarray:
     """Rotation matrix from spider's to 3rd segment's origin.
 
