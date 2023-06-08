@@ -78,7 +78,7 @@ class App:
                     is_motors_errors = self.motors_errors
                     is_gripper_error = self.is_gripper_error
 
-                is_microswitch_error = self.__is_microswitch_error()
+                # is_microswitch_error = self.__is_microswitch_error()
                 is_microswitch_error = False
                 if is_microswitch_error:
                     self.server_comm.send_message(cc.MICROSWITCH_ERROR)
@@ -299,6 +299,12 @@ class App:
 
             success = self.__pin_to_pin_leg_movement(0, used_pins[0], pins[204], spider_pose, True)
             success = self.__pin_to_pin_leg_movement(0, pins[204], used_pins[0], spider_pose, True)
+
+            success = self.__pin_to_pin_leg_movement(0, used_pins[0], pins[190], spider_pose, True)
+            success = self.__pin_to_pin_leg_movement(0, pins[190], used_pins[0], spider_pose, True)
+
+            success = self.__pin_to_pin_leg_movement(0, used_pins[0], pins[216], spider_pose, True)
+            success = self.__pin_to_pin_leg_movement(0, pins[216], used_pins[0], spider_pose, True)
 
     # region private methods
     def __init_layers(self):
@@ -567,7 +573,7 @@ class App:
             config.GLOBAL_ORIGIN,
             3,
             config.BEZIER_TRAJECTORY,
-            spider_pose)
+            spider_pose = spider_pose)
         if self.safety_kill_event.wait(timeout = 3.5):
             if not do_refill:
                 return False
@@ -646,8 +652,12 @@ class App:
         # If robot does not start from resting state, request new instructions.
         if not self.was_in_resting_state:
             plant_or_refill_position, do_refill_water_tank, volume = self.server_comm.request_watering_action_instructions()
+            print(f"REFILLING: {do_refill_water_tank}")
+            print(f"PLANT POSITION {plant_or_refill_position}")
+
             self.last_plant_or_refill_position = plant_or_refill_position
             watering_leg_id, goal_pose = tf.get_watering_leg_and_pose(spider_pose, plant_or_refill_position)
+            print(f"GOAL POSITION {goal_pose}")
 
             # Calculate refill position and select leg.
             if do_refill_water_tank:
@@ -717,25 +727,26 @@ class App:
         Returns:
             tuple[list, list, int, np.ndarray, float]: List of poses, list of pins, id of leg for watering, plant or refill position, desired volume of water to be pumped in mL.
         """
-        while True:
-            try:
-                watering_leg_id, goal_pose, plant_or_refill_position, volume = self.__get_watering_instructions(spider_pose)
-                    
-                if self.is_working_init:
-                    planning_result = pathplanner.modified_walking_instructions(start_legs_positions, goal_pose)
-                    if not planning_result:
-                        os._exit(0)
-                    else:
-                        poses, pins_instructions = planning_result
-                    self.is_working_init = False
-                    break
-                    
-                poses, pins_instructions = pathplanner.create_walking_instructions(spider_pose, goal_pose)
-                break
-            except Exception:
-                #TODO: Include in error/warning/message logic.
-                print("Error in path planning. Trying again... ")
-            time.sleep(0.05)
+        # while True:
+        #     try:
+        watering_leg_id, goal_pose, plant_or_refill_position, volume = self.__get_watering_instructions(spider_pose)
+            
+        if self.is_working_init:
+            planning_result = pathplanner.modified_walking_instructions(start_legs_positions, goal_pose)
+            if not planning_result:
+                os._exit(0)
+            else:
+                poses, pins_instructions = planning_result
+            self.is_working_init = False
+            # break
+            return poses, pins_instructions, watering_leg_id, plant_or_refill_position, volume
+            
+        poses, pins_instructions = pathplanner.create_walking_instructions(spider_pose, goal_pose)
+            #     break
+            # except Exception as e:
+            #     #TODO: Include in error/warning/message logic.
+            #     print(f"Error {e} in path planning. Trying again... ")
+            # time.sleep(0.05)
         
         return poses, pins_instructions, watering_leg_id, plant_or_refill_position, volume
 
@@ -1009,13 +1020,5 @@ class App:
 if __name__ == '__main__':
     app = App()
     time.sleep(5)
-    # app.spider_states_manager(config.WORKING_STATE, False)
-    app.test_prediction_model()
-    # while True:
-    #     for i in range(5):
-    #         app.joints_velocity_controller.move_leg_async(i, app.x_a, np.array([0.45, 0.0, 0.1]), config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
-    #         time.sleep(3)
-        
-    #     for i in range(5):
-    #         app.joints_velocity_controller.move_leg_async(i, app.x_a, np.array([0.3, 0.0, 0.0]), config.LEG_ORIGIN, 3, config.BEZIER_TRAJECTORY)
-    #         time.sleep(3)
+    app.spider_states_manager(config.WORKING_STATE, False)
+    # app.test_prediction_model()

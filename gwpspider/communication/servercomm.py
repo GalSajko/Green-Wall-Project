@@ -37,21 +37,23 @@ class ServerComm:
         self.__start_posting_spider_position()
         self.__start_posting_messages()
     
-    def request_watering_action_instructions(self) -> tuple[np.ndarray, int, float]:
+    def request_watering_action_instructions(self) -> tuple[np.ndarray, bool, float]:
         """Request instruction for following spider's move.
 
         Returns:
-            tuple[np.ndarray, int, float]: Goal position, whether or not to refill water tank, volume of water that needs to be pumped using water pumps.
+            tuple[np.ndarray, bool, float]: Goal position, whether or not to refill water tank, volume of water that needs to be pumped using water pumps.
         """
         try:
             request = requests.get(cc.REQUEST_WATERING_INSTRUCTION_ADDR, timeout = 1.0)
             if request.status_code == requests.codes.ok:
                 data = json.loads(request.content)
-                goal_position = np.array([data[0][0], data[0][1], 0.0])
-                action = data[1]
-                volume = data[2]
-        except requests.exceptions.RequestException:
-            pass
+                goal_position = np.array([data[0], data[1], 0.0])
+                action = data[2]
+                volume = data[3]
+            else:
+                print(f"Watering instructions request status code {request.status_code}")
+        except requests.exceptions.RequestException as e:
+            print(e)
 
         return goal_position, bool(action), volume
       

@@ -184,7 +184,7 @@ def get_watering_leg_and_pose(spider_pose: np.ndarray, plant_position: np.ndarra
         tuple: Leg id and spider's pose used for watering the plant.
     """
     if not do_refill and plant_position is None:
-        raise ValueError("If task is watering the plant, plant position should be given.")
+        raise ValueError("If task is to water the plant, plant position should be given.")
     
     if not do_refill:
         first_leg_watering_pose = np.array([
@@ -215,7 +215,7 @@ def get_watering_leg_and_pose(spider_pose: np.ndarray, plant_position: np.ndarra
                 watering_pose = fourth_leg_watering_pose
             else:
                 watering_leg = spider.WATERING_LEGS_IDS[0]
-                watering_pose = first_leg_watering_pose       
+                watering_pose = first_leg_watering_pose    
 
         return watering_leg, watering_pose
     
