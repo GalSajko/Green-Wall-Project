@@ -78,7 +78,7 @@ class App:
                     is_motors_errors = self.motors_errors
                     is_gripper_error = self.is_gripper_error
 
-                # is_microswitch_error = self.__is_microswitch_error()
+                is_microswitch_error = self.__is_microswitch_error()
                 is_microswitch_error = False
                 if is_microswitch_error:
                     self.server_comm.send_message(cc.MICROSWITCH_ERROR)
@@ -698,9 +698,9 @@ class App:
         Returns:
             bool: True if one or more microswitches are in error, False otherwise.
         """
-        switches_states = self.joints_velocity_controller.grippers_arduino.get_tools_states(self.joints_velocity_controller.grippers_arduino.SWITCH)
-        print(switches_states)
-        # switches_states = '11111'
+        # switches_states = self.joints_velocity_controller.grippers_arduino.get_tools_states(self.joints_velocity_controller.grippers_arduino.SWITCH)
+        # print(switches_states)
+        switches_states = '11111'
         if self.moving_leg_id is not None:
             return switches_states[int(self.moving_leg_id)] == self.joints_velocity_controller.grippers_arduino.IS_CLOSE_RESPONSE
         
@@ -884,7 +884,6 @@ class App:
         self.joints_velocity_controller.grippers_arduino.move_gripper(leg, self.joints_velocity_controller.grippers_arduino.OPEN_COMMAND)
         if self.safety_kill_event.wait(timeout = 3.5):
             self.joints_velocity_controller.stop_force_mode()
-            print("GRIPPER ERROR")
             return False
 
         #TODO: Check new implementation.
@@ -894,12 +893,10 @@ class App:
                 self.is_gripper_error = True
             self.server_comm.send_message(cc.GRIPPER_ERROR)
             self.joints_velocity_controller.stop_force_mode()
-            print("GRIPPER ERROR 2")
             return False
 
         self.joints_velocity_controller.stop_force_mode()
         if self.safety_kill_event.wait(timeout = 1.0):
-            print("ERROR")
             return False
         
         return True
