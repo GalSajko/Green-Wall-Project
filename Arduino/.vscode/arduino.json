@@ -1,0 +1,7 @@
+{
+    "configuration": "cpu=atmega328",
+    "board": "arduino:avr:nano",
+    "port": "/dev/ttyUSB2",
+    "programmer": "avrisp",
+    "sketch": "water_pump_bno_controll/water_pump_bno_controll.ino"
+}
