@@ -56,6 +56,7 @@ class App:
                 isHwError = hwErrors.any() and self.currentState == config.WORKING_STATE
 
                 if isHwError:
+                    print(hwErrors)
                     self.safetyKillEvent.set()
                     # Wait for working thread to stop.
                     if config.WORKING_THREAD_NAME in self.spiderStateThread.name:
@@ -170,7 +171,8 @@ class App:
                         wateringLegId, endPose = tf.getWateringLegAndPose(startPose, doRefill = True)
                         wateringPosition = endPose[:3] + spider.REFILLING_LEG_OFFSET
                     else:
-                        wateringPosition = self.comunicationWithServer.sensorPosition
+                        # wateringPosition = self.comunicationWithServer.sensorPosition
+                        wateringPosition = [2.0, 1.0, 0.0]
                         print(f"PLANT POSITION {wateringPosition}")
                         wateringLegId, endPose = tf.getWateringLegAndPose(startPose, wateringPosition)
                     if isInit:
@@ -406,7 +408,9 @@ class App:
         detachPosition[2] += detachOffsetZ
         for offset in offsets:
             self.motorsVelocityController.grippersArduino.moveGripper(legId, self.motorsVelocityController.grippersArduino.OPEN_COMMAND)
- 
+            if self.safetyKillEvent.wait(timeout = 1.0):
+                return False
+            
             with self.statesObjectsLocker:
                 xALeg = self.xA[legId]
             self.motorsVelocityController.moveLegAsync(legId, xALeg, detachPosition, config.LEG_ORIGIN, 1, config.MINJERK_TRAJECTORY)
